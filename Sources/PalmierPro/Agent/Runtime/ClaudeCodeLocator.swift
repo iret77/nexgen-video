@@ -47,6 +47,12 @@ struct ClaudeCodeLocator {
         return nil
     }
 
+    /// Just find the binary (no --version subprocess) — cheap enough to call from a view body.
+    static func locateOnly(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
+        let home = environment["HOME"] ?? NSHomeDirectory()
+        return locateExecutable(candidates: candidatePaths(home: home, path: environment["PATH"]))
+    }
+
     /// Resolve binary + version from the given environment. Synchronous — used by settings/status.
     static func resolve(environment: [String: String] = ProcessInfo.processInfo.environment) -> Result {
         let home = environment["HOME"] ?? NSHomeDirectory()

@@ -16,8 +16,8 @@ final class ClaudeCodeRuntime {
     private let mcpPort: Int
     private let permissionMode: String
     private let resolveExecutable: () -> URL?
-    private let resolveWorkingDirectory: () -> URL?
-    private let onUpdate: ([AgentMessage], _ isStreaming: Bool) -> Void
+    private let resolveWorkingDirectory: @MainActor () -> URL?
+    private let onUpdate: @MainActor ([AgentMessage], _ isStreaming: Bool) -> Void
 
     private var mapper = ClaudeCodeEventMapper()
     private var process: ClaudeCodeProcess?
@@ -28,8 +28,8 @@ final class ClaudeCodeRuntime {
         mcpPort: Int = 19789,
         permissionMode: String = "acceptEdits",
         resolveExecutable: @escaping () -> URL? = { ClaudeCodeLocator.resolve().executableURL },
-        resolveWorkingDirectory: @escaping () -> URL?,
-        onUpdate: @escaping ([AgentMessage], Bool) -> Void
+        resolveWorkingDirectory: @MainActor @escaping () -> URL?,
+        onUpdate: @MainActor @escaping ([AgentMessage], Bool) -> Void
     ) {
         self.pluginDirectories = pluginDirectories
         self.mcpPort = mcpPort

@@ -297,6 +297,13 @@ final class AgentService {
     }
 
     func send(text: String, mentions: [AgentMention]) {
+        if claudeRuntimeEnabled {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            streamError = nil
+            claudeRuntime.send(text: trimmed)
+            return
+        }
         guard canStream else {
             streamError = .upstream("Sign in to a paid plan or add an Anthropic API key to start.")
             return
@@ -318,9 +325,50 @@ final class AgentService {
     }
 
     func cancel() {
+        if claudeRuntimeEnabled {
+            claudeRuntime.stop()
+            return
+        }
         currentTask?.cancel()
         currentTask = nil
         isStreaming = false
+    }
+
+    // MARK: - Claude Code runtime (Stufe B)
+
+    private var claudeRuntimeEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "useClaudeCodeRuntime")
+    }
+
+    @ObservationIgnored
+    private lazy var claudeRuntime: ClaudeCodeRuntime = makeClaudeRuntime()
+
+    private func makeClaudeRuntime() -> ClaudeCodeRuntime {
+        ClaudeCodeRuntime(
+            pluginDirectories: Self.configuredPluginDirectories(),
+            mcpPort: MCPService.port,
+            resolveWorkingDirectory: { [weak self] in
+                Self.configuredWorkingDirectory(projectURL: self?.editor?.projectURL)
+            },
+            onUpdate: { [weak self] messages, isStreaming in
+                self?.messages = messages
+                self?.isStreaming = isStreaming
+            }
+        )
+    }
+
+    private static func configuredPluginDirectories() -> [URL] {
+        guard let path = UserDefaults.standard.string(forKey: "claudeRuntimePluginDir"), !path.isEmpty else {
+            return []
+        }
+        return [URL(fileURLWithPath: path)]
+    }
+
+    private static func configuredWorkingDirectory(projectURL: URL?) -> URL? {
+        if let override = UserDefaults.standard.string(forKey: "claudeRuntimeWorkingDir"), !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return projectURL
     }
 
     private func kickOffStream() {
