@@ -346,7 +346,7 @@ final class AgentService {
     private func makeClaudeRuntime() -> ClaudeCodeRuntime {
         ClaudeCodeRuntime(
             pluginDirectories: Self.configuredPluginDirectories(),
-            mcpPort: MCPService.port,
+            mcpPort: Int(MCPService.port),
             resolveWorkingDirectory: { [weak self] in
                 Self.configuredWorkingDirectory(projectURL: self?.editor?.projectURL)
             },
