@@ -73,8 +73,7 @@ enum ClaudeStreamDecoder {
                 return .assistantBlock(messageId: messageId, block: .text(text))
             case "tool_use":
                 guard let id = block["id"] as? String, let name = block["name"] as? String else { return nil }
-                let input = block["input"] as? [String: Any] ?? [:]
-                return .assistantBlock(messageId: messageId, block: .toolUse(id: id, name: name, inputJSON: jsonString(input)))
+                return .assistantBlock(messageId: messageId, block: .toolUse(id: id, name: name, inputJSON: jsonString(block["input"])))
             default:
                 // thinking, redacted_thinking, etc. — not surfaced in the panel.
                 return nil
@@ -117,9 +116,11 @@ enum ClaudeStreamDecoder {
         }
     }
 
-    private static func jsonString(_ object: [String: Any]) -> String {
-        guard JSONSerialization.isValidJSONObject(object),
-              let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
+    /// Serialize a parsed JSON value (e.g. a tool_use `input` object) back to a compact string.
+    /// Operates on the raw `Any` from JSONSerialization to avoid lossy intermediate bridging casts.
+    private static func jsonString(_ value: Any?) -> String {
+        guard let value, JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
               let string = String(data: data, encoding: .utf8)
         else { return "{}" }
         return string

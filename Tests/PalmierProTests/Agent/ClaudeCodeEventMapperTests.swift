@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import PalmierPro
 
@@ -57,7 +58,11 @@ struct ClaudeCodeEventMapperTests {
         #expect(uses.count == 1)
         #expect(uses.first?.id == "toolu_9")
         #expect(uses.first?.name == "importMedia")
-        #expect(uses.first?.inputJSON.contains("/abs/sample.mp4") == true)
+        // Decode inputJSON back so the assertion is robust to key order / slash escaping.
+        let inputJSON = uses.first?.inputJSON ?? "{}"
+        let parsed = (try? JSONSerialization.jsonObject(with: Data(inputJSON.utf8), options: [])) as? [String: Any]
+        let path = (parsed?["source"] as? [String: Any])?["path"] as? String
+        #expect(path == "/abs/sample.mp4")
     }
 
     @Test func differentMessageIdsStaySeparate() {
