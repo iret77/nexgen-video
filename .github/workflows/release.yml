@@ -20,6 +20,15 @@ on:
         required: false
         default: true
         type: boolean
+  # On PRs touching the signing setup, run the FULL pipeline end-to-end in dry mode (build → sign →
+  # notarize → staple → DMG artifact), so the whole thing is validated under our identity before merge.
+  pull_request:
+    paths:
+      - "scripts/bundle.sh"
+      - "scripts/PalmierPro.entitlements"
+      - "scripts/update_appcast.py"
+      - ".github/workflows/release.yml"
+      - "Sources/PalmierPro/Resources/Info.plist"
 
 permissions:
   contents: write
@@ -31,10 +40,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate version
+      - name: Resolve version + mode
         run: |
-          echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' \
-            || { echo "version must be X.Y.Z (got '${{ inputs.version }}')"; exit 1; }
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+            echo "$V" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "version must be X.Y.Z (got '$V')"; exit 1; }
+            DRY="${{ inputs.dry_run }}"
+          else
+            V="0.0.0"
+            DRY="true"
+          fi
+          echo "REL_VERSION=$V" >> "$GITHUB_ENV"
+          echo "REL_DRY=$DRY" >> "$GITHUB_ENV"
+          echo "Building $V (dry=$DRY, event=${{ github.event_name }})"
 
       - name: Cache SwiftPM
         uses: actions/cache@v4
@@ -93,7 +112,7 @@ jobs:
           PLIST="Sources/PalmierPro/Resources/Info.plist"
           CUR="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")"
           NEW=$((CUR + 1))
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ inputs.version }}" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $REL_VERSION" "$PLIST"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW" "$PLIST"
           echo "BUILD_NUMBER=$NEW" >> "$GITHUB_ENV"
 
@@ -120,7 +139,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Upload DMG artifact (dry run)
-        if: ${{ inputs.dry_run }}
+        if: ${{ env.REL_DRY == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: NexGenVideo-dmg
@@ -128,25 +147,25 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub release + appcast
-        if: ${{ !inputs.dry_run }}
+        if: ${{ env.REL_DRY == 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="v${{ inputs.version }}"
+          TAG="v$REL_VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Sources/PalmierPro/Resources/Info.plist
-          git commit -m "release: bump to ${{ inputs.version }} (build ${BUILD_NUMBER})"
+          git commit -m "release: bump to $REL_VERSION (build ${BUILD_NUMBER})"
           if [ -n "${ED_SIGNATURE:-}" ]; then
-            python3 scripts/update_appcast.py "${{ inputs.version }}" "$BUILD_NUMBER" "$DMG_LENGTH" "$ED_SIGNATURE" "$TAG"
+            python3 scripts/update_appcast.py "$REL_VERSION" "$BUILD_NUMBER" "$DMG_LENGTH" "$ED_SIGNATURE" "$TAG"
             git add appcast.xml
             git commit -m "release: appcast for $TAG"
           fi
           git push origin "HEAD:${{ github.ref_name }}"
           gh release create "$TAG" .build/NexGenVideo.dmg \
             --title "NexGen Video $TAG" \
-            --notes "NexGen Video ${{ inputs.version }} (build ${BUILD_NUMBER})." \
+            --notes "NexGen Video $REL_VERSION (build ${BUILD_NUMBER})." \
             --target "$(git rev-parse HEAD)"
 
       - name: Clean up keychain
