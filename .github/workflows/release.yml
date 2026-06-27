@@ -20,8 +20,11 @@ on:
         required: false
         default: true
         type: boolean
+  # Every push to main rebuilds and refreshes the signed + notarized `dev-latest` rolling download.
+  push:
+    branches: [main]
   # On PRs touching the signing setup, run the FULL pipeline end-to-end in dry mode (build → sign →
-  # notarize → staple → DMG artifact), so the whole thing is validated under our identity before merge.
+  # notarize → staple → DMG → dev-latest), so the whole thing is validated under our identity pre-merge.
   pull_request:
     paths:
       - "scripts/bundle.sh"
@@ -138,13 +141,17 @@ jobs:
             echo "DMG_LENGTH=$(stat -f%z .build/NexGenVideo.dmg)"
           } >> "$GITHUB_ENV"
 
-      - name: Upload DMG artifact (dry run)
-        if: ${{ env.REL_DRY == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: NexGenVideo-dmg
-          path: .build/NexGenVideo.dmg
-          if-no-files-found: error
+      - name: Publish signed build to rolling dev-latest
+        if: ${{ env.REL_DRY == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete dev-latest --cleanup-tag --yes 2>/dev/null || true
+          gh release create dev-latest .build/NexGenVideo.dmg \
+            --prerelease \
+            --title "NexGen Video — latest dev build" \
+            --notes "Signed with our Developer ID (high5 ventures GmbH) and notarized by Apple — open the DMG and drag NexGen Video to Applications. No Gatekeeper workaround needed. Auto-built from \`${{ github.sha }}\`."
 
       - name: Publish GitHub release + appcast
         if: ${{ env.REL_DRY == 'false' }}
