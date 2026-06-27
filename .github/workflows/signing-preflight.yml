@@ -1,0 +1,57 @@
+name: Signing preflight
+
+# Validates the signing secrets BEFORE a real release: the imported cert is a
+# "Developer ID Application" identity (not Apple Distribution), and the App Store Connect API key
+# authenticates. Fails loudly if not — per the task's "ZUERST PRÜFEN, sonst stoppen" rule.
+# Runs on PRs touching the signing setup, and on demand.
+
+on:
+  pull_request:
+    paths:
+      - "scripts/bundle.sh"
+      - "scripts/PalmierPro.entitlements"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/signing-preflight.yml"
+      - "Sources/PalmierPro/Resources/Info.plist"
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Verify Developer ID cert + notary API key
+        env:
+          CERT_B64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PW: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          NOTARY_KEY_B64: ${{ secrets.MACOS_NOTARY_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/preflight.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -base64 24)"
+          printf '%s' "$CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PW" -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+
+          echo "== codesigning identities in the imported cert =="
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          if ! security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "Developer ID Application"; then
+            echo "::error::Imported cert is NOT a 'Developer ID Application' identity — cannot sign for outside-App-Store distribution. Stop."
+            exit 1
+          fi
+          echo "OK: 'Developer ID Application' identity present."
+
+          printf '%s' "$NOTARY_KEY_B64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          echo "== notary API key authentication =="
+          xcrun notarytool history \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" \
+            | head -n 8
+          echo "OK: notary API key authenticates."
+
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/notary.p8"
+          security delete-keychain "$KEYCHAIN" 2>/dev/null || true
