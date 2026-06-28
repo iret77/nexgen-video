@@ -1,36 +1,173 @@
 import Foundation
 
-/// Built-in fal.ai image models. Each `id` is also the fal queue endpoint path.
+// Curated fal.ai model catalog plus the per-model request "dialect" the runtime
+// needs to map our generic params onto each model's `input` schema and to read
+// its result. `entries` feeds the shared ModelCatalog (and thus the UI + agent);
+// `model(for:)` gives the runtime the encoding recipe.
+//
+// Scope: the text-driven path (text-to-image / text-to-video / text-to-speech /
+// music). Reference-driven variants (image-to-video, image-to-image, edit) are
+// intentionally absent until the fal storage upload is wired — their caps below
+// advertise no reference inputs so the UI never offers an input that can't run.
+
+enum FalImageSizeMode: Sendable {
+    case imageSizeEnum   // `image_size`: square_hd / landscape_16_9 / …
+    case aspectRatio     // `aspect_ratio`: "16:9" passthrough
+}
+
+enum FalDurationMode: Sendable {
+    case plainSeconds    // "5"   (Kling, Seedance, Hailuo)
+    case secondsSuffix   // "8s"  (Veo)
+}
+
+enum FalAudioMode: Sendable {
+    case tts             // { text, voice } → audio.url
+    case soundEffect     // { text }        → audio.url
+    case music           // { prompt, seconds_total } → audio_file.url
+}
+
+struct FalModel: Sendable {
+    let entry: CatalogEntry
+    var imageSize: FalImageSizeMode = .imageSizeEnum
+    var videoDuration: FalDurationMode = .plainSeconds
+    var videoSendsAspectRatio: Bool = true
+    var videoSendsResolution: Bool = false
+    var videoGeneratesAudio: Bool = false
+    var audioMode: FalAudioMode = .tts
+}
+
 enum FalModelRegistry {
-    static let entries: [CatalogEntry] = [
-        imageEntry(
-            id: "fal-ai/flux/schnell",
-            displayName: "FLUX.1 [schnell] (fast)"
-        ),
-        imageEntry(
-            id: "fal-ai/flux/dev",
-            displayName: "FLUX.1 [dev]"
-        ),
+    static let models: [FalModel] = imageModels + videoModels + audioModels
+    static let entries: [CatalogEntry] = models.map(\.entry)
+
+    private static let byId: [String: FalModel] =
+        Dictionary(models.map { ($0.entry.id, $0) }, uniquingKeysWith: { a, _ in a })
+
+    static func model(for id: String) -> FalModel? { byId[id] }
+
+    // MARK: - Image (text-to-image)
+
+    private static let imageAspects = ["1:1", "16:9", "9:16", "4:3", "3:4"]
+
+    private static let imageModels: [FalModel] = [
+        image("fal-ai/flux/schnell", "FLUX.1 [schnell]"),
+        image("fal-ai/flux/dev", "FLUX.1 [dev]"),
+        image("fal-ai/flux-pro/v1.1", "FLUX1.1 [pro]"),
+        image("fal-ai/flux-pro/v1.1-ultra", "FLUX1.1 [pro] Ultra", size: .aspectRatio),
+        image("fal-ai/recraft/v3/text-to-image", "Recraft V3", maxImages: 1),
+        image("fal-ai/ideogram/v3", "Ideogram V3"),
+        image("fal-ai/imagen4", "Imagen 4", size: .aspectRatio),
+        image("fal-ai/qwen-image", "Qwen-Image"),
+        image("fal-ai/stable-diffusion-v35-large", "Stable Diffusion 3.5 Large"),
     ]
 
-    private static let aspectRatios = ["1:1", "16:9", "9:16", "4:3", "3:4"]
-
-    private static func imageEntry(id: String, displayName: String) -> CatalogEntry {
-        let caps = ImageCaps(
-            resolutions: nil,
-            aspectRatios: aspectRatios,
-            qualities: nil,
-            supportsImageReference: false,
-            maxImages: 4
-        )
-        return CatalogEntry(
-            id: id,
-            kind: .image,
-            displayName: displayName,
-            allowedEndpoints: [id],
-            responseShape: .images,
-            uiCapabilities: .image(caps),
-            creditsPerImage: nil
+    private static func image(
+        _ id: String, _ name: String,
+        size: FalImageSizeMode = .imageSizeEnum, maxImages: Int = 4
+    ) -> FalModel {
+        FalModel(
+            entry: CatalogEntry(
+                id: id, kind: .image, displayName: name,
+                allowedEndpoints: [id], responseShape: .images,
+                uiCapabilities: .image(ImageCaps(
+                    resolutions: nil, aspectRatios: imageAspects, qualities: nil,
+                    supportsImageReference: false, maxImages: maxImages
+                ))
+            ),
+            imageSize: size
         )
     }
+
+    // MARK: - Video (text-to-video)
+
+    private static let videoModels: [FalModel] = [
+        video("fal-ai/kling-video/v2.5-turbo/pro/text-to-video", "Kling 2.5 Turbo Pro",
+              durations: [5, 10], aspects: ["16:9", "9:16", "1:1"]),
+        video("fal-ai/bytedance/seedance/v1/pro/text-to-video", "Seedance 1.0 Pro",
+              durations: [5, 10], aspects: ["16:9", "9:16", "1:1", "4:3", "3:4"],
+              resolutions: ["480p", "720p", "1080p"], sendsResolution: true),
+        video("fal-ai/veo3", "Veo 3",
+              durations: [4, 6, 8], aspects: ["16:9", "9:16"], resolutions: ["720p", "1080p"],
+              duration: .secondsSuffix, sendsResolution: true, generatesAudio: true),
+        video("fal-ai/minimax/hailuo-02/standard/text-to-video", "Hailuo 02 Standard",
+              durations: [6, 10], aspects: ["16:9", "9:16"], sendsAspect: false),
+    ]
+
+    private static func video(
+        _ id: String, _ name: String,
+        durations: [Int], aspects: [String], resolutions: [String]? = nil,
+        duration: FalDurationMode = .plainSeconds,
+        sendsAspect: Bool = true, sendsResolution: Bool = false, generatesAudio: Bool = false
+    ) -> FalModel {
+        FalModel(
+            entry: CatalogEntry(
+                id: id, kind: .video, displayName: name,
+                allowedEndpoints: [id], responseShape: .video,
+                uiCapabilities: .video(videoCaps(durations: durations, aspects: aspects, resolutions: resolutions))
+            ),
+            videoDuration: duration,
+            videoSendsAspectRatio: sendsAspect,
+            videoSendsResolution: sendsResolution,
+            videoGeneratesAudio: generatesAudio
+        )
+    }
+
+    private static func videoCaps(durations: [Int], aspects: [String], resolutions: [String]?) -> VideoCaps {
+        VideoCaps(
+            durations: durations, resolutions: resolutions, aspectRatios: aspects,
+            supportsFirstFrame: false, supportsLastFrame: false,
+            maxReferenceImages: 0, maxReferenceVideos: 0, maxReferenceAudios: 0,
+            maxTotalReferences: 0, maxCombinedVideoRefSeconds: nil, maxCombinedAudioRefSeconds: nil,
+            framesAndReferencesExclusive: false, referenceTagNoun: "reference",
+            requiresSourceVideo: false, requiresReferenceImage: false
+        )
+    }
+
+    // MARK: - Audio (text-to-speech / sfx / music)
+
+    private static let elevenLabsVoices = [
+        "Rachel", "Aria", "Roger", "Sarah", "Laura", "Charlie",
+        "George", "Callum", "River", "Liam", "Charlotte", "Alice",
+    ]
+
+    private static let audioModels: [FalModel] = [
+        audio("fal-ai/elevenlabs/tts/multilingual-v2", "ElevenLabs Multilingual v2",
+              mode: .tts, caps: ttsCaps),
+        audio("fal-ai/elevenlabs/sound-effects", "ElevenLabs Sound Effects",
+              mode: .soundEffect, caps: sfxCaps),
+        audio("fal-ai/stable-audio", "Stable Audio",
+              mode: .music, caps: musicCaps),
+    ]
+
+    private static func audio(_ id: String, _ name: String, mode: FalAudioMode, caps: AudioCaps) -> FalModel {
+        FalModel(
+            entry: CatalogEntry(
+                id: id, kind: .audio, displayName: name,
+                allowedEndpoints: [id], responseShape: .audio,
+                uiCapabilities: .audio(caps)
+            ),
+            audioMode: mode
+        )
+    }
+
+    private static let ttsCaps = AudioCaps(
+        category: "tts", voices: elevenLabsVoices, defaultVoice: "Rachel",
+        supportsLyrics: false, supportsInstrumental: false, supportsStyleInstructions: false,
+        durations: nil, minPromptLength: 1, inputs: ["text"],
+        promptLabel: "Text to speak", minSeconds: nil, maxSeconds: nil
+    )
+
+    private static let sfxCaps = AudioCaps(
+        category: "sfx", voices: nil, defaultVoice: nil,
+        supportsLyrics: false, supportsInstrumental: false, supportsStyleInstructions: false,
+        durations: nil, minPromptLength: 1, inputs: ["text"],
+        promptLabel: "Sound description", minSeconds: nil, maxSeconds: nil
+    )
+
+    private static let musicCaps = AudioCaps(
+        category: "music", voices: nil, defaultVoice: nil,
+        supportsLyrics: false, supportsInstrumental: true, supportsStyleInstructions: false,
+        durations: nil, minPromptLength: 1, inputs: ["text"],
+        promptLabel: "Music description", minSeconds: 1, maxSeconds: 47
+    )
 }
