@@ -309,18 +309,16 @@ struct AgentPanelView: View {
     @ViewBuilder
     private var missingKeyState: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text("Add")
+            Text("Add an Anthropic API key or enable Claude Code in")
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .fixedSize(horizontal: false, vertical: true)
 
             Button(action: { SettingsWindowController.shared.show(tab: .agent) }) {
-                Text("your Anthropic API key")
+                Text("Agent settings")
                     .underline()
                     .foregroundStyle(AppTheme.Accent.primary)
             }
             .buttonStyle(.plain)
-
-            Text("to start")
-                .foregroundStyle(AppTheme.Text.tertiaryColor)
         }
         .font(.system(size: AppTheme.FontSize.md, weight: .medium))
     }
