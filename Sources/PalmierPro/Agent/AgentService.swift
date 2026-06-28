@@ -50,12 +50,8 @@ final class AgentService {
     }
 
     private func selectClient() -> (any AgentClient)? {
-        let chosen = effectiveModel
-        if hasApiKey { return AnthropicClient(apiKey: apiKey, model: chosen) }
-        if AccountService.shared.isSignedIn {
-            return PalmierClient(model: chosen)
-        }
-        return nil
+        guard hasApiKey else { return nil }
+        return AnthropicClient(apiKey: apiKey, model: effectiveModel)
     }
 
     var effectiveModel: AnthropicModel {
@@ -78,7 +74,7 @@ final class AgentService {
     var currentSessionId: UUID?
     var messages: [AgentMessage] = []
     var isStreaming: Bool = false
-    var streamError: PalmierClientError?
+    var streamError: AgentStreamError?
     var onSessionsChanged: (@MainActor () -> Void)?
 
     var draft: String = ""
@@ -435,7 +431,7 @@ final class AgentService {
             } catch is CancellationError {
                 dropEmptyAssistantTurn(id: assistantID)
                 break loop
-            } catch let err as PalmierClientError {
+            } catch let err as AgentStreamError {
                 dropEmptyAssistantTurn(id: assistantID)
                 streamError = err
                 break loop
