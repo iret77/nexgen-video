@@ -22,6 +22,12 @@ NexGen.
 
 ## 2. Leitprinzipien
 
+- **Konsistenz ist das Produkt.** Der Unterschied zwischen AI-Slop und Premium-Video ist *nicht* die
+  Roh-Generierungsqualität (die ist oft schon gut), sondern **Konsistenz & Logik über Shots hinweg** —
+  Figuren, Details und Szene müssen einen *neuen Kamerawinkel* überstehen, ohne zu halluzinieren.
+  NexGen schöpft dafür **alle technischen Hebel** aus: maximale Anker-Bilder, top-optimierte Prompts,
+  und Hilfs-Pipelines (3D-Clay/Marble-Kamera), deren *einziger* Zweck konsistente Vorlagen/Anker für
+  die Generierung ist. Diese Maschinerie ist **CORE** (siehe §4.1), kein Plugin-Detail.
 - **Cockpit + Quality-Engine getrennt.** NexGen ist Cockpit, Schnitt-/Render-Surface und
   Orchestrierungs-Host. Die wiederverwendbare Produktions-Substanz (Konsistenz-Disziplin,
   Render-Dispatch, Cost-Guard, Frame-Audit) lebt in der **Generic Production Engine** (Python).
@@ -63,25 +69,46 @@ gehostete Generierung will, nutzt das Original-Produkt — nicht diesen Fork.
    **Render-Dispatch + Cost-Guard + Provider-Driver**, State-Aggregator, MCP-Spine,
    Projekt-Layout/Paths, scene3d/Pano, Frame-Compliance. **Ruft die Provider** (mit den vom Host
    verwalteten Keys). Wird mit der App gebündelt, vom eingebetteten Claude per `--plugin-dir` geladen.
-3. **Format-Packs (dünn)** — z. B. `musicvideo`: nur format-spezifische Skills/Scripte
-   (Song-/Audio-/Beat-Analyse, Lyrics, Treatment/Storyboard/Shotlist-Semantik, Cover,
-   Genre-/Mood-Pattern). Ein Pack begleitet den User **in NexGen** durch den gesamten Prozess —
-   vom Konzept bis zum final geschnittenen Video. Pro Videoformat ein Pack auf gemeinsamer Basis.
+3. **Format-Packs (dünn)** — die **einzige** Daseinsberechtigung eines Packs ist
+   **kategoriespezifisches Wissen**, das *nicht* jedes Videoformat braucht. Ein Pack begleitet den
+   User in NexGen durch den Prozess seiner Kategorie (Konzept → final geschnittenes Video), nutzt für
+   Konsistenz/Bible/Kamera/Render/Effekte aber **den Core**. Erstes Pack: `musicvideo`; geplant:
+   `explainer`, `fiction`/`shortmovie`, `trailer`, `vacation`, …
 
-**Generic vs. format-spezifisch (First-Cut-Grenze):** GENERIC → Engine: `common/{gates,paths,
-schema,models,project,aspect}`, `render/*` (dispatcher, costs, provider-driver, prompt-builder/
-linter/compliance), `frames/*`, `bible/*` (inkl. scene3d), `storyboard/{framing_risk,camera}`,
-`sanity/*` (generisch), `state/*`, `mcp_server/*`. MUSIC-SPECIFIC → Pack: `analysis/*` (Audio-DSP),
-`patterns/*`, `cover/*`, `common/tempo`, `sanity/checks/{tempo,pacing,pattern_drift}`. MIXED →
-hinter Interface entkoppeln: `brief/schema`, `shotlist/schema` (Mode.phrase/section, lyrics_anchor),
-`storyboard/schema`, `render/dispatcher` + `frames/generate` (Shot-Interface), `show/formatters`.
-Riskanteste Naht: Music-Annahmen in generischem Code (`Shot.duration_s` ↔ `perceived_bpm`,
-`lyrics_anchor`, `Mode.phrase/section`) — das Pack registriert music-spezifische Builder/Checks/Bands.
+### 4.1 Core ↔ Plugin — die verbindliche Grenze
+
+**Faustregel:** *Braucht es jedes Videoformat? → Core. Nur diese Kategorie? → Plugin.* Früher war
+`musicvideo` ein All-in-One-Tool **nur** für Musikvideos. Künftig ist die All-in-One-**Konsistenz-/
+Produktions-Maschinerie der Core**, und ein Pack ist eine **dünne Kategorie-Schicht** darauf.
+
+**CORE (nexgen + Generic Engine) — die Konsistenz-Maschinerie, von allen Packs genutzt:**
+Asset-Graph-**Bible** (`bible`), **Anker-Maximierung** (`render/identity_anchor`), **3D-Clay/Marble-
+Kamera-Pipeline** (`bible/scene3d`: marble/pov/restyle/preprocess → deterministische Vorlagen + Anker
+für die Generierung), **Prompt-Optimierung** (`render/prompt`: builder/linter/compliance),
+**Konsistenz-/Sanity-Gates** (`gates`, generische `sanity/*`), **Frame-Engine** (`frames`:
+Generierung/Audit/deterministische Crops/last-frame-Continuity), **Render-Dispatch + Cost-Guard +
+Provider-Driver** (`render/dispatcher`, …), **Effekt-/Postproduktion/Finishing** (siehe §5.4), State,
+MCP-Spine, Projekt-Layout.
+
+**PLUGIN (dünn, kategoriespezifisch) — nur das Format-Wissen:**
+- **`musicvideo`:** Musik-/Beat-/Tempo-Analyse + eingebundene Audio-Tools Dritter (`analysis`,
+  `common/tempo`), Lyrics, **Modi, wie sich Story/Storyboard/Schnitt zu Musik & Takt verhalten**
+  (Mode.phrase/section, lyrics_anchor, refrain-anchor), **Genre/Mood + Blueprints berühmter
+  Musikvideo-Regisseure** (`patterns/library/*.yaml`), Cover.
+- **`explainer` (geplant):** Aufmerksamkeitspsychologie, Pädagogik/Didaktik, Wissensstrukturierung,
+  Pacing für Verständnis, Skript-/Voiceover-Logik.
+- **`fiction`/`trailer`/`vacation`/… (geplant):** je eigene Narrativ-, Schnitt- und Struktur-Doktrin.
+
+**MIXED (heute im `musicvideo`-Monolith verwoben; beim Extrahieren hinter ein Engine-Interface):**
+`brief/schema`, `shotlist/schema`, `storyboard/schema`, `render/dispatcher` + `frames/generate`
+(Shot-Interface entkoppeln), `show/formatters`. Riskanteste Naht: Music-Annahmen in generischem Code
+(`Shot.duration_s` ↔ `perceived_bpm`, `lyrics_anchor`, `Mode.phrase/section`). Lösung: das Pack
+registriert seine Builder/Checks/Bands über eine **Engine-Schnittstelle** — der Core kennt keine Musik.
 
 ## 5. Provider- & Modell-Einbindung
 
 NexGen bindet **Generator-Plattformen direkt ein** — der User bringt die Zugänge mit. Modalitäten:
-**Video, Bild, Musik, SFX, Stimme/Vertonung.** Zwei Integrationsklassen:
+**Video, Bild, Musik, SFX, Stimme/Vertonung, Effekt/Postproduktion.** Zwei Integrationsklassen:
 
 **(a) REST/API-Provider** — z. B. **Runway, fal.ai, OpenArt, Higgsfield, ElevenLabs**.
 - **API-Keys** pro Provider in den Settings (Sektion „Providers"), in der **Keychain** gespeichert,
@@ -118,6 +145,44 @@ Composer ist derzeit GUI-only** (noch nicht über MCP fernsteuerbar). Heißt: Vo
 ist schon MCP-automatisierbar, die One-Click-Video-Vertonung (Video Composer) bleibt bis auf Weiteres
 ein manueller ACE-Schritt — bei MCP-Erweiterung von ACE automatisierbar. Quellen: `docs.acestudio.ai`
 (MCP-Server, Video Composer), `acestudio.ai/blog` (2.0 / 2.0.7-Release).
+
+### 5.2 MCP-native Orchestrierung (größter Architektur-Hebel)
+
+Tools, die selbst MCP sprechen, sind die effizienteste Provider-Anbindung (Klasse b) — Claude hängt
+sich direkt dran, kein Driver pro Provider:
+- **Comfy Partner MCP** (offiziell): *ein* lokaler MCP-Server → vereinte Generate-Tools über **30+
+  Provider** (Flux/BFL, Ideogram, Kling, Runway, Veo, Meshy [3D-Assets], ElevenLabs, …). Kann große
+  Teile des Provider-Layers ersetzen.
+- **ComfyUI MCP** (z. B. `artokun/comfyui-mcp`): das gesamte Open-Source-Generierungs-Ökosystem +
+  eigene Graphen/Modelle, Live-Graph-Editing aus der Claude-Session. Maximale Pipeline-Tiefe.
+- **Blender MCP**: Claude steuert Blender direkt — **veredelt genau die 3D-Clay/Kamera-Core-Pipeline**
+  (`bible/scene3d`, Splat/SPZ): deterministische Kamera-Renders agentengetrieben statt CLI-Glue.
+
+### 5.3 Modalitäten & aktueller Katalog (volatil — bei Integration verifizieren)
+
+> Die Modell-Landschaft ändert sich wöchentlich. Dies ist eine **Momentaufnahme (2026-06)**, kein
+> Festschreiben — die **Provider-Registry der Engine** ist die Laufzeit-Wahrheit.
+- **Lip-Sync / Avatare / Dialog** — eigene Modalität, die `musicvideo` nicht braucht, aber z. B.
+  `explainer`/`fiction`: **Hedra** (Character-3, phonem-genauer Lip-Sync aus 1 Bild, 140+ Sprachen),
+  **Runway Act-Two** (Performance-Capture Körper/Gesicht/Hände → beliebiger Charakter).
+- **Video (SOTA):** Veo 3.1 (4K + natives Audio + Lip-Sync), Kling 3.0 (**Multi-Shot-Storyboard** —
+  passt 1:1 auf unser Shotlist-Modell), Seedance 2.0 (Multi-Ref: 9 Bilder + 3 Clips + 3 Audios).
+  **Sora 2 NICHT** integrieren (OpenAI schaltet Sora ab, API-Ende ~09/2026).
+- **Musik:** Udio + **Suno**. **Transkription/Untertitel:** Whisper (→ „Edit-by-Transcript").
+
+### 5.4 Effekt- & Postproduktions-Modelle (Core-Finishing-Stage)
+
+Spezialisierte **Nachbearbeitung** ist eine **Core**-Stufe (von allen Packs genutzt) — sie hebt Clips
+auf Auslieferungsqualität *und* schließt Konsistenzlücken:
+- **Relight / Matte / Kompositing:** **Beeble** — Video → relightbare 2.5D-Szene mit PBR-Passes
+  (Normals/Albedo/Depth/Specular/Roughness/Alpha) + Auto-Roto. Die Depth/Normal-Passes speisen
+  zusätzlich die 3D-/Anker-Disziplin.
+- **Inpainting / Object-Removal:** **VOID** (mask-guided, SAM-3-Masken), temporal stabil/flickerfrei.
+- **Roto / Matte:** DaVinci Magic Mask, BiRefNet, SAM-3. **Layer-Zerlegung:** Generative Omnimatte.
+- **Upscale / Denoise / Frame-Interpolation:** **Topaz Video AI** (OSS-Fallback: Real-ESRGAN/Video2X).
+- **Restyle / Style-Transfer:** Video-to-Video (z. B. Runway).
+
+Anbindung wie §5 (REST oder MCP-native); vieles kommt gebündelt über Comfy Partner / ComfyUI MCP.
 
 ## 6. Claude-Anbindung (zwei austauschbare Backends)
 
