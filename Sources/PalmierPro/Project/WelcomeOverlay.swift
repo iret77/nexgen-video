@@ -6,7 +6,6 @@ struct WelcomeOverlay: View {
     let onDismiss: () -> Void
 
     @Bindable private var account = AccountService.shared
-    @State private var startingTutorial = false
     private static let hero: NSImage? = loadHero()
 
     var body: some View {
@@ -37,18 +36,6 @@ struct WelcomeOverlay: View {
                     .buttonStyle(.capsule(.secondary, size: .regular))
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button { startTutorial() } label: {
-                    if startingTutorial {
-                        HStack(spacing: AppTheme.Spacing.xs) {
-                            ProgressView().controlSize(.small)
-                            Text("Loading…")
-                        }
-                    } else {
-                        Text("Watch Tutorial")
-                    }
-                }
-                .buttonStyle(.capsule(.secondary, size: .regular))
-                .disabled(startingTutorial)
                 signInButton
             }
             .padding(.top, AppTheme.Spacing.lg)
@@ -78,23 +65,6 @@ struct WelcomeOverlay: View {
         }
     }
 
-    /// Open the first sample (downloading if needed); it auto-starts the tutorial.
-    private func startTutorial() {
-        startingTutorial = true
-        Task {
-            defer { startingTutorial = false }
-            guard let sample = try? await SampleProjectService.shared.fetchSamples().first else {
-                onDismiss()   // nothing to open
-                return
-            }
-            do {
-                try await AppState.shared.openSample(slug: sample.slug, startTutorial: true)
-                onDismiss()
-            } catch {
-                // Leave the welcome up so the user can retry or skip.
-            }
-        }
-    }
 
     @ViewBuilder
     private var heroImage: some View {
