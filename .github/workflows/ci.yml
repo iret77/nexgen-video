@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -33,3 +34,46 @@ jobs:
 
       - name: Test
         run: swift test
+
+  bundle-app:
+    name: Bundle .app
+    # Builds a runnable, ad-hoc-signed NexGenVideo.app (no secrets, no local build) and publishes it
+    # as the rolling `dev-latest` prerelease — a stable public download link, no token, no login:
+    #   https://github.com/iret77/nexgen-video/releases/download/dev-latest/NexGenVideo.zip
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Bundle (debug, ad-hoc signed)
+        run: scripts/bundle.sh debug
+
+      - name: Zip .app
+        run: ditto -c -k --keepParent .build/NexGenVideo.app .build/NexGenVideo.zip
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexGenVideo-app
+          path: .build/NexGenVideo.zip
+          if-no-files-found: error
+
+      - name: Publish rolling dev release
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete dev-latest --cleanup-tag --yes 2>/dev/null || true
+          gh release create dev-latest .build/NexGenVideo.zip \
+            --prerelease \
+            --title "NexGen Video — latest dev build" \
+            --notes "Auto-built from \`${{ github.sha }}\`. Ad-hoc signed — after download: \`xattr -dr com.apple.quarantine NexGenVideo.app\` (or right-click → Open)."
