@@ -38,7 +38,10 @@ final class AgentService {
 
     var hasApiKey: Bool { !apiKey.isEmpty }
 
-    var canStream: Bool { hasApiKey }
+    /// The agent can run with EITHER a BYO Anthropic key OR the embedded Claude Code runtime
+    /// (`claude -p`, uses the user's subscription — no API key needed). `send()` routes to the
+    /// runtime first when it's enabled.
+    var canStream: Bool { hasApiKey || claudeRuntimeEnabled }
 
     var availableModels: [AnthropicModel] { AnthropicModel.allCases }
 
