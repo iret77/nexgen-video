@@ -8,6 +8,10 @@ name: Release (signed + notarized)
 # MACOS_NOTARY_ISSUER_ID, MACOS_NOTARY_KEY_P8_BASE64, SPARKLE_ED_PRIVATE_KEY (base64 of the DER
 # Ed25519 private key; if absent, Sparkle signing + appcast are skipped).
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
     inputs:
