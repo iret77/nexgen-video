@@ -34,6 +34,22 @@ struct BackendGenerationJob: Decodable, Sendable {
     let errorMessage: String?
     let costCredits: Int?
     let completedAt: Double?
+
+    init(
+        _id: String,
+        status: BackendGenerationStatus,
+        resultUrls: [String]?,
+        errorMessage: String?,
+        costCredits: Int?,
+        completedAt: Double?
+    ) {
+        self._id = _id
+        self.status = status
+        self.resultUrls = resultUrls
+        self.errorMessage = errorMessage
+        self.costCredits = costCredits
+        self.completedAt = completedAt
+    }
 }
 
 enum GenerationBackendError: LocalizedError {
