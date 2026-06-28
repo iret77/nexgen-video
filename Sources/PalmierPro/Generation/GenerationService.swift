@@ -295,62 +295,67 @@ final class GenerationService {
         Log.generation.notice("run \(runId) start model=\(genInput.model) placeholders=\(placeholders.count)")
         defer { Log.generation.notice("run \(runId) settled") }
 
+        let endpoint = genInput.model
+        let falModel = FalModelRegistry.model(for: endpoint)
+        let input: [String: Any]
+        let shape: CatalogEntry.ResponseShape
+
         switch params {
         case .image(let p):
-            await runImageJob(
-                params: p,
-                placeholders: placeholders,
-                genInput: genInput,
-                editor: editor,
-                onComplete: onComplete,
-                onFailure: onFailure
-            )
-        case .video, .audio, .upscale:
-            // Only text-to-image is wired through fal so far; the rest land later.
-            let message = GenerationBackendError.notConfigured.localizedDescription
-            Log.generation.error("submit failed model=\(genInput.model) error=\(message)")
-            for placeholder in placeholders {
-                placeholder.generationStatus = .failed(message)
-            }
-            onFailure?()
+            input = FalInputBuilder.imageInput(p, sizeMode: falModel?.imageSize ?? .imageSizeEnum, count: placeholders.count)
+            shape = .images
+        case .video(let p):
+            guard let falModel else { return failJob(placeholders, "Unknown video model: \(endpoint)", onFailure) }
+            input = FalInputBuilder.videoInput(p, model: falModel)
+            shape = .video
+        case .audio(let p):
+            guard let falModel else { return failJob(placeholders, "Unknown audio model: \(endpoint)", onFailure) }
+            input = FalInputBuilder.audioInput(p, model: falModel)
+            shape = .audio
+        case .upscale:
+            return failJob(placeholders, GenerationBackendError.notConfigured.localizedDescription, onFailure)
         }
+
+        await runFalJob(
+            endpoint: endpoint,
+            input: input,
+            shape: shape,
+            placeholders: placeholders,
+            editor: editor,
+            onComplete: onComplete,
+            onFailure: onFailure
+        )
     }
 
-    private func runImageJob(
-        params: ImageGenerationParams,
+    private func failJob(_ placeholders: [MediaAsset], _ message: String, _ onFailure: (@MainActor () -> Void)?) {
+        Log.generation.error("generation failed: \(message)")
+        for placeholder in placeholders {
+            placeholder.generationStatus = .failed(message)
+        }
+        onFailure?()
+    }
+
+    private func runFalJob(
+        endpoint: String,
+        input: [String: Any],
+        shape: CatalogEntry.ResponseShape,
         placeholders: [MediaAsset],
-        genInput: GenerationInput,
         editor: EditorViewModel,
         onComplete: (@MainActor (MediaAsset) -> Void)?,
         onFailure: (@MainActor () -> Void)?
     ) async {
         guard let apiKey = ProviderKeychain.load(.fal) else {
-            let message = "Add a fal.ai API key in Settings to generate images."
-            Log.generation.error("fal image generation: missing API key")
-            for placeholder in placeholders {
-                placeholder.generationStatus = .failed(message)
-            }
-            onFailure?()
-            return
+            return failJob(placeholders, "Add a fal.ai API key in Settings to generate.", onFailure)
         }
-
-        let endpoint = genInput.model
-        let input: [String: Any] = [
-            "prompt": params.prompt,
-            "num_images": placeholders.count,
-            "image_size": Self.falImageSize(from: params.aspectRatio),
-        ]
 
         do {
             let inputBody = try JSONSerialization.data(withJSONObject: ["input": input])
             let client = FalClient(apiKey: apiKey)
             let requestId = try await client.submit(endpoint: endpoint, inputBody: inputBody)
             let outputData = try await client.result(endpoint: endpoint, requestId: requestId)
-            let output = (try? JSONSerialization.jsonObject(with: outputData)) as? [String: Any]
-            let images = output?["images"] as? [[String: Any]] ?? []
-            let urls = images.compactMap { $0["url"] as? String }
+            let urls = FalOutput.urls(from: outputData, shape: shape)
             guard !urls.isEmpty else {
-                throw GenerationBackendError.transport("fal returned no images")
+                throw GenerationBackendError.transport("fal returned no output")
             }
             let job = BackendGenerationJob(
                 _id: requestId,
@@ -368,24 +373,7 @@ final class GenerationService {
                 onFailure: onFailure
             )
         } catch {
-            let message = error.localizedDescription
-            Log.generation.error("fal image generation failed model=\(endpoint) error=\(message)")
-            for placeholder in placeholders {
-                placeholder.generationStatus = .failed(message)
-            }
-            onFailure?()
-        }
-    }
-
-    /// Map an aspect ratio label to fal's `image_size` enum.
-    private static func falImageSize(from aspectRatio: String) -> String {
-        switch aspectRatio {
-        case "1:1": return "square_hd"
-        case "16:9": return "landscape_16_9"
-        case "9:16": return "portrait_16_9"
-        case "4:3": return "landscape_4_3"
-        case "3:4": return "portrait_4_3"
-        default: return "square_hd"
+            failJob(placeholders, error.localizedDescription, onFailure)
         }
     }
 
