@@ -324,8 +324,10 @@ final class GenerationService {
             guard let falModel else { return failJob(placeholders, "Unknown audio model: \(endpoint)", onFailure) }
             input = FalInputBuilder.audioInput(p, model: falModel)
             shape = .audio
-        case .upscale:
-            return failJob(placeholders, GenerationBackendError.notConfigured.localizedDescription, onFailure)
+        case .upscale(let p):
+            guard let falModel else { return failJob(placeholders, "Unknown upscale model: \(endpoint)", onFailure) }
+            input = FalInputBuilder.upscaleInput(p, model: falModel)
+            shape = falModel.entry.responseShape
         }
 
         await runFalJob(

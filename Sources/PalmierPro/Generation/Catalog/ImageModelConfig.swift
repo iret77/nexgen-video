@@ -28,9 +28,12 @@ struct ImageModelConfig: Identifiable, Sendable {
     @MainActor
     static var allModels: [ImageModelConfig] { ModelCatalog.shared.image }
 
+    /// Default model for the "Edit on image" seed: the Gemini (nano-banana) edit
+    /// model, falling back to any reference-capable image model.
     @MainActor
     static var nanoBananaPro: ImageModelConfig? {
-        allModels.first(where: { $0.id == "nano-banana-pro" })
+        allModels.first(where: { $0.id == "fal-ai/gemini-25-flash-image/edit" })
+            ?? allModels.first(where: { $0.supportsImageReference })
     }
 
     let entry: CatalogEntry

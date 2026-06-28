@@ -264,14 +264,23 @@ rollendes signiertes Prerelease als öffentlicher Direktlink. PRs immer `--repo 
 
 ## 12. Status (Stand 2026-06-28)
 
-**Auf `main` (erledigt):** eigenes Developer-ID-Signing/Notarisierung; Rebrand Display-Name →
-„NexGenVideo"; Icon + Splash; eigenes Hosting des Such-CoreML-Modells (weg von Palmiers HF);
-eingebettete `claude -p`-Runtime (`Agent/Runtime/*`) + AgentPane-„Runtime"-Section; Bundle-ID
-`de.h5ventures.nexgenvideo`; Sparkle-Feed auf unser Repo.
+**Auf `main` (erledigt):**
+- Eigenes Developer-ID-Signing/Notarisierung; Bundle-ID `de.h5ventures.nexgenvideo`; Sparkle-Feed auf unser Repo.
+- Rebrand: Wortmarke **„NexGenVideo"** (ein Wort) überall sichtbar; Icon + Splash; Projekt-Extension `.nexgen` (`.palmier` öffnet weiter).
+- Eigenes Hosting des Such-CoreML-Modells (weg von Palmiers HF).
+- Eingebettete `claude -p`-Runtime (`Agent/Runtime/*`) + AgentPane-„Runtime"-Section.
+- **Phase-1-De-Palmier-isierung abgeschlossen:** Clerk-Login, Convex-Backend und die Convex-Models-Pane entfernt; MCP-Servername `nexgen`; Changelog-Feed auf unser Repo.
+- **Generation autonom über fal.ai (BYO-Key):** kuratierter Katalog — Bild (FLUX-Familie, Recraft,
+  Ideogram, Imagen 4, Qwen, SD 3.5; Edit: Kontext, Gemini), Video (Kling, Seedance, Veo 3, Hailuo;
+  + Kling/Seedance image-to-video), Audio (ElevenLabs TTS/SFX, Stable Audio), Upscale (Clarity, Topaz).
+  fal-Storage-Upload für Referenzen verdrahtet; Provider-Keys-Pane. Architektur: `FalModelRegistry`
+  (per-Modell-Dialekt) + `FalInputBuilder`/`FalOutput` + generischer `runFalJob`.
 
-**Noch Palmier-gekoppelt (= Phase 1, zu entfernen):** Clerk-Login, Convex-Backend, die
-Convex-gespeiste Models-Pane, Palmiers `generate_video`-Pfad, interner Name `PalmierPro` /
-`io.palmier.*`-Reste, MCP-Servername `palmier`, README-Upstream-Verweise.
+**Offen / nächste Schritte:**
+- **Laufzeit gegen die echte fal-API noch ungetestet** — bisher nur CI-Compile. Erst-Test nötig (txt2img → txt2video → TTS → i2v).
+- Weitere Provider (Runway, OpenArt, Higgsfield, ElevenLabs-direkt) als eigene Clients.
+- Generic Engine + Format-Packs (Monorepo `engine/` + `packs/`, §4/§9/§10) — noch nicht angelegt.
+- Interner Modulname `PalmierPro` + `io.palmier.project`-UTI bewusst beibehalten (unsichtbar, hohes Bau-/Merge-Risiko).
 
 ---
 
