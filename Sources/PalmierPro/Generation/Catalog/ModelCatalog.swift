@@ -48,6 +48,10 @@ final class ModelCatalog {
         // populate the catalog via `apply(_:)`. Until then it stays empty.
     }
 
+    func load(entries: [CatalogEntry]) {
+        apply(entries)
+    }
+
     private func apply(_ entries: [CatalogEntry]) {
         var newVideo: [VideoModelConfig] = []
         var newImage: [ImageModelConfig] = []
@@ -146,6 +150,34 @@ struct CatalogEntry: Decodable, Sendable {
         case id, kind, displayName, allowedEndpoints, responseShape, uiCapabilities
         case creditsPerSecond, audioDiscountRate, creditsPerImage, qualities
         case audioPricing, creditsPerSecondUpscale
+    }
+
+    init(
+        id: String,
+        kind: Kind,
+        displayName: String,
+        allowedEndpoints: [String],
+        responseShape: ResponseShape,
+        uiCapabilities: UICapabilities,
+        creditsPerSecond: [String: Double]? = nil,
+        audioDiscountRate: [String: Double]? = nil,
+        creditsPerImage: [String: Double]? = nil,
+        qualities: [String]? = nil,
+        audioPricing: AudioPricing? = nil,
+        creditsPerSecondUpscale: Double? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.displayName = displayName
+        self.allowedEndpoints = allowedEndpoints
+        self.responseShape = responseShape
+        self.uiCapabilities = uiCapabilities
+        self.creditsPerSecond = creditsPerSecond
+        self.audioDiscountRate = audioDiscountRate
+        self.creditsPerImage = creditsPerImage
+        self.qualities = qualities
+        self.audioPricing = audioPricing
+        self.creditsPerSecondUpscale = creditsPerSecondUpscale
     }
 
     init(from decoder: Decoder) throws {
