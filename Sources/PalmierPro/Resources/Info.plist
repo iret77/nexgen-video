@@ -26,7 +26,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.palmier.pro</string>
+	<string>de.h5ventures.nexgenvideo</string>
 	<key>CFBundleName</key>
 	<string>NexGen Video</string>
 	<key>CFBundlePackageType</key>
