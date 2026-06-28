@@ -21,6 +21,7 @@ struct ClaudeCodeLaunchTests {
         #expect(args.contains("-p"))
         #expect(valueAfter("--input-format", args) == "stream-json")
         #expect(valueAfter("--output-format", args) == "stream-json")
+        #expect(args.contains("--verbose"))   // required by --print + stream-json, else claude exits silently
         #expect(args.contains("--strict-mcp-config"))
         #expect(valueAfter("--permission-mode", args) == "bypassPermissions")
         #expect(valueAfter("--setting-sources", args) == "project,local")

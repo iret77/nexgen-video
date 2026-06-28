@@ -74,6 +74,9 @@ enum ClaudeCodeLaunch {
             "-p",
             "--input-format", "stream-json",
             "--output-format", "stream-json",
+            // claude refuses `--print --output-format=stream-json` without --verbose (exits to stderr,
+            // no stdout) — its absence is a silent total failure.
+            "--verbose",
             "--mcp-config", mcpConfigJSON(port: cfg.mcpPort, pluginServers: cfg.pluginMcpServers),
             "--strict-mcp-config",
             "--permission-mode", cfg.permissionMode,
