@@ -28,8 +28,19 @@ struct AgentPane: View {
 
     private var apiKeySection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
-            header
-            keyField
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+                header
+                keyField
+            }
+            .disabled(useClaudeRuntime)
+            .opacity(useClaudeRuntime ? AppTheme.Opacity.strong : 1)
+
+            if useClaudeRuntime {
+                Text("Not used while the Claude Code Runtime below is on — that runs the agent instead.")
+                    .font(.system(size: AppTheme.FontSize.sm))
+                    .foregroundStyle(AppTheme.Text.mutedColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -40,7 +51,7 @@ struct AgentPane: View {
                 .foregroundStyle(AppTheme.Text.primaryColor)
 
             HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
-                Text("Used your own API key for the AI chat. Stored in your macOS Keychain.")
+                Text("Use your own API key for the AI chat. Stored in your macOS Keychain.")
                     .font(.system(size: AppTheme.FontSize.sm))
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
                     .fixedSize(horizontal: false, vertical: true)
@@ -235,7 +246,7 @@ struct AgentPane: View {
                 Text("Claude Code Runtime")
                     .font(.system(size: AppTheme.FontSize.md, weight: .medium))
                     .foregroundStyle(AppTheme.Text.primaryColor)
-                Text("Run the in-app agent as an embedded Claude Code session — it drives the timeline over MCP and loads the musicvideo plugin, using your Claude subscription via the claude CLI.")
+                Text("An alternative to the API key above: run the in-app agent as an embedded Claude Code session that drives the timeline over MCP and loads the plugin from the folder below, using your Claude subscription via the claude CLI.")
                     .font(.system(size: AppTheme.FontSize.sm))
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
                     .fixedSize(horizontal: false, vertical: true)
