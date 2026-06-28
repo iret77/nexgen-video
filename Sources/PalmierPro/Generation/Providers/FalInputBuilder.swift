@@ -46,6 +46,11 @@ enum FalInputBuilder {
         }
     }
 
+    static func upscaleInput(_ p: UpscaleGenerationParams, model: FalModel) -> [String: Any] {
+        let urlField = (model.upscaleKind == .video) ? "video_url" : "image_url"
+        return [urlField: p.sourceURL]   // upscale_factor defaults to 2x on fal
+    }
+
     /// Map our aspect-ratio label to fal's `image_size` enum.
     static func imageSizeEnum(_ aspectRatio: String) -> String {
         switch aspectRatio {
@@ -64,9 +69,13 @@ enum FalOutput {
     static func urls(from data: Data, shape: CatalogEntry.ResponseShape) -> [String] {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
         switch shape {
-        case .images, .upscaledImage:
+        case .images:
             let images = json["images"] as? [[String: Any]] ?? []
             return images.compactMap { $0["url"] as? String }
+        case .upscaledImage:
+            // Image upscalers return a single `image` object, not an `images` array.
+            if let image = json["image"] as? [String: Any], let url = image["url"] as? String { return [url] }
+            return []
         case .video:
             if let video = json["video"] as? [String: Any], let url = video["url"] as? String { return [url] }
             return []

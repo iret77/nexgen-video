@@ -33,6 +33,11 @@ enum FalAudioMode: Sendable {
     case music           // { prompt, seconds_total } → audio_file.url
 }
 
+enum FalUpscaleKind: Sendable {
+    case image           // `image_url` in → `image.url` out (single object)
+    case video           // `video_url` in → `video.url` out
+}
+
 struct FalModel: Sendable {
     let entry: CatalogEntry
     var imageSize: FalImageSizeMode = .imageSizeEnum
@@ -43,10 +48,11 @@ struct FalModel: Sendable {
     var videoGeneratesAudio: Bool = false
     var videoImageRef: Bool = false   // image-to-video: emit `image_url` from the reference image
     var audioMode: FalAudioMode = .tts
+    var upscaleKind: FalUpscaleKind? = nil
 }
 
 enum FalModelRegistry {
-    static let models: [FalModel] = imageModels + videoModels + audioModels
+    static let models: [FalModel] = imageModels + videoModels + audioModels + upscaleModels
     static let entries: [CatalogEntry] = models.map(\.entry)
 
     private static let byId: [String: FalModel] =
@@ -206,4 +212,24 @@ enum FalModelRegistry {
         durations: nil, minPromptLength: 1, inputs: ["text"],
         promptLabel: "Music description", minSeconds: 1, maxSeconds: 47
     )
+
+    // MARK: - Upscale
+
+    private static let upscaleModels: [FalModel] = [
+        upscale("fal-ai/clarity-upscaler", "Clarity Upscaler", kind: .image, speed: "Medium", p75: 30),
+        upscale("fal-ai/topaz/upscale/video", "Topaz Video Upscale", kind: .video, speed: "Slow", p75: 120),
+    ]
+
+    private static func upscale(_ id: String, _ name: String, kind: FalUpscaleKind, speed: String, p75: Int) -> FalModel {
+        let shape: CatalogEntry.ResponseShape = (kind == .video) ? .video : .upscaledImage
+        let types = (kind == .video) ? ["video"] : ["image"]
+        return FalModel(
+            entry: CatalogEntry(
+                id: id, kind: .upscale, displayName: name,
+                allowedEndpoints: [id], responseShape: shape,
+                uiCapabilities: .upscale(UpscaleCaps(speed: speed, p75DurationSeconds: p75, supportedTypes: types))
+            ),
+            upscaleKind: kind
+        )
+    }
 }
