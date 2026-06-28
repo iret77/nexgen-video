@@ -13,6 +13,13 @@ import Foundation
 enum FalImageSizeMode: Sendable {
     case imageSizeEnum   // `image_size`: square_hd / landscape_16_9 / …
     case aspectRatio     // `aspect_ratio`: "16:9" passthrough
+    case none            // model takes no size param (e.g. Gemini edit)
+}
+
+enum FalImageRefField: Sendable {
+    case none            // no input image (text-to-image)
+    case single          // `image_url` (FLUX Kontext)
+    case array           // `image_urls` (Gemini / nano-banana edit)
 }
 
 enum FalDurationMode: Sendable {
@@ -29,6 +36,7 @@ enum FalAudioMode: Sendable {
 struct FalModel: Sendable {
     let entry: CatalogEntry
     var imageSize: FalImageSizeMode = .imageSizeEnum
+    var imageRef: FalImageRefField = .none
     var videoDuration: FalDurationMode = .plainSeconds
     var videoSendsAspectRatio: Bool = true
     var videoSendsResolution: Bool = false
@@ -59,6 +67,9 @@ enum FalModelRegistry {
         image("fal-ai/imagen4", "Imagen 4", size: .aspectRatio),
         image("fal-ai/qwen-image", "Qwen-Image"),
         image("fal-ai/stable-diffusion-v35-large", "Stable Diffusion 3.5 Large"),
+        // Image-to-image / edit (needs a reference image — uses the fal storage upload).
+        imageEdit("fal-ai/flux-pro/kontext", "FLUX.1 Kontext [pro]", size: .aspectRatio, ref: .single),
+        imageEdit("fal-ai/gemini-25-flash-image/edit", "Gemini 2.5 Flash (edit)", size: .none, ref: .array),
     ]
 
     private static func image(
@@ -75,6 +86,22 @@ enum FalModelRegistry {
                 ))
             ),
             imageSize: size
+        )
+    }
+
+    private static func imageEdit(
+        _ id: String, _ name: String, size: FalImageSizeMode, ref: FalImageRefField
+    ) -> FalModel {
+        FalModel(
+            entry: CatalogEntry(
+                id: id, kind: .image, displayName: name,
+                allowedEndpoints: [id], responseShape: .images,
+                uiCapabilities: .image(ImageCaps(
+                    resolutions: nil, aspectRatios: imageAspects, qualities: nil,
+                    supportsImageReference: true, maxImages: 1
+                ))
+            ),
+            imageSize: size, imageRef: ref
         )
     }
 

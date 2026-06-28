@@ -230,24 +230,36 @@ final class GenerationService {
         cacheKeys: [MediaAsset?],
     ) async throws -> [String] {
         guard !urls.isEmpty else { return [] }
-        return try await withThrowingTaskGroup(of: (Int, String).self) { group in
+        guard let apiKey = ProviderKeychain.load(.fal) else {
+            throw GenerationBackendError.transport("Add a fal.ai API key in Settings to use references.")
+        }
+
+        let uploaded = try await withThrowingTaskGroup(of: (Int, String, Bool).self) { group in
             for (i, url) in urls.enumerated() {
                 let type = types.indices.contains(i) ? types[i] : .image
                 let cacheKey = cacheKeys.indices.contains(i) ? cacheKeys[i] : nil
                 if let cacheKey, let hit = cacheKey.freshRemoteURL {
-                    group.addTask { (i, hit) }
+                    group.addTask { (i, hit, false) }
                     continue
                 }
-                _ = Self.contentType(for: url, fallback: type)
+                let contentType = Self.contentType(for: url, fallback: type)
                 group.addTask {
-                    // Generation transport removed; BYO-provider upload lands later.
-                    throw GenerationBackendError.notConfigured
+                    let hosted = try await FalStorage.upload(fileURL: url, contentType: contentType, apiKey: apiKey)
+                    return (i, hosted, true)
                 }
             }
-            var results = [(Int, String)]()
+            var results = [(Int, String, Bool)]()
             for try await r in group { results.append(r) }
-            return results.sorted(by: { $0.0 < $1.0 }).map(\.1)
+            return results
         }
+
+        // Record cache for freshly-uploaded references (on the main actor).
+        for (i, hosted, fresh) in uploaded where fresh {
+            if let cacheKey = cacheKeys.indices.contains(i) ? cacheKeys[i] : nil {
+                Self.recordUploadCache(asset: cacheKey, url: hosted)
+            }
+        }
+        return uploaded.sorted(by: { $0.0 < $1.0 }).map(\.1)
     }
 
     @MainActor
@@ -302,7 +314,7 @@ final class GenerationService {
 
         switch params {
         case .image(let p):
-            input = FalInputBuilder.imageInput(p, sizeMode: falModel?.imageSize ?? .imageSizeEnum, count: placeholders.count)
+            input = FalInputBuilder.imageInput(p, sizeMode: falModel?.imageSize ?? .imageSizeEnum, refField: falModel?.imageRef ?? .none, count: placeholders.count)
             shape = .images
         case .video(let p):
             guard let falModel else { return failJob(placeholders, "Unknown video model: \(endpoint)", onFailure) }
