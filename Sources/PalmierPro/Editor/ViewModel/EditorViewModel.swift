@@ -185,6 +185,7 @@ final class EditorViewModel {
             projectURL: { [weak self] in self?.projectURL }
         )
         agentService.editor = self
+        agentService.prepareEngineIfRuntimeEnabled()
         searchIndex.assetsProvider = { [weak self] in self?.mediaAssets ?? [] }
 
         // Re-check media presence when the app regains focus: a user may have

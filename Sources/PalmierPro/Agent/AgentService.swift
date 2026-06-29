@@ -293,7 +293,7 @@ final class AgentService {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             streamError = nil
-            claudeRuntime.send(text: trimmed)
+            sendViaClaudeRuntime(trimmed)
             return
         }
         guard canStream else {
@@ -318,7 +318,8 @@ final class AgentService {
 
     func cancel() {
         if claudeRuntimeEnabled {
-            claudeRuntime.stop()
+            _claudeRuntime?.stop()
+            isStreaming = false
             return
         }
         currentTask?.cancel()
@@ -333,11 +334,41 @@ final class AgentService {
     }
 
     @ObservationIgnored
-    private lazy var claudeRuntime: ClaudeCodeRuntime = makeClaudeRuntime()
+    private var _claudeRuntime: ClaudeCodeRuntime?
+    /// Whether the cached `_claudeRuntime` was built while the engine MCP was available. When the
+    /// engine becomes available *after* the runtime was first built engine-less (the post-bootstrap
+    /// case this fix addresses), the cached runtime is stale and must be rebuilt so the next session
+    /// includes the `engine` MCP — without an app restart. See the `claudeRuntime` accessor.
+    @ObservationIgnored
+    private var claudeRuntimeBuiltWithEngine = false
 
-    private func makeClaudeRuntime() -> ClaudeCodeRuntime {
-        Self.ensureEngineBootstrapped()
-        return ClaudeCodeRuntime(
+    /// The embedded Claude Code runtime, lazily built and cached. Rebuilt (only when safe — never
+    /// mid-stream) once the engine becomes available after the cached runtime was created engine-less,
+    /// so the engine MCP attaches to the next session. Rebuilding stops the old runtime's process; the
+    /// fresh one starts a new process (with the engine MCP) on the next `send`.
+    private var claudeRuntime: ClaudeCodeRuntime {
+        let engineAvailable = Self.engineAvailable
+        if let runtime = _claudeRuntime {
+            if engineAvailable, !claudeRuntimeBuiltWithEngine, !isStreaming {
+                runtime.stop()
+                return makeClaudeRuntime(engineAvailable: engineAvailable)
+            }
+            return runtime
+        }
+        return makeClaudeRuntime(engineAvailable: engineAvailable)
+    }
+
+    /// True when the engine venv is bootstrapped and its python key resolves — i.e. exactly when
+    /// `ClaudeCodeRuntime.engineMcpServers()` would register the `engine` MCP server.
+    private static var engineAvailable: Bool {
+        if case .ready = EngineRuntime.status() { return true }
+        return false
+    }
+
+    @discardableResult
+    private func makeClaudeRuntime(engineAvailable: Bool) -> ClaudeCodeRuntime {
+        ensureEngineBootstrapped()
+        let runtime = ClaudeCodeRuntime(
             pluginDirectories: Self.configuredPluginDirectories(),
             mcpPort: Int(MCPService.port),
             permissionMode: Self.configuredPermissionMode(),
@@ -349,6 +380,31 @@ final class AgentService {
                 self?.isStreaming = isStreaming
             }
         )
+        _claudeRuntime = runtime
+        claudeRuntimeBuiltWithEngine = engineAvailable
+        return runtime
+    }
+
+    /// Route a message to the embedded Claude Code runtime. If the bundled engine is still
+    /// bootstrapping (or not yet started), await it first so the session starts WITH the engine MCP
+    /// rather than racing the bootstrap and silently coming up engine-less. A `.failed` bootstrap is
+    /// surfaced via `streamError` and the message is not sent. Without a bundled engine
+    /// (`.unavailable`) or once `.ready`, sends immediately.
+    private func sendViaClaudeRuntime(_ trimmed: String) {
+        if case .notBootstrapped = EngineRuntime.status() {
+            let task = startEngineBootstrap()
+            isStreaming = true
+            Task { @MainActor [weak self] in
+                let status = await task?.value ?? EngineRuntime.status()
+                guard let self else { return }
+                self.isStreaming = false
+                if case .failed = status { return }  // streamError already set by the bootstrap task
+                guard self.claudeRuntimeEnabled else { return }
+                self.claudeRuntime.send(text: trimmed)
+            }
+            return
+        }
+        claudeRuntime.send(text: trimmed)
     }
 
     private static func configuredPermissionMode() -> String {
@@ -379,25 +435,64 @@ final class AgentService {
         return projectURL
     }
 
-    nonisolated(unsafe) private static var engineBootstrapStarted = false
+    /// In-flight bootstrap, awaited by `send()` so a message can't silently proceed engine-less while
+    /// the engine is still being set up. Holds the bootstrap's resulting `Status`. Its presence is the
+    /// idempotency guard — at most one bootstrap runs per service.
+    @ObservationIgnored
+    private var engineBootstrapTask: Task<EngineRuntime.Status, Never>?
 
-    /// One-time background bootstrap of the bundled engine venv (uv) when the Claude Code
-    /// runtime is first used. Idempotent; on success it sets `claudeRuntimeEnginePython`,
-    /// which ClaudeCodeRuntime registers as the `engine` MCP server. No-op without a bundled
-    /// engine (dev builds). The benign worst case of the unsynchronized flag is two bootstraps.
+    /// True while the engine venv is being bootstrapped — the panel shows a "Setting up engine…"
+    /// note via `send()` instead of starting a session without the engine MCP.
+    private(set) var isBootstrappingEngine = false
+
+    /// Kick off the engine venv bootstrap (uv) without blocking. Idempotent; on success it sets
+    /// `claudeRuntimeEnginePython`, which `ClaudeCodeRuntime` registers as the `engine` MCP server.
+    /// No-op without a bundled engine (dev builds).
     ///
     /// When the engine is already bootstrapped, re-check the discovered plugin packs instead — a
     /// plugin imported into the user dir after first setup still gets its pack installed (idempotent).
-    private static func ensureEngineBootstrapped() {
+    private func ensureEngineBootstrapped() {
         switch EngineRuntime.status() {
         case .notBootstrapped:
-            guard !engineBootstrapStarted else { return }
-            engineBootstrapStarted = true
-            Task.detached { await EngineRuntime.bootstrap() }
+            startEngineBootstrap()
         case .ready:
             Task.detached { await EngineRuntime.installDiscoveredPacks() }
         case .unavailable, .failed:
             break
+        }
+    }
+
+    /// Begin the engine bootstrap if one isn't already running, exposing it as an awaitable task so a
+    /// concurrent `send()` can wait for readiness. Drives `isBootstrappingEngine` and surfaces a
+    /// `.failed` result through `streamError`.
+    @discardableResult
+    private func startEngineBootstrap() -> Task<EngineRuntime.Status, Never>? {
+        if let existing = engineBootstrapTask { return existing }
+        guard case .notBootstrapped = EngineRuntime.status() else { return nil }
+        isBootstrappingEngine = true
+        let task = Task { @MainActor [weak self] in
+            let status = await EngineRuntime.bootstrap()
+            if let self {
+                self.isBootstrappingEngine = false
+                self.engineBootstrapTask = nil
+                if case .failed(let msg) = status {
+                    self.streamError = .upstream("Engine setup failed: \(msg)")
+                }
+            }
+            return status
+        }
+        engineBootstrapTask = task
+        return task
+    }
+
+    /// Proactively bootstrap the engine when the Claude Code runtime is enabled, so the `engine` MCP
+    /// is ready before the first message (rather than racing it). Called on app launch.
+    func prepareEngineIfRuntimeEnabled() {
+        guard claudeRuntimeEnabled else { return }
+        if case .notBootstrapped = EngineRuntime.status() {
+            startEngineBootstrap()
+        } else {
+            ensureEngineBootstrapped()
         }
     }
 

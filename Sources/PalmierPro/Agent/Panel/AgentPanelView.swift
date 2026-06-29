@@ -204,7 +204,12 @@ struct AgentPanelView: View {
                         AgentMessageView(message: msg, toolResults: results)
                             .id(msg.id)
                     }
-                    if service.isStreaming {
+                    if service.isBootstrappingEngine {
+                        Text("Setting up engine…")
+                            .font(.system(size: AppTheme.FontSize.xs))
+                            .foregroundStyle(AppTheme.Text.tertiaryColor)
+                            .id("engine-bootstrap-indicator")
+                    } else if service.isStreaming {
                         ThinkingDots().id("streaming-indicator")
                     }
                     errorBanner
