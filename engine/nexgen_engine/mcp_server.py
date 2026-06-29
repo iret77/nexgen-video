@@ -15,6 +15,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nexgen_engine.bible import schema as bible_schema
 from nexgen_engine.core.gates import CORE_PHASES
 from nexgen_engine.state import build_snapshot
 
@@ -29,6 +30,11 @@ def phases() -> list[str]:
     return list(CORE_PHASES)
 
 
+def bible(project_dir: str) -> dict[str, Any] | None:
+    b = bible_schema.load(Path(project_dir))
+    return b.model_dump(by_alias=True) if b is not None else None
+
+
 @mcp.tool()
 def get_project_state(project_dir: str) -> dict[str, Any]:
     """Where a project stands: meta, gate/phase status, next open phase. Read-only.
@@ -40,6 +46,14 @@ def get_project_state(project_dir: str) -> dict[str, Any]:
 def list_phases() -> list[str]:
     """The production pipeline phases, in order (engine core + active pack)."""
     return phases()
+
+
+@mcp.tool()
+def get_bible(project_dir: str) -> dict[str, Any] | None:
+    """The asset-graph Bible (characters, ensembles, props, locations, look) — the
+    consistency reference for generation — or null if none yet. `project_dir` is the
+    `_studio/` data root."""
+    return bible(project_dir)
 
 
 def main() -> None:  # pragma: no cover
