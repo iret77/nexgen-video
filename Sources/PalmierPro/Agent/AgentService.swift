@@ -356,11 +356,20 @@ final class AgentService {
         return (value?.isEmpty == false) ? value! : "bypassPermissions"
     }
 
+    /// Auto-discovered plugin dirs (bundled + user import dir) unioned with the optional manual
+    /// "Plugin folder" override, de-duped by path. The manual entry leads so an explicit pick wins
+    /// ordering; discovery fills in everything installed on disk without the user pointing at a folder.
     private static func configuredPluginDirectories() -> [URL] {
-        guard let path = UserDefaults.standard.string(forKey: "claudeRuntimePluginDir"), !path.isEmpty else {
-            return []
+        var ordered: [URL] = []
+        var seen = Set<String>()
+        func add(_ url: URL) {
+            if seen.insert(url.standardizedFileURL.path).inserted { ordered.append(url) }
         }
-        return [URL(fileURLWithPath: path)]
+        if let path = UserDefaults.standard.string(forKey: "claudeRuntimePluginDir"), !path.isEmpty {
+            add(URL(fileURLWithPath: path))
+        }
+        for dir in PluginManager.discoveredPluginDirectories() { add(dir) }
+        return ordered
     }
 
     private static func configuredWorkingDirectory(projectURL: URL?) -> URL? {
@@ -376,10 +385,20 @@ final class AgentService {
     /// runtime is first used. Idempotent; on success it sets `claudeRuntimeEnginePython`,
     /// which ClaudeCodeRuntime registers as the `engine` MCP server. No-op without a bundled
     /// engine (dev builds). The benign worst case of the unsynchronized flag is two bootstraps.
+    ///
+    /// When the engine is already bootstrapped, re-check the discovered plugin packs instead — a
+    /// plugin imported into the user dir after first setup still gets its pack installed (idempotent).
     private static func ensureEngineBootstrapped() {
-        guard !engineBootstrapStarted, case .notBootstrapped = EngineRuntime.status() else { return }
-        engineBootstrapStarted = true
-        Task.detached { await EngineRuntime.bootstrap() }
+        switch EngineRuntime.status() {
+        case .notBootstrapped:
+            guard !engineBootstrapStarted else { return }
+            engineBootstrapStarted = true
+            Task.detached { await EngineRuntime.bootstrap() }
+        case .ready:
+            Task.detached { await EngineRuntime.installDiscoveredPacks() }
+        case .unavailable, .failed:
+            break
+        }
     }
 
     private func kickOffStream() {
