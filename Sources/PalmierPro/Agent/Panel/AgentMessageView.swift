@@ -58,9 +58,9 @@ struct AgentMessageView: View {
                     EmptyView()
                 }
             }
-            if !copyableText.isEmpty {
+            if !copyableText.isEmpty, isHovering {
                 CopyMessageButton(text: copyableText)
-                    .opacity(isHovering ? 1 : 0)
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -75,15 +75,7 @@ private struct CopyMessageButton: View {
     @State private var copied = false
 
     var body: some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            copied = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1.5))
-                copied = false
-            }
-        } label: {
+        Button(action: copy) {
             HStack(spacing: AppTheme.Spacing.xs) {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
                 Text(copied ? "Copied" : "Copy")
@@ -93,6 +85,17 @@ private struct CopyMessageButton: View {
         }
         .buttonStyle(.plain)
         .help("Copy message")
+    }
+
+    private func copy() {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
     }
 }
 
