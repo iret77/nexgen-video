@@ -17,11 +17,16 @@ from mcp.server.fastmcp import FastMCP
 
 from nexgen_engine.bible import schema as bible_schema
 from nexgen_engine.brief import schema as brief_schema
+from nexgen_engine.core import gates as gates_mod
+from nexgen_engine.core import layout as layout_mod
 from nexgen_engine.core.gates import CORE_PHASES
+from nexgen_engine.core.modes import Mode
 from nexgen_engine.pack import discover_packs
+from nexgen_engine.render import costs as costs_mod
 from nexgen_engine.sanity.audit import AuditContext, SanityCheck, audit
 from nexgen_engine.sanity.checks import register_core_checks
 from nexgen_engine.shotlist import schema as shotlist_schema
+from nexgen_engine.show.dispatch import show_gate_artifact
 from nexgen_engine.state import build_snapshot
 
 mcp = FastMCP("engine")
@@ -79,6 +84,57 @@ def run_sanity(project_dir: str) -> dict[str, Any]:
     }
 
 
+def init_project(home_dir: str, name: str, mode: str = "beat", budget_eur: float = 50.0) -> dict[str, Any]:
+    """Scaffold a fresh project under *home_dir*, merging the active pack's dirs."""
+    data_root = layout_mod.init_project(
+        Path(home_dir),
+        name,
+        Mode(mode),
+        budget_eur,
+        extra_dirs=tuple(discover_packs().engine.project_dirs),
+    )
+    return {"data_root": str(data_root), "project": name, "created": True}
+
+
+def approve_gate(project_dir: str, phase: str, notes: str | None = None) -> dict[str, Any]:
+    """Approve *phase* and return that phase's updated gate status."""
+    g = gates_mod.approve(Path(project_dir), phase, notes=notes)
+    gate = g.get(phase)
+    return {
+        "project": g.project,
+        "phase": phase,
+        "approved": gate.approved,
+        "approved_at": gate.approved_at,
+        "approved_by": gate.approved_by,
+        "notes": gate.notes,
+    }
+
+
+def rewind(project_dir: str, target_phase: str) -> dict[str, Any]:
+    """Reset *target_phase* and every following phase; return the reset phases."""
+    reset = gates_mod.rewind_to(Path(project_dir), target_phase, order=tuple(phases()))
+    return {"target": target_phase, "reset_phases": reset}
+
+
+def estimate_cost(project_dir: str) -> dict[str, Any]:
+    """The project's budget picture from the render ledger (no forward estimate)."""
+    root = Path(project_dir)
+    snap = build_snapshot(root)
+    spent = costs_mod.already_spent_in_project(root)
+    return {
+        "project": snap.project,
+        "budget_eur": snap.budget_eur,
+        "spent_eur": spent,
+        "remaining_eur": max(0.0, snap.budget_eur - spent),
+        "over_budget": spent > snap.budget_eur,
+    }
+
+
+def show_artifact(project_dir: str, gate: str) -> dict[str, Any]:
+    """The Markdown a gate's artifact formatter produces (or a 'nothing yet' note)."""
+    return {"gate": gate, "markdown": show_gate_artifact(Path(project_dir), gate)}
+
+
 @mcp.tool()
 def get_project_state(project_dir: str) -> dict[str, Any]:
     """Where a project stands: meta, gate/phase status, next open phase. Read-only.
@@ -110,6 +166,64 @@ def run_sanity_tool(project_dir: str) -> dict[str, Any]:
     `{"error": "no shotlist", ...}` instead of raising. Read-only. `project_dir`
     is the `_studio/` data root."""
     return run_sanity(project_dir)
+
+
+@mcp.tool(name="init_project")
+def init_project_tool(
+    home_dir: str, name: str, mode: str = "beat", budget_eur: float = 50.0
+) -> dict[str, Any]:
+    """Scaffold a fresh project under `home_dir` and return `{data_root, project,
+    created}`. WRITES.
+
+    Creates the `_studio/` data root with the engine's format-neutral core subdirs
+    PLUS the active pack's own subdirs (e.g. musicvideo adds audio/lyrics/analysis),
+    and writes `project.yaml` (mode, budget) and `gates.yaml`. `mode` is one of
+    beat/phrase/section/multicam. Fails if `home_dir` already holds a project."""
+    return init_project(home_dir, name, mode, budget_eur)
+
+
+@mcp.tool(name="approve_gate")
+def approve_gate_tool(project_dir: str, phase: str, notes: str | None = None) -> dict[str, Any]:
+    """Approve a production gate so the next phase may run. WRITES.
+
+    Stamps `phase`'s gate approved (with optional `notes`) and returns the updated
+    `{project, phase, approved, approved_at, approved_by, notes}`. `project_dir` is
+    the `_studio/` data root."""
+    return approve_gate(project_dir, phase, notes)
+
+
+@mcp.tool(name="rewind")
+def rewind_tool(project_dir: str, target_phase: str) -> dict[str, Any]:
+    """Rewind the pipeline to `target_phase`. WRITES.
+
+    Resets `target_phase` and every following phase (in the merged core+pack phase
+    order, so pack phases like `analysis` sit in the right place) to unapproved;
+    artifacts are kept. Returns `{target, reset_phases}`. `project_dir` is the
+    `_studio/` data root."""
+    return rewind(project_dir, target_phase)
+
+
+@mcp.tool(name="estimate_cost")
+def estimate_cost_tool(project_dir: str) -> dict[str, Any]:
+    """The project's budget picture. Read-only.
+
+    Sums EUR already spent across the render ledger and compares against the
+    project budget, returning `{project, budget_eur, spent_eur, remaining_eur,
+    over_budget}`. This is the spent/remaining view (not a forward per-shot
+    estimate — that requires a shotlist and a priced cost config). `project_dir`
+    is the `_studio/` data root."""
+    return estimate_cost(project_dir)
+
+
+@mcp.tool(name="show_artifact")
+def show_artifact_tool(project_dir: str, gate: str) -> dict[str, Any]:
+    """The Markdown for a gate's artifact, for user review before approval. Read-only.
+
+    Dispatches `gate` (brief/production_design/treatment/storyboard/bible/shotlist/
+    analysis/render) to its formatter and returns `{gate, markdown}`. A gate with no
+    formatter, or one whose artifact isn't written yet, yields a clear "nothing yet"
+    string instead of raising. `project_dir` is the `_studio/` data root."""
+    return show_artifact(project_dir, gate)
 
 
 def main() -> None:  # pragma: no cover
