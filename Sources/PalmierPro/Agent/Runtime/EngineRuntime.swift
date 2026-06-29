@@ -73,19 +73,29 @@ enum EngineRuntime {
                 // --python 3.12 lets uv fetch + manage its own CPython; no system Python required.
                 try await run("uv", ["venv", "--python", "3.12", venvDir.path])
             }
-            var installArgs = ["pip", "install", "--python", venvPython.path, "-e", engine.path]
-            if let plugins = bundledPluginsDir,
-               let entries = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) {
-                for dir in entries where FileManager.default.fileExists(
-                    atPath: dir.appendingPathComponent("pyproject.toml").path) {
-                    installArgs += ["-e", dir.path]
-                }
-            }
-            try await run("uv", installArgs)
+            // The engine itself must install — its failure fails the bootstrap.
+            try await run("uv", ["pip", "install", "--python", venvPython.path, "-e", engine.path])
             UserDefaults.standard.set(venvPython.path, forKey: pythonDefaultsKey)
+            await installDiscoveredPacks()
             return .ready(python: venvPython.path)
         } catch {
             return .failed(error.localizedDescription)
+        }
+    }
+
+    /// Install every discovered plugin's Python pack into the venv (`uv pip install -e <name>/`), then
+    /// the engine picks them up via entry-points. Per-plugin non-fatal: a pack that fails to install is
+    /// skipped so it can't break the others or the engine. Idempotent — `uv pip install -e` of an
+    /// already-installed editable pack is a fast no-op, so this is safe to re-run on every bootstrap.
+    /// No-op when no python is published yet (engine install failed) or no installable plugin is found.
+    static func installDiscoveredPacks() async {
+        guard isVenvReady else { return }
+        for plugin in PluginManager.installablePlugins() {
+            do {
+                try await run("uv", ["pip", "install", "--python", venvPython.path, "-e", plugin.installRoot.path])
+            } catch {
+                NSLog("EngineRuntime: skipped plugin pack \"%@\": %@", plugin.name, error.localizedDescription)
+            }
         }
     }
 
