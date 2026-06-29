@@ -1,7 +1,7 @@
-# Engine Migration — `musicvideo` → `engine/` + `packs/`
+# Engine Migration — `musicvideo` → `engine/` + `plugins/`
 
 Staged extraction of the **Generic Production Engine** out of the `musicvideo`
-Python repo into this monorepo (`engine/` + `packs/`), leaving `musicvideo` as a
+Python repo into this monorepo (`engine/` + `plugins/`), leaving `musicvideo` as a
 thin format-pack. Realizes [CONCEPT.md](CONCEPT.md) §2 (consistency is core),
 §4/§4.1 (core↔plugin boundary), §9 (monorepo). Baseline: musicvideo v0.15.1.
 
@@ -11,10 +11,10 @@ against the current code (2026-06-28).
 ## Decisions
 
 - **Package name:** `nexgen_engine` (dir `engine/`). Imports: `from nexgen_engine.core import …`.
-- **Packs:** `packs/<name>/` (first: `packs/musicvideo/`).
+- **Packs:** `plugins/<name>/` (first: `plugins/musicvideo/`).
 - **Verification:** a fast Ubuntu **Engine CI** (`pytest engine/tests`) — separate from the slow macOS Swift build.
 - **Approach:** additive vertical slices. Generic modules are **copied** into `engine/` and proven there before `musicvideo` is rewired to depend on the engine. Tier 1A touches **only** `engine/` — zero changes to the working musicvideo repo.
-- **Open (decide at the MIXED tier):** whether the whole musicvideo repo ultimately relocates into `packs/musicvideo/` (and the standalone repo is archived) vs. stays separate and depends on a published engine; and the dual-import compat strategy during cutover.
+- **Open (decide at the MIXED tier):** whether the whole musicvideo repo ultimately relocates into `plugins/musicvideo/` (and the standalone repo is archived) vs. stays separate and depends on a published engine; and the dual-import compat strategy during cutover.
 
 ## Target structure
 
@@ -27,7 +27,7 @@ engine/nexgen_engine/
   sanity/      audit, blocking_validator, checks/<generic>
   shotlist/ storyboard/ brief/ treatment/   (schemas; music semantics via pack hooks)
   state/ show/ mcp_server/
-packs/musicvideo/
+plugins/musicvideo/
   analysis/* patterns/* cover/* brainstorm/*  (audio DSP, mood/tempo/genre, art)
   sanity_checks/{tempo,pacing,pattern_drift}  (registered into the engine framework)
   tempo_policy, duration_policy               (mode→duration/cost bands)
@@ -66,4 +66,4 @@ packs/musicvideo/
 - **Tier 1A** (landed): pure-leaf generic modules → `engine/core` + `engine/treatment`, smoke-tested.
 - **Tier 1B**: gates/project/layout, state, show, mcp_server (resolve the small dependency closures: gates→paths, state→project).
 - **Tier 2 (MIXED)**: schemas (brief/shotlist/storyboard/bible) → engine; then the decoupling interfaces (seams 1–3); then render/frames/sanity framework with pack registration.
-- **Cutover**: rewire `musicvideo` to import from `nexgen_engine` (dual-import compat), split tests (engine regression vs pack), create `packs/musicvideo/`, then resolve the standalone-repo question.
+- **Cutover**: rewire `musicvideo` to import from `nexgen_engine` (dual-import compat), split tests (engine regression vs pack), create `plugins/musicvideo/`, then resolve the standalone-repo question.

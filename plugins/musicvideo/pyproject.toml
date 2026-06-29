@@ -12,7 +12,7 @@ dependencies = []
 
 # Heavy audio-analysis DSP stack. NOT installed by the fast CI (which installs the
 # pack bare) — the analysis modules import these lazily, only when the analysis phase
-# runs. Install with: pip install -e ./packs/musicvideo[audio]
+# runs. Install with: pip install -e ./plugins/musicvideo[audio]
 [project.optional-dependencies]
 audio = [
     "librosa",          # load, beats, energy/tempo curves, laplacian structure (module-level)

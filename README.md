@@ -52,6 +52,16 @@ Generate videos and images with SOTA models like Seedance, Kling, Nano Banana Pr
 
 Connects your Claude/Codex/Cursor via MCP, or use the in-app agent to work on the same project together.
 
+## Plugins
+
+NexGenVideo ships with the editor, the generation providers, and a bundled generic
+production engine. **Format plugins** add structured, end-to-end workflows on top —
+the first is `musicvideo` (analysis → treatment → storyboard → shotlist → render).
+Plugins are loadable: download one, drop it in, and the format appears in the app.
+
+Browse the catalog and learn how to build your own in the
+**[plugin marketplace](plugins/README.md)**.
+
 ## MCP server
 
 When the app is open, it exposes an MCP server at `http://127.0.0.1:19789/mcp` via HTTP. To connect:
