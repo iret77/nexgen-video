@@ -174,6 +174,25 @@ extension ToolExecutor {
             aspectRatio: aspectRatio, resolution: resolution, quality: quality
         )
         let folderId = try resolveFolderId(args, editor: editor, fallbackReferences: refs)
+
+        if MarbleModelRegistry.isMarbleModel(modelId) {
+            guard let reference = refs.first else {
+                throw ToolError("\(model.displayName) requires a reference image via 'referenceMediaRefs' (the world is generated from it).")
+            }
+            let placeholderId = ImageGenerationSubmission.makeMarble(
+                genInput: genInput,
+                model: model,
+                reference: reference,
+                name: args.string("name"),
+                folderId: folderId
+            ).submit(
+                service: editor.generationService,
+                projectURL: editor.projectURL,
+                editor: editor
+            )
+            return .ok("Marble world generation started (this can take several minutes). Placeholder asset ID: \(placeholderId). Model: \(model.displayName). Result: equirectangular panorama image.")
+        }
+
         let placeholderId = ImageGenerationSubmission.make(
             genInput: genInput,
             model: model,

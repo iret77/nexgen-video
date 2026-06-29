@@ -275,9 +275,17 @@ rollendes signiertes Prerelease als öffentlicher Direktlink. PRs immer `--repo 
   + Kling/Seedance image-to-video), Audio (ElevenLabs TTS/SFX, Stable Audio), Upscale (Clarity, Topaz).
   fal-Storage-Upload für Referenzen verdrahtet; Provider-Keys-Pane. Architektur: `FalModelRegistry`
   (per-Modell-Dialekt) + `FalInputBuilder`/`FalOutput` + generischer `runFalJob`.
+- **Marble (World Labs) World-Model (BYO-Key):** zweiter Provider neben fal, gleiche Katalog-Mechanik.
+  `MarbleClient` (eigener Lifecycle: `WLT-Api-Key`-Header, `worlds:generate` → `operations/{id}`-Long-Poll)
+  + `MarbleModelRegistry` + `MarbleInputBuilder`/`MarbleOutput`; `GenerationService` routet `marble/`-Modelle
+  über `runMarbleJob`. Referenz-Bild + Geometrie-Text-Prompt → 3D-Welt; **nutzbarer Output = das
+  equirektanguläre Panorama (PNG)**, gemappt auf den `.image`-Asset-Typ. Mesh (GLB), Splats (SPZ) und die
+  POV/Restyle-Pipeline (numpy/py360convert aus dem alten `scene3d`-Modul) bewusst **out of scope**.
 
 **Offen / nächste Schritte:**
 - **Laufzeit gegen die echte fal-API noch ungetestet** — bisher nur CI-Compile. Erst-Test nötig (txt2img → txt2video → TTS → i2v).
+- **Marble blind implementiert** (kein Test-Key) — Request/Response nach `scene3d/marble.py`. Erst-Test nötig.
+- Mesh-/Splat-Import + POV-Extraction/Restyle für Marble (3D-Konsistenz-Workflow) als Folge-Arbeit.
 - Weitere Provider (Runway, OpenArt, Higgsfield, ElevenLabs-direkt) als eigene Clients.
 - Generic Engine + Format-Packs (Monorepo `engine/` + `packs/`, §4/§9/§10) — noch nicht angelegt.
 - Interner Modulname `PalmierPro` + `io.palmier.project`-UTI bewusst beibehalten (unsichtbar, hohes Bau-/Merge-Risiko).
