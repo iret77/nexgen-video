@@ -83,10 +83,10 @@ Core-Repo, *kein* Submodul:
 nexgen-video/
   Sources/PalmierPro/   ← Swift-Host (App)
   engine/               ← Generic Production Engine (Python, generisch)
-  packs/musicvideo/     ← erstes Format-Pack (dünn); weitere Packs daneben
+  plugins/musicvideo/   ← erstes Format-Plugin (dünn, enthält einen Pack); weitere daneben
 ```
 
-Das heutige separate `musicvideo`-Repo „geht auf" in `engine/` (generische Teile) + `packs/musicvideo/`
+Das heutige separate `musicvideo`-Repo „geht auf" in `engine/` (generische Teile) + `plugins/musicvideo/`
 (Musik-Spezifika). Begründung: ein autonomes Produkt = ein Repo, eine Versionierung, kein
 Submodul-Schmerz. Ein eigenes `nexgen-core`-Repo bräuchte es nur, wenn die Engine von *Fremd-Hosts*
 mitgenutzt würde — bei „NexGen ist *der* Host" trifft das nicht zu.
@@ -234,7 +234,7 @@ Modell-Call" reicht — sie macht die Konsistenz über Shots und Re-Renders repr
 ## 9. Offene Entscheidungen
 
 - ✅ **Entschieden 2026-06-28 — Monorepo:** Generic Core + erste Packs leben in `nexgen-video`
-  (`engine/`, `packs/<pack>/`), *kein* eigenes Repo, *kein* Submodul. Die alte „eigenes
+  (`engine/`, `plugins/<plugin>/`), *kein* eigenes Repo, *kein* Submodul. Die alte „eigenes
   `nexgen-core`-Repo"-Tendenz war Über-Strukturierung und ist verworfen (ein autonomes Produkt = ein Repo).
 - Mapping `.palmier`-Projektort ↔ Engine-Projektordner (Layout v2 `_studio/`) — Detaildesign.
 - `io.palmier.project`-UTI behalten oder migrieren.
@@ -287,7 +287,7 @@ rollendes signiertes Prerelease als öffentlicher Direktlink. PRs immer `--repo 
 - **Marble blind implementiert** (kein Test-Key) — Request/Response nach `scene3d/marble.py`. Erst-Test nötig.
 - Mesh-/Splat-Import + POV-Extraction/Restyle für Marble (3D-Konsistenz-Workflow) als Folge-Arbeit.
 - Weitere Provider (Runway, OpenArt, Higgsfield, ElevenLabs-direkt) als eigene Clients.
-- Generic Engine + Format-Packs (Monorepo `engine/` + `packs/`, §4/§9/§10) — noch nicht angelegt.
+- Generic Engine + Format-Plugins (Monorepo `engine/` + `plugins/`, §4/§9/§10) — noch nicht angelegt.
 - Interner Modulname `PalmierPro` + `io.palmier.project`-UTI bewusst beibehalten (unsichtbar, hohes Bau-/Merge-Risiko).
 
 ---

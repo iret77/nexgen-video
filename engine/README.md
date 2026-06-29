@@ -8,7 +8,7 @@ the consistency machinery is **core**, not a plugin — format-packs (musicvideo
 …) sit on top and register only their domain-specific behavior.
 
 This is a **monorepo**: the engine lives here next to the Swift host; activated
-format-packs live under [`../packs/`](../packs). The embedded `claude -p` runtime
+format plugins live under [`../plugins/`](../plugins). The embedded `claude -p` runtime
 loads the engine + the active pack via `--plugin-dir`.
 
 ## Status

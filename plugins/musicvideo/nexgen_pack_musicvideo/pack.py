@@ -30,7 +30,7 @@ def _analysis_phase(project_dir: object) -> object:
     The DSP pipeline pulls heavy deps (librosa/numpy/sklearn, plus the optional
     madmom/essentia/demucs/whisperx stack) only when the phase actually runs, so
     importing the pack stays free of them. Install via the ``audio`` extra:
-    ``pip install -e ./packs/musicvideo[audio]``.
+    ``pip install -e ./plugins/musicvideo[audio]``.
     """
     from nexgen_pack_musicvideo.analysis.pipeline import run_phase
 

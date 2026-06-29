@@ -1,4 +1,4 @@
-# Plugin Standard (packs)
+# Plugin Standard
 
 How a format pack plugs into NexGenVideo. Companion to [CONCEPT.md](CONCEPT.md)
 §4.1 and [ENGINE_MIGRATION.md](ENGINE_MIGRATION.md). Status: **v0 contract**

@@ -108,13 +108,13 @@ if ! ls "$RES_BUNDLE"/*.metallib >/dev/null 2>&1; then
 fi
 cp "$RES_BUNDLE"/*.metallib "$APP/Contents/Resources/"
 
-# Bundle the Generic Engine + format packs (Python source) for the embedded claude
+# Bundle the Generic Engine + format plugins (Python source) for the embedded claude
 # runtime. On first use the app bootstraps a venv from these (uv) and points the
 # runtime's engine MCP at it (claudeRuntimeEnginePython). Source only — no venv/caches.
-for pysrc in engine packs; do
+for pysrc in engine plugins; do
   cp -R "$ROOT/$pysrc" "$APP/Contents/Resources/$pysrc"
 done
-find "$APP/Contents/Resources/engine" "$APP/Contents/Resources/packs" \
+find "$APP/Contents/Resources/engine" "$APP/Contents/Resources/plugins" \
   \( -name '__pycache__' -o -name '*.egg-info' -o -name '.venv' -o -name '.pytest_cache' \) \
   -prune -exec rm -rf {} + 2>/dev/null || true
 

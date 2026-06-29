@@ -1,8 +1,8 @@
 import Foundation
 
 // Bootstraps the bundled Generic Engine into a local venv (via `uv`) so the embedded
-// claude can reach its MCP server. bundle.sh ships the engine + packs at
-// Contents/Resources/{engine,packs}; the venv lives in Application Support (survives app
+// claude can reach its MCP server. bundle.sh ships the engine + plugins at
+// Contents/Resources/{engine,plugins}; the venv lives in Application Support (survives app
 // updates); the resolved python is published to UserDefaults `claudeRuntimeEnginePython`,
 // which ClaudeCodeRuntime registers as the `engine` MCP server.
 //
@@ -12,7 +12,7 @@ enum EngineRuntime {
     static let pythonDefaultsKey = "claudeRuntimeEnginePython"
 
     static var bundledEngineDir: URL? { Bundle.main.resourceURL?.appendingPathComponent("engine") }
-    static var bundledPacksDir: URL? { Bundle.main.resourceURL?.appendingPathComponent("packs") }
+    static var bundledPluginsDir: URL? { Bundle.main.resourceURL?.appendingPathComponent("plugins") }
 
     // uv shipped inside the .app (bundle.sh → Contents/Resources/bin/uv). Self-contained: it
     // downloads + manages its own CPython, so a release Mac needs no brew/uv/system Python.
@@ -59,7 +59,7 @@ enum EngineRuntime {
         }
     }
 
-    /// Create the venv (uv) and install the bundled engine + packs, then publish the python
+    /// Create the venv (uv) and install the bundled engine + plugins, then publish the python
     /// path so the engine MCP registers. Idempotent; safe to call when already ready.
     @discardableResult
     static func bootstrap() async -> Status {
@@ -74,8 +74,8 @@ enum EngineRuntime {
                 try await run("uv", ["venv", "--python", "3.12", venvDir.path])
             }
             var installArgs = ["pip", "install", "--python", venvPython.path, "-e", engine.path]
-            if let packs = bundledPacksDir,
-               let entries = try? FileManager.default.contentsOfDirectory(at: packs, includingPropertiesForKeys: nil) {
+            if let plugins = bundledPluginsDir,
+               let entries = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) {
                 for dir in entries where FileManager.default.fileExists(
                     atPath: dir.appendingPathComponent("pyproject.toml").path) {
                     installArgs += ["-e", dir.path]
