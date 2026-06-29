@@ -308,6 +308,24 @@ final class GenerationService {
         defer { Log.generation.notice("run \(runId) settled") }
 
         let endpoint = genInput.model
+
+        if MarbleModelRegistry.isMarbleModel(endpoint) {
+            guard case .image(let p) = params, let marbleModel = MarbleModelRegistry.model(for: endpoint) else {
+                return failJob(placeholders, "Unsupported Marble request for model: \(endpoint)", onFailure)
+            }
+            await runMarbleJob(
+                model: marbleModel,
+                prompt: p.prompt,
+                referencePath: p.imageURLs.first,
+                name: genInput.prompt,
+                placeholders: placeholders,
+                editor: editor,
+                onComplete: onComplete,
+                onFailure: onFailure
+            )
+            return
+        }
+
         let falModel = FalModelRegistry.model(for: endpoint)
         let input: [String: Any]
         let shape: CatalogEntry.ResponseShape
@@ -389,6 +407,60 @@ final class GenerationService {
         } catch {
             failJob(placeholders, error.localizedDescription, onFailure)
         }
+    }
+
+    private func runMarbleJob(
+        model: MarbleModel,
+        prompt: String,
+        referencePath: String?,
+        name: String,
+        placeholders: [MediaAsset],
+        editor: EditorViewModel,
+        onComplete: (@MainActor (MediaAsset) -> Void)?,
+        onFailure: (@MainActor () -> Void)?
+    ) async {
+        guard let apiKey = ProviderKeychain.load(.marble) else {
+            return failJob(placeholders, "Add a Marble (World Labs) API key in Settings to generate.", onFailure)
+        }
+        guard let referencePath, let referenceURL = Self.localFileURL(referencePath) else {
+            return failJob(placeholders, "Marble requires a reference image.", onFailure)
+        }
+
+        do {
+            let displayName = String(name.prefix(60))
+            let body = try MarbleInputBuilder.body(
+                prompt: prompt, displayName: displayName, model: model.model, referenceImageURL: referenceURL
+            )
+            let client = MarbleClient(apiKey: apiKey)
+            let operationId = try await client.submit(body: body)
+            let outputData = try await client.result(operationId: operationId)
+            let urls = MarbleOutput.urls(from: outputData)
+            guard !urls.isEmpty else {
+                throw GenerationBackendError.transport("Marble returned no panorama")
+            }
+            let job = BackendGenerationJob(
+                _id: operationId,
+                status: .succeeded,
+                resultUrls: urls,
+                errorMessage: nil,
+                costCredits: nil,
+                completedAt: nil
+            )
+            await finalizeSuccess(
+                job: job,
+                placeholders: placeholders,
+                editor: editor,
+                onComplete: onComplete,
+                onFailure: onFailure
+            )
+        } catch {
+            failJob(placeholders, error.localizedDescription, onFailure)
+        }
+    }
+
+    private static func localFileURL(_ path: String) -> URL? {
+        if let url = URL(string: path), url.isFileURL { return url }
+        return URL(fileURLWithPath: path)
     }
 
     private func finalizeSuccess(

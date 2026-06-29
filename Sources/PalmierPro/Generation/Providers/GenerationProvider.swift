@@ -10,6 +10,7 @@ enum GenerationProvider: String, CaseIterable, Identifiable {
     case openart
     case higgsfield
     case elevenlabs
+    case marble
 
     var id: String { rawValue }
 
@@ -20,6 +21,7 @@ enum GenerationProvider: String, CaseIterable, Identifiable {
         case .openart: return "OpenArt"
         case .higgsfield: return "Higgsfield"
         case .elevenlabs: return "ElevenLabs"
+        case .marble: return "Marble"
         }
     }
 
@@ -30,6 +32,7 @@ enum GenerationProvider: String, CaseIterable, Identifiable {
         case .openart: return "Image"
         case .higgsfield: return "Video"
         case .elevenlabs: return "Voice · SFX · Music"
+        case .marble: return "3D World · Panorama"
         }
     }
 
@@ -40,6 +43,7 @@ enum GenerationProvider: String, CaseIterable, Identifiable {
         case .openart: return URL(string: "https://openart.ai/api")!
         case .higgsfield: return URL(string: "https://higgsfield.ai")!
         case .elevenlabs: return URL(string: "https://elevenlabs.io/app/settings/api-keys")!
+        case .marble: return URL(string: "https://platform.worldlabs.ai/")!
         }
     }
 

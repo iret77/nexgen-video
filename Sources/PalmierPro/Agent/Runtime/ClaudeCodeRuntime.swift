@@ -180,6 +180,7 @@ final class ClaudeCodeRuntime {
         (.openart, "OPENART_API_KEY"),
         (.higgsfield, "HIGGSFIELD_API_KEY"),
         (.elevenlabs, "ELEVENLABS_API_KEY"),
+        (.marble, "WORLD_LABS_API_KEY"),
     ]
 
     /// Environment for the spawned `claude`: inherit the app's, augment PATH with the common
