@@ -391,3 +391,7 @@ def get_render_manifest_tool(project_dir: str, phase: str) -> dict[str, Any]:
 def main() -> None:  # pragma: no cover
     """Run the engine MCP server over stdio (default FastMCP transport)."""
     mcp.run()
+
+
+if __name__ == "__main__":  # `python -m nexgen_engine.mcp_server` must actually start the server
+    main()
