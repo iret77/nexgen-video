@@ -5,7 +5,7 @@ import Foundation
 // CodingKeys below match the raw JSON keys. Decoding is defensive: missing keys fall back to sensible
 // defaults and unknown extra keys are ignored, so a newer engine schema still loads read-only.
 
-struct BibleData: Codable, Sendable, Equatable {
+struct BibleData: Decodable, Sendable, Equatable {
     var schema: String
     var project: String
     var generated: String
@@ -37,7 +37,7 @@ struct BibleData: Codable, Sendable, Equatable {
     }
 }
 
-struct BibleLook: Codable, Sendable, Equatable {
+struct BibleLook: Decodable, Sendable, Equatable {
     var style: String = ""
     var palette: String = ""
     var lighting: String = ""
@@ -120,7 +120,7 @@ private func decodeSheets(_ raw: [String: String]?) -> [BibleSheet] {
     (raw ?? [:]).sorted { $0.key < $1.key }.map { BibleSheet(key: $0.key, path: $0.value) }
 }
 
-struct BibleCharacter: Codable, Sendable, Equatable, Identifiable, BibleEntity {
+struct BibleCharacter: Decodable, Sendable, Equatable, Identifiable, BibleEntity {
     var id: String
     var name: String
     var visualPrompt: String
@@ -152,7 +152,7 @@ struct BibleCharacter: Codable, Sendable, Equatable, Identifiable, BibleEntity {
     }
 }
 
-struct BibleEnsemble: Codable, Sendable, Equatable, Identifiable, BibleEntity {
+struct BibleEnsemble: Decodable, Sendable, Equatable, Identifiable, BibleEntity {
     var id: String
     var name: String
     var visualPrompt: String
@@ -190,7 +190,7 @@ struct BibleEnsemble: Codable, Sendable, Equatable, Identifiable, BibleEntity {
     }
 }
 
-struct BibleProp: Codable, Sendable, Equatable, Identifiable, BibleEntity {
+struct BibleProp: Decodable, Sendable, Equatable, Identifiable, BibleEntity {
     var id: String
     var name: String
     var visualPrompt: String
@@ -222,7 +222,7 @@ struct BibleProp: Codable, Sendable, Equatable, Identifiable, BibleEntity {
     }
 }
 
-struct BibleLocation: Codable, Sendable, Equatable, Identifiable, BibleEntity {
+struct BibleLocation: Decodable, Sendable, Equatable, Identifiable, BibleEntity {
     var id: String
     var name: String
     var visualPrompt: String
