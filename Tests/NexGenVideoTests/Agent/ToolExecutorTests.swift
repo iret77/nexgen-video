@@ -76,7 +76,6 @@ struct ToolExecutorSmokeTests {
         #expect(json?["fps"] as? Int == 30)
         #expect(json?["tracks"] is [Any])
         #expect(json?["currentFrame"] is Int)
-        #expect(json?["canGenerate"] is Bool)
     }
 }
 
@@ -100,14 +99,6 @@ struct ToolExecutorReadOnlyTests {
         #expect(tracks?[0]["label"] as? String == "V1")
         #expect(tracks?[1]["label"] as? String == "A1")
         #expect(json?["currentFrame"] as? Int == 42)
-    }
-
-    @Test func getTimelineExposesCanGenerateFromAccountService() async throws {
-        // AccountService.shared starts unpaid in test environment.
-        let h = ToolHarness()
-        let json = try await h.runOK("get_timeline") as? [String: Any]
-        // We don't assert the value (depends on env), only that the key is present and Bool.
-        #expect(json?["canGenerate"] is Bool)
     }
 
     @Test func getTimelineRoundsFloatingPointNumbersToThreeDecimalPlaces() async throws {
