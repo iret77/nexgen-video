@@ -1,0 +1,434 @@
+import AppKit
+import SwiftUI
+
+// Read-only Bible cockpit panel: shows the production Bible (characters, ensembles, props, locations,
+// look) with reference-sheet thumbnails, loaded via the engine read CLI (CockpitDataService.bible).
+// Segmented picker across the entity kinds; per-entity cards; explicit loading / empty / error /
+// engine-not-ready states. No mutations.
+
+struct BiblePanelView: View {
+    @Environment(EditorViewModel.self) private var editor
+
+    enum Section: String, CaseIterable, Hashable {
+        case characters = "Characters"
+        case ensembles = "Ensembles"
+        case props = "Props"
+        case locations = "Locations"
+        case look = "Look"
+    }
+
+    private enum LoadState: Equatable {
+        case idle
+        case loading
+        case loaded(BibleData?)
+        case failed(CockpitError)
+    }
+
+    @State private var state: LoadState = .idle
+    @State private var section: Section = .characters
+    /// Guards against a stale reload result overwriting a newer one when the project changes mid-flight.
+    @State private var loadToken = 0
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .task(id: editor.projectURL) { await load() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .idle, .loading:
+            centered { ProgressView().controlSize(.small) }
+        case .failed(let error):
+            errorState(error)
+        case .loaded(nil):
+            emptyState(
+                icon: "book.closed",
+                title: "No Bible yet",
+                message: "This project doesn't have a production Bible."
+            )
+        case .loaded(.some(let bible)):
+            loadedBody(bible)
+        }
+    }
+
+    @ViewBuilder
+    private func loadedBody(_ bible: BibleData) -> some View {
+        sectionPicker
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                switch section {
+                case .characters: entityList(bible.characters)
+                case .ensembles: entityList(bible.ensembles)
+                case .props: entityList(bible.props)
+                case .locations: entityList(bible.locations)
+                case .look: lookContent(bible.look)
+                }
+            }
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.vertical, AppTheme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var sectionPicker: some View {
+        Picker("", selection: $section) {
+            ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.top, AppTheme.Spacing.md)
+        .padding(.bottom, AppTheme.Spacing.sm)
+    }
+
+    // MARK: - Entity list
+
+    @ViewBuilder
+    private func entityList<Entity: BibleEntity & Identifiable>(_ entities: [Entity]) -> some View {
+        if entities.isEmpty {
+            emptyState(
+                icon: "tray",
+                title: "None yet",
+                message: "No \(section.rawValue.lowercased()) in this Bible."
+            )
+        } else {
+            ForEach(entities) { entity in
+                BibleEntityCard(entity: entity, projectDir: editor.studioProjectDir)
+            }
+        }
+    }
+
+    // MARK: - Look
+
+    @ViewBuilder
+    private func lookContent(_ look: BibleLook) -> some View {
+        if look.isEmpty {
+            emptyState(
+                icon: "paintpalette",
+                title: "No look defined",
+                message: "This Bible has no look guide yet."
+            )
+        } else {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+                ForEach(look.fields, id: \.label) { field in
+                    keyValueRow(key: field.label, value: field.value)
+                }
+            }
+            .padding(AppTheme.Spacing.mdLg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .fill(AppTheme.Background.raisedColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.hairline)
+            )
+        }
+    }
+
+    private func keyValueRow(key: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
+            Text(key)
+                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .frame(width: 76, alignment: .leading)
+            Text(value)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .foregroundStyle(AppTheme.Text.secondaryColor)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - States
+
+    private func errorState(_ error: CockpitError) -> some View {
+        VStack(spacing: AppTheme.Spacing.md) {
+            Image(systemName: error == .engineNotReady ? "gearshape" : "exclamationmark.triangle")
+                .font(.system(size: AppTheme.FontSize.title1))
+                .foregroundStyle(AppTheme.Text.mutedColor)
+            Text(error == .engineNotReady ? "Engine not set up" : "Couldn't load the Bible")
+                .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                .foregroundStyle(AppTheme.Text.secondaryColor)
+            Text(error == .engineNotReady
+                 ? "Set up the engine in Settings to view the Bible."
+                 : error.message)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .foregroundStyle(AppTheme.Text.mutedColor)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Retry") { Task { await load() } }
+                .buttonStyle(.plain)
+                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .foregroundStyle(AppTheme.Accent.primary)
+                .padding(.top, AppTheme.Spacing.xs)
+        }
+        .padding(AppTheme.Spacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func emptyState(icon: String, title: String, message: String) -> some View {
+        VStack(spacing: AppTheme.Spacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: AppTheme.FontSize.title1))
+                .foregroundStyle(AppTheme.Text.mutedColor)
+            Text(title)
+                .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                .foregroundStyle(AppTheme.Text.secondaryColor)
+            Text(message)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .foregroundStyle(AppTheme.Text.mutedColor)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(AppTheme.Spacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func centered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack { Spacer(); content(); Spacer() }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Load
+
+    private func load() async {
+        guard let dir = editor.studioProjectDir else {
+            state = .failed(.noProject)
+            return
+        }
+        loadToken += 1
+        let token = loadToken
+        state = .loading
+        let result = await CockpitDataService.bible(projectDir: dir)
+        guard token == loadToken else { return }
+        switch result {
+        case .success(let bible): state = .loaded(bible)
+        case .failure(let error): state = .failed(error)
+        }
+    }
+}
+
+// MARK: - Entity card
+
+struct BibleEntityCard: View {
+    let entity: any BibleEntity
+    let projectDir: URL?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+            header
+
+            if !entity.hardRecognitionTrait.trimmingCharacters(in: .whitespaces).isEmpty {
+                traitRow(entity.hardRecognitionTrait)
+            }
+
+            if let ensemble = entity as? BibleEnsemble {
+                membersRow(ensemble)
+            }
+
+            if !entity.visualPrompt.trimmingCharacters(in: .whitespaces).isEmpty {
+                labeledBlock(label: "VISUAL PROMPT") {
+                    Text(entity.visualPrompt)
+                        .font(.system(size: AppTheme.FontSize.sm))
+                        .foregroundStyle(AppTheme.Text.secondaryColor)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if !entity.attributes.isEmpty {
+                labeledBlock(label: "ATTRIBUTES") {
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        ForEach(entity.attributes) { attr in
+                            attributeRow(key: attr.key, value: attr.value)
+                        }
+                    }
+                }
+            }
+
+            if !entity.sheets.isEmpty {
+                labeledBlock(label: "REFERENCE SHEETS") {
+                    sheetGrid(entity.sheets)
+                }
+            }
+        }
+        .padding(AppTheme.Spacing.mdLg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .fill(AppTheme.Background.raisedColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.hairline)
+        )
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
+            Text(entity.name.isEmpty ? entity.id : entity.name)
+                .font(.system(size: AppTheme.FontSize.mdLg, weight: .semibold))
+                .foregroundStyle(AppTheme.Text.primaryColor)
+                .lineLimit(2)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+            Text(entity.id)
+                .font(.system(size: AppTheme.FontSize.xxs, weight: .medium).monospaced())
+                .foregroundStyle(AppTheme.Text.mutedColor)
+                .lineLimit(1)
+        }
+    }
+
+    private func traitRow(_ trait: String) -> some View {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.xs) {
+            Image(systemName: "target")
+                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .foregroundStyle(AppTheme.Accent.timecodeColor)
+                .padding(.top, AppTheme.Spacing.xxs)
+            Text(trait)
+                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .foregroundStyle(AppTheme.Text.secondaryColor)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(AppTheme.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                .fill(AppTheme.Accent.timecodeColor.opacity(AppTheme.Opacity.faint))
+        )
+    }
+
+    @ViewBuilder
+    private func membersRow(_ ensemble: BibleEnsemble) -> some View {
+        let count = ensemble.memberCount
+        let desc = ensemble.membersDescription.trimmingCharacters(in: .whitespaces)
+        if count != nil || !desc.isEmpty {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+                if let count {
+                    Text("\(count) members")
+                        .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                        .foregroundStyle(AppTheme.Text.tertiaryColor)
+                }
+                if !desc.isEmpty {
+                    Text(desc)
+                        .font(.system(size: AppTheme.FontSize.sm))
+                        .foregroundStyle(AppTheme.Text.secondaryColor)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func attributeRow(key: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
+            Text(key)
+                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .frame(width: 76, alignment: .leading)
+            Text(value)
+                .font(.system(size: AppTheme.FontSize.xs))
+                .foregroundStyle(AppTheme.Text.secondaryColor)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func sheetGrid(_ sheets: [BibleSheet]) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 88), spacing: AppTheme.Spacing.sm)],
+            alignment: .leading,
+            spacing: AppTheme.Spacing.sm
+        ) {
+            ForEach(sheets) { sheet in
+                SheetThumbnailView(label: sheet.key, path: sheet.path, projectDir: projectDir)
+            }
+        }
+    }
+
+    private func labeledBlock<Content: View>(
+        label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            Text(label)
+                .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                .tracking(AppTheme.Tracking.wide)
+                .foregroundStyle(AppTheme.Text.mutedColor)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Sheet thumbnail
+
+/// A single reference-sheet tile. Resolves `projectDir + relative path`, loads it with
+/// `NSImage(contentsOfFile:)` off the main actor, and falls back to a placeholder when missing.
+struct SheetThumbnailView: View {
+    let label: String
+    let path: String
+    let projectDir: URL?
+
+    @State private var image: NSImage?
+    @State private var didAttempt = false
+
+    private var resolvedURL: URL? {
+        guard let projectDir, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path, relativeTo: projectDir).standardizedFileURL
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            ZStack {
+                Rectangle().fill(Color.black)
+                if let image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Image(systemName: didAttempt ? "photo" : "photo.on.rectangle")
+                        .font(.system(size: AppTheme.FontSize.mdLg))
+                        .foregroundStyle(AppTheme.Text.mutedColor)
+                }
+            }
+            .frame(height: 64)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                    .strokeBorder(Color.white.opacity(AppTheme.Opacity.faint), lineWidth: AppTheme.BorderWidth.hairline)
+            )
+            Text(label)
+                .font(.system(size: AppTheme.FontSize.xxs, weight: .medium))
+                .foregroundStyle(AppTheme.Text.mutedColor)
+                .lineLimit(1)
+        }
+        .help(resolvedURL.map { "\(label) · \($0.path)" } ?? label)
+        .task(id: resolvedURL) { await loadImage() }
+    }
+
+    private func loadImage() async {
+        guard let url = resolvedURL else {
+            image = nil
+            didAttempt = true
+            return
+        }
+        // Read bytes off the main actor (Data is Sendable); build the NSImage on the main actor —
+        // the codebase keeps non-Sendable AppKit image types off background boundaries.
+        let bytes = await Task.detached(priority: .utility) { () -> Data? in
+            try? Data(contentsOf: url, options: .mappedIfSafe)
+        }.value
+        image = bytes.flatMap { NSImage(data: $0) }
+        didAttempt = true
+    }
+}

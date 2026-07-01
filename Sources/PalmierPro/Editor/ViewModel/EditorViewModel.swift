@@ -126,6 +126,17 @@ final class EditorViewModel {
         }
     }
     private(set) var projectId: String?
+
+    /// Directory the studio engine reads for cockpit data (Bible, shotlist, sanity). Prefers the
+    /// configured agent working dir; falls back to the folder containing `projectURL`. Nil if neither
+    /// resolves.
+    var studioProjectDir: URL? {
+        if let override = UserDefaults.standard.string(forKey: "claudeRuntimeWorkingDir"), !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return projectURL?.deletingLastPathComponent()
+    }
+
     // Placeholder replaced in init() — @Observable doesn't support lazy var
     private(set) var mediaResolver: MediaResolver = MediaResolver(
         manifest: { MediaManifest() }, projectURL: { nil }
