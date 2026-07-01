@@ -17,11 +17,14 @@ struct InspectorView: View {
         case ai = "AI Edit"
     }
 
-    // Cockpit tabs shown in Project mode. Pipeline/Shotlist/Sanity/Cost land in later
-    // increments — only Project + Bible are wired now.
+    // Cockpit tabs shown in Project mode. Each routes to a read-only engine-state panel.
     enum CockpitTab: String, Hashable, CaseIterable {
         case project = "Project"
         case bible = "Bible"
+        case pipeline = "Pipeline"
+        case shotlist = "Shotlist"
+        case sanity = "Sanity"
+        case cost = "Cost"
     }
 
     // Top-level inspector mode: the selection-driven inspector vs. the always-reachable project cockpit.
@@ -122,6 +125,10 @@ struct InspectorView: View {
                 switch cockpitTab {
                 case .project: projectMetadataContent
                 case .bible: BiblePanelView()
+                case .pipeline: PipelinePanelView()
+                case .shotlist: ShotlistPanelView()
+                case .sanity: SanityPanelView()
+                case .cost: CostPanelView()
                 }
             }
         }

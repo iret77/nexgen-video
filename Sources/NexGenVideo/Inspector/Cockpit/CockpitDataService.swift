@@ -62,6 +62,65 @@ enum CockpitDataService {
         }
     }
 
+    /// Fetch and decode the project state (phase gates + budget). Never `null` from the engine, but a
+    /// `{"error": ...}` document (e.g. a project without a state file) surfaces as an engine error.
+    static func projectState(projectDir: URL) async -> Result<ProjectStateData?, CockpitError> {
+        await decoded(kind: "state", projectDir: projectDir, decodeError: "Couldn't read the project state.")
+    }
+
+    /// Fetch and decode the sanity audit. The CLI emits `{"error": "no shotlist", ...}` when the
+    /// project has no shotlist yet — that isn't a failure, it's "nothing to check", so it maps to
+    /// `.success(nil)`. Every other `{"error": ...}` document is a real engine error.
+    static func sanity(projectDir: URL) async -> Result<SanityData?, CockpitError> {
+        let raw: Data
+        switch await run(kind: "sanity", projectDir: projectDir) {
+        case .failure(let e): return .failure(e)
+        case .success(let d): raw = d
+        }
+
+        if let envelope = try? JSONDecoder().decode(CockpitErrorEnvelope.self, from: raw) {
+            if envelope.error == "no shotlist" { return .success(nil) }
+            return .failure(.engine(envelope.error))
+        }
+
+        do {
+            return .success(try JSONDecoder().decode(SanityData.self, from: raw))
+        } catch {
+            return .failure(.decode("Couldn't read the sanity report."))
+        }
+    }
+
+    /// Fetch and decode the latest shotlist. Returns `.success(nil)` when the project has no shotlist
+    /// yet (the CLI prints literal `null`); `.success(data)` when present.
+    static func shotlist(projectDir: URL) async -> Result<ShotlistData?, CockpitError> {
+        await decoded(kind: "shotlist", projectDir: projectDir, decodeError: "Couldn't read the shotlist.")
+    }
+
+    /// Shared run + decode for kinds that follow the Bible idiom: literal `null` → `.success(nil)`,
+    /// a `{"error": ...}` envelope → `.failure(.engine)`, otherwise decode `T`.
+    private static func decoded<T: Decodable & Sendable>(
+        kind: String, projectDir: URL, decodeError: String
+    ) async -> Result<T?, CockpitError> {
+        let raw: Data
+        switch await run(kind: kind, projectDir: projectDir) {
+        case .failure(let e): return .failure(e)
+        case .success(let d): raw = d
+        }
+
+        let trimmed = String(decoding: raw, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "null" || trimmed.isEmpty { return .success(nil) }
+
+        if let envelope = try? JSONDecoder().decode(CockpitErrorEnvelope.self, from: raw) {
+            return .failure(.engine(envelope.error))
+        }
+
+        do {
+            return .success(try JSONDecoder().decode(T.self, from: raw))
+        } catch {
+            return .failure(.decode(decodeError))
+        }
+    }
+
     // MARK: - Subprocess
 
     /// Run `<enginePython> -m nexgen_engine.read <kind> <projectDir>` and return raw stdout bytes.
