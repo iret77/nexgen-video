@@ -82,6 +82,9 @@ struct AgentInputBox<LeadingTools: View>: View {
         .animation(.easeOut(duration: 0.15), value: focused)
         .animation(.easeOut(duration: 0.15), value: isDropTargeted)
         .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: handleDrop)
+        .onChange(of: editor.agentService.focusInputRequestTick) { _, _ in
+            Task { @MainActor in focused = true }
+        }
     }
 
     private var textField: some View {

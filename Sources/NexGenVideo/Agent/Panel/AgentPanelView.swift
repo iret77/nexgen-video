@@ -58,6 +58,15 @@ struct AgentPanelView: View {
             footer
         }
         .background(AppTheme.Background.surfaceColor)
+        .onAppear { refreshDiscoveredPlugins() }
+    }
+
+    private func refreshDiscoveredPlugins() {
+        guard service.useClaudeCodeRuntime else {
+            discoveredPlugins = []
+            return
+        }
+        discoveredPlugins = PluginCommandCatalog.discover()
     }
 
     private var floatingTabBar: some View {
@@ -83,6 +92,7 @@ struct AgentPanelView: View {
                     }
                 }
                 newTabButton
+                pluginLauncherButton
                 historyButton
             }
             .padding(.horizontal, AppTheme.Spacing.sm)
@@ -111,6 +121,46 @@ struct AgentPanelView: View {
 
     @State private var showHistory = false
     @State private var isScrolledFromBottom = false
+    @State private var showPluginLauncher = false
+    @State private var discoveredPlugins: [PluginCommandCatalog.PluginInfo] = []
+
+    /// The launcher only makes sense under the Claude Code runtime (the only place slash-commands load)
+    /// and only when at least one plugin exposes a command.
+    private var pluginLauncherAvailable: Bool {
+        service.useClaudeCodeRuntime && discoveredPlugins.contains { !$0.commands.isEmpty }
+    }
+
+    @ViewBuilder
+    private var pluginLauncherButton: some View {
+        if pluginLauncherAvailable {
+            Button {
+                refreshDiscoveredPlugins()
+                showPluginLauncher.toggle()
+            } label: {
+                Image(systemName: "puzzlepiece.extension")
+                    .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                    .foregroundStyle(AppTheme.Text.tertiaryColor)
+                    .frame(width: AppTheme.IconSize.smMd, height: AppTheme.IconSize.smMd)
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .help("Workflows")
+            .popover(isPresented: $showPluginLauncher, arrowEdge: .top) {
+                PluginLauncherPopover(plugins: discoveredPlugins) { command in
+                    runPluginCommand(command)
+                }
+            }
+        }
+    }
+
+    private func runPluginCommand(_ command: PluginCommandCatalog.PluginCommand) {
+        showPluginLauncher = false
+        if command.requiresArgument {
+            service.prefillInput(command.command + " ")
+        } else {
+            service.send(text: command.command, mentions: [])
+        }
+    }
 
     private var historyButton: some View {
         Button { showHistory.toggle() } label: {
@@ -294,6 +344,7 @@ struct AgentPanelView: View {
     private var emptyState: some View {
         if service.canStream {
             VStack(spacing: AppTheme.Spacing.smMd) {
+                pluginSuggestions
                 Text("Ask anything, or start with:")
                     .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.medium))
                     .foregroundStyle(AppTheme.Text.secondaryColor)
@@ -306,8 +357,34 @@ struct AgentPanelView: View {
                     }
                 }
             }
+            .onAppear { refreshDiscoveredPlugins() }
         } else {
             missingKeyState
+        }
+    }
+
+    /// Entry-point plugin commands (argument-free, e.g. `/musicvideo:start`) surfaced as one-tap chips
+    /// in a fresh chat. Only under the Claude Code runtime, and only when plugins are installed.
+    private var entryCommands: [PluginCommandCatalog.PluginCommand] {
+        discoveredPlugins.flatMap { $0.commands }.filter { !$0.requiresArgument }
+    }
+
+    @ViewBuilder
+    private var pluginSuggestions: some View {
+        if pluginLauncherAvailable, !entryCommands.isEmpty {
+            VStack(spacing: AppTheme.Spacing.xs) {
+                ForEach(entryCommands) { command in
+                    AgentStarterPromptButton(
+                        starterPrompt: AgentStarterPrompt(
+                            title: command.description ?? command.title,
+                            systemImage: "puzzlepiece.extension",
+                            prompt: command.command
+                        )
+                    ) {
+                        runPluginCommand(command)
+                    }
+                }
+            }
         }
     }
 

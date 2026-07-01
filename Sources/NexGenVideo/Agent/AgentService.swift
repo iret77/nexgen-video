@@ -77,6 +77,20 @@ final class AgentService {
     var mentions: [AgentMention] = []
     private static let clipMentionLabelMaxLength = 24
 
+    /// Bumped to ask the input field to take focus (e.g. after the plugin launcher inserts a command
+    /// that still needs an argument). `AgentInputBox` observes this and focuses its editor.
+    private(set) var focusInputRequestTick = 0
+
+    /// Insert `text` into the input field and focus it — used by the plugin launcher for commands that
+    /// still need an argument, so the user lands in the field ready to type rather than sending an
+    /// incomplete command. Clears mentions (a slash-command carries no media references).
+    func prefillInput(_ text: String) {
+        editor?.agentPanelVisible = true
+        draft = text
+        mentions.removeAll()
+        focusInputRequestTick &+= 1
+    }
+
     func attachMention(for asset: MediaAsset) {
         editor?.agentPanelVisible = true
         pruneDetachedMentions()
@@ -332,6 +346,11 @@ final class AgentService {
     private var claudeRuntimeEnabled: Bool {
         UserDefaults.standard.bool(forKey: "useClaudeCodeRuntime")
     }
+
+    /// Whether the embedded Claude Code runtime is on — the only runtime where plugin slash-commands
+    /// actually load. The plugin launcher gates its affordance on this (in the BYO-key agent a
+    /// `/plugin:cmd` string is just literal text).
+    var useClaudeCodeRuntime: Bool { claudeRuntimeEnabled }
 
     @ObservationIgnored
     private var _claudeRuntime: ClaudeCodeRuntime?
