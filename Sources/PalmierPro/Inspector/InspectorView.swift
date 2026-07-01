@@ -17,8 +17,16 @@ struct InspectorView: View {
         case ai = "AI Edit"
     }
 
+    // Cockpit tabs shown in the no-selection branch. Pipeline/Shotlist/Sanity/Cost land in later
+    // increments — only Project + Bible are wired now.
+    enum CockpitTab: String, Hashable, CaseIterable {
+        case project = "Project"
+        case bible = "Bible"
+    }
+
     @State private var preferredTab: ClipTab = .video
     @State private var preferredAssetTab: AssetTab = .details
+    @State private var cockpitTab: CockpitTab = .project
     @State private var transformExpanded = true
     @State var collapsedAdjustSections: Set<String> = ["Curves", "Color Wheels", "Hue Curves", "LUTs", "Effects"]
     @State var collapsedAdjustSubgroups: Set<String> = [
@@ -34,7 +42,7 @@ struct InspectorView: View {
             } else if let asset = selectedMediaAsset {
                 mediaAssetInspectorContent(asset)
             } else {
-                projectMetadataContent
+                cockpitContent
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -69,6 +77,30 @@ struct InspectorView: View {
             preferredTab = .video
         }
         editor.cropEditingActive = false
+    }
+
+    // MARK: - Cockpit (no-selection)
+
+    private var cockpitContent: some View {
+        VStack(spacing: 0) {
+            cockpitTabBar
+            Group {
+                switch cockpitTab {
+                case .project: projectMetadataContent
+                case .bible: BiblePanelView()
+                }
+            }
+        }
+    }
+
+    private var cockpitTabBar: some View {
+        genericTabBar(
+            titles: CockpitTab.allCases.map(\.rawValue),
+            selected: cockpitTab.rawValue,
+            raisedBackground: true
+        ) { title in
+            if let tab = CockpitTab(rawValue: title) { cockpitTab = tab }
+        }
     }
 
     // MARK: - Project Metadata
