@@ -35,7 +35,34 @@ jobs:
         run: swift build
 
       - name: Test
-        run: swift test
+        shell: bash
+        run: |
+          set +e  # GitHub's default `-e` would abort on the first failing attempt; we handle codes below.
+          # The macos-26 runner intermittently SIGSEGVs the parallel `swift test` process during
+          # framework/XPC init — the log shows "CoreData: Failed to create NSXPCConnection" followed by
+          # "exited with unexpected signal code 11", and the identical commit passes on re-run. It is
+          # environmental, not a code defect. Retry ONLY on that crash signature; a genuine test failure
+          # (non-zero exit WITHOUT the crash signature) fails immediately and is never masked. Full
+          # coverage is kept — nothing is skipped.
+          attempts=3
+          for i in $(seq 1 "$attempts"); do
+            echo "::group::swift test (attempt $i/$attempts)"
+            swift test 2>&1 | tee "test-attempt-$i.log"
+            code=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            if [ "$code" -eq 0 ]; then
+              echo "swift test passed on attempt $i"
+              exit 0
+            fi
+            if grep -qE "unexpected signal code|Failed to create NSXPCConnection" "test-attempt-$i.log"; then
+              echo "::warning::Environmental crash (SIGSEGV / CoreData XPC) on attempt $i — retrying"
+              continue
+            fi
+            echo "::error::Real test failure on attempt $i (exit $code); not an environmental crash — not retrying"
+            exit "$code"
+          done
+          echo "::error::swift test hit the environmental crash on all $attempts attempts"
+          exit 1
 
   bundle-app:
     name: Bundle .app
