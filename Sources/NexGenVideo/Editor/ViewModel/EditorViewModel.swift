@@ -63,6 +63,24 @@ final class EditorViewModel {
     var selectedTimelineRange: TimelineRangeSelection?
     var selectedMediaAssetIds: Set<String> = []
     var selectedFolderIds: Set<String> = []
+
+    /// The single app-global inspected object driving the Inspector (Phase 0 selection law). The sets
+    /// above are per-panel local selection (multi-select, marquee, ripple actions); only a *single*,
+    /// focused object is ever inspected. Cockpit panels set this directly (`.entity`, `.shot`, `.look`);
+    /// the timeline/media panels promote via `selectionInspectedObject`. See docs/UI_UX_CONCEPT.md §3.
+    var inspectedObject: InspectedObject?
+
+    /// The inspected object implied by the current timeline/media selection: a *single* selected clip or
+    /// asset promotes; a marquee, a multi-selection, or an empty selection yields nil (the Inspector then
+    /// shows a summary or panel content, never a half-inspected object). Consumed by the Inspector.
+    var selectionInspectedObject: InspectedObject? {
+        InspectedObject.fromSelection(
+            clipIDs: selectedClipIds,
+            mediaAssetIDs: selectedMediaAssetIds,
+            isMarquee: isMarqueeSelecting
+        )
+    }
+
     var pendingSwapClipId: String?
     var clipClipboard: [ClipClipboardEntry] = []
     var zoomScale: Double = Defaults.pixelsPerFrame
