@@ -67,7 +67,7 @@ struct StatusStripView: View {
                     Spacer(minLength: AppTheme.Spacing.sm)
                     budgetLabel(data)
                 } else {
-                    Text("No project state")
+                    Text("No pipeline")
                         .font(.system(size: AppTheme.FontSize.xs))
                         .foregroundStyle(AppTheme.Text.mutedColor)
                     Spacer(minLength: 0)

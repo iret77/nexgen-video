@@ -900,17 +900,14 @@ struct InspectorView: View {
         }
     }
 
+    @ViewBuilder
     private func assetIdentityHeader(_ asset: MediaAsset) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
-            Text(asset.name)
-                .font(.system(size: AppTheme.FontSize.lg, weight: .semibold))
-                .foregroundStyle(AppTheme.Text.primaryColor)
-                .lineLimit(2)
-                .textSelection(.enabled)
-            if asset.generationInput != nil {
+        // The breadcrumb header already names the asset; surface only the AI-generated badge here.
+        if asset.generationInput != nil {
+            HStack(spacing: AppTheme.Spacing.sm) {
                 aiBadge
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
         }
     }
 
