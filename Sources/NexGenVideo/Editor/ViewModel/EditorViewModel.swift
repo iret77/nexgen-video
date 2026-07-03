@@ -110,6 +110,48 @@ final class EditorViewModel {
         )
     }
 
+    /// Agent grounding: one line describing what the user is currently inspecting/selecting, so scoped
+    /// prose ("make this warmer") resolves against the selection instead of a guess — the Photoshop
+    /// scope principle (docs/UI_UX_CONCEPT.md §4). Nil when nothing is selected.
+    var selectionContextHint: String? {
+        if selectedClipIds.count > 1 {
+            return "\(selectedClipIds.count) timeline clips are selected"
+        }
+        guard let object = inspectedObject else { return nil }
+        switch object {
+        case .clip(let id):
+            var perPrefixCount: [String: Int] = [:]
+            for track in timeline.tracks {
+                let prefix = track.type.trackLabelPrefix
+                let ordinal = (perPrefixCount[prefix] ?? 0) + 1
+                perPrefixCount[prefix] = ordinal
+                guard let clip = track.clips.first(where: { $0.id == id }) else { continue }
+                let name = mediaAssets.first { $0.id == clip.mediaRef }?.name ?? "clip"
+                let range = "\(formatTimecode(frame: clip.startFrame, fps: timeline.fps))–\(formatTimecode(frame: clip.endFrame, fps: timeline.fps))"
+                return "the timeline clip \u{201C}\(name)\u{201D} (track \(prefix)\(ordinal), \(range))"
+            }
+            return "a timeline clip"
+        case .mediaAsset(let id):
+            guard let asset = mediaAssets.first(where: { $0.id == id }) else { return "a library asset" }
+            return "the library asset \u{201C}\(asset.name)\u{201D} (\(asset.type.rawValue))"
+        case .entity(let ref):
+            let name = bible?.entity(ref)?.name ?? ref.id
+            return "the Bible \(ref.kind.rawValue) \u{201C}\(name)\u{201D}"
+        case .look:
+            return "the project's Look guide"
+        case .shot(let id):
+            if let shot = shotlist?.shots.first(where: { $0.id == id }) {
+                let summary = shot.summaryText
+                return summary.isEmpty
+                    ? "shot \(id) from the shotlist"
+                    : "shot \(id) from the shotlist (\(String(summary.prefix(80))))"
+            }
+            return "shot \(id) from the shotlist"
+        case .shotUse(let shot, let entity):
+            return "shot \(shot)'s use of \(entity.kind.rawValue) \(entity.id)"
+        }
+    }
+
     var pendingSwapClipId: String?
     var clipClipboard: [ClipClipboardEntry] = []
     var zoomScale: Double = Defaults.pixelsPerFrame
