@@ -34,6 +34,8 @@ final class EditorViewModel {
 
     enum FocusedPanel: String {
         case media, preview, inspector, timeline, agent
+        /// The Project cockpit when it is the center work surface (Produce focus).
+        case project
 
         var accessibilityID: String { rawValue + "Panel" }
 
@@ -240,16 +242,22 @@ final class EditorViewModel {
     /// strip can deep-link into a specific panel (e.g. clicking it opens Project → Pipeline).
     var cockpitTab: CockpitTab = .pipeline
 
-    /// Reveal the Project cockpit on a specific panel (used by the status strip / cross-panel links).
+    /// Reveal the Project cockpit on a specific panel (title-bar capsule / cross-panel links). In Edit
+    /// the cockpit lives under the sidebar's Project tab; in Produce it is already the center surface.
     func revealCockpit(_ tab: CockpitTab) {
         cockpitTab = tab
-        leftSidebarTab = .project
+        if workspaceFocus == .edit { leftSidebarTab = .project }
     }
 
-    /// Switch the workspace focus. Entering Produce surfaces the Project cockpit as the sidebar default.
+    /// Switch the workspace focus. In Produce the cockpit is the center work surface, the sidebar
+    /// defaults to the Agent (command *and* watch, concurrently), and the timeline becomes a
+    /// display-only strip — so any edit tool falls back to the pointer.
     func setWorkspaceFocus(_ focus: WorkspaceFocus) {
         workspaceFocus = focus
-        if focus == .produce { leftSidebarTab = .project }
+        if focus == .produce {
+            leftSidebarTab = .agent
+            toolMode = .pointer
+        }
     }
 
     /// Derive the focus from the project's content on open: nothing on the timeline yet → Produce
