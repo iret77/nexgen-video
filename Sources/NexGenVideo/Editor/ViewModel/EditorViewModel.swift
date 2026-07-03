@@ -258,6 +258,25 @@ final class EditorViewModel {
         setWorkspaceFocus(timeline.tracks.allSatisfy(\.clips.isEmpty) ? .produce : .edit)
     }
 
+    // MARK: - Pipeline health (window chrome + panels)
+
+    /// Latest engine project-state snapshot (phases + budget). Owned by the view model — the single
+    /// source the title-bar capsule reads — so chrome and panels can't drift apart.
+    private(set) var projectState: ProjectStateData?
+    @ObservationIgnored private var projectStateLoadToken = 0
+
+    func refreshProjectState() async {
+        guard let dir = studioProjectDir else {
+            projectState = nil
+            return
+        }
+        projectStateLoadToken += 1
+        let token = projectStateLoadToken
+        let result = await CockpitDataService.projectState(projectDir: dir)
+        guard token == projectStateLoadToken else { return }
+        projectState = (try? result.get()) ?? nil
+    }
+
     var keyframesPanelVisible: Bool = {
         UserDefaults.standard.object(forKey: "keyframesPanelVisible") as? Bool ?? false
     }() {

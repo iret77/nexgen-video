@@ -130,6 +130,8 @@ struct InspectorView: View {
         return ObjectBreadcrumb(segments: [])
     }
 
+    /// A plain label, not a control bar: the breadcrumb *describes* the inspected object (context),
+    /// it doesn't navigate — so it wears no raised band and no border (docs/UI_UX_CONCEPT.md §3).
     @ViewBuilder
     private var breadcrumbHeader: some View {
         let crumb = currentBreadcrumb
@@ -141,20 +143,18 @@ struct InspectorView: View {
                             .font(.system(size: AppTheme.FontSize.micro, weight: .semibold))
                             .foregroundStyle(AppTheme.Text.mutedColor)
                     }
+                    let isLast = index == crumb.segments.count - 1
                     Text(segment.label)
-                        .font(.system(size: AppTheme.FontSize.xs, weight: index == crumb.segments.count - 1 ? .medium : .regular))
-                        .foregroundStyle(index == crumb.segments.count - 1 ? AppTheme.Text.secondaryColor : AppTheme.Text.tertiaryColor)
+                        .font(.system(size: AppTheme.FontSize.xs, weight: isLast ? .semibold : .regular))
+                        .foregroundStyle(isLast ? AppTheme.Text.primaryColor : AppTheme.Text.tertiaryColor)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.sm)
+            .padding(.top, AppTheme.Spacing.smMd)
+            .padding(.bottom, AppTheme.Spacing.xs)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.Background.raisedColor)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(AppTheme.Border.primaryColor).frame(height: AppTheme.BorderWidth.hairline)
-            }
         }
     }
 
