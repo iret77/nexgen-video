@@ -81,9 +81,107 @@ struct InspectorView: View {
             } else {
                 emptyInspectorState
             }
-        case .entity, .look, .shot, .shotUse:
+        case .entity(let ref):
+            if let entity = editor.bible?.entity(ref) {
+                entityInspectorContent(entity)
+            } else {
+                cockpitObjectTeaser(object)
+            }
+        case .look:
+            if let look = editor.bible?.look, !look.isEmpty {
+                lookInspectorContent(look)
+            } else {
+                cockpitObjectTeaser(object)
+            }
+        case .shot(let id):
+            if let shot = editor.shotlist?.shots.first(where: { $0.id == id }) {
+                shotInspectorContent(shot)
+            } else {
+                cockpitObjectTeaser(object)
+            }
+        case .shotUse:
             cockpitObjectTeaser(object)
         }
+    }
+
+    // MARK: - Entity / Look / Shot inspectors (read-only; editing lives in Phase C)
+
+    private func entityInspectorContent(_ entity: any BibleEntity) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                BibleEntityCard(entity: entity, projectDir: editor.studioProjectDir)
+                openInProjectLink(.bible)
+            }
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.vertical, AppTheme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func lookInspectorContent(_ look: BibleLook) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                metadataSection(title: "Look") {
+                    ForEach(look.fields, id: \.label) { field in
+                        plainMetadataRow(label: field.label, value: field.value)
+                    }
+                }
+                openInProjectLink(.bible)
+            }
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.vertical, AppTheme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func shotInspectorContent(_ shot: ShotSummary) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                metadataSection(title: "Shot") {
+                    plainMetadataRow(label: "ID", value: shot.id)
+                    if let section = shot.section?.trimmingCharacters(in: .whitespaces), !section.isEmpty {
+                        plainMetadataRow(label: "Section", value: section)
+                    }
+                    if !shot.type.isEmpty { plainMetadataRow(label: "Type", value: shot.type) }
+                    if let framing = shot.framing, !framing.isEmpty {
+                        plainMetadataRow(label: "Framing", value: framing)
+                    }
+                    if !shot.mood.isEmpty { plainMetadataRow(label: "Mood", value: shot.mood) }
+                    if shot.durationS > 0 {
+                        plainMetadataRow(label: "Duration", value: String(format: "%.1fs", shot.durationS))
+                    }
+                }
+                if !shot.summaryText.isEmpty {
+                    metadataSection(title: "Description") {
+                        Text(shot.summaryText)
+                            .font(.system(size: AppTheme.FontSize.sm))
+                            .foregroundStyle(AppTheme.Text.secondaryColor)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                }
+                if !shot.visualPrompt.trimmingCharacters(in: .whitespaces).isEmpty {
+                    metadataSection(title: "Visual Prompt") {
+                        Text(shot.visualPrompt)
+                            .font(.system(size: AppTheme.FontSize.sm))
+                            .foregroundStyle(AppTheme.Text.secondaryColor)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                }
+                openInProjectLink(.shotlist)
+            }
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.vertical, AppTheme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func openInProjectLink(_ tab: CockpitTab) -> some View {
+        Button("Open in Project") {
+            editor.revealCockpit(tab)
+        }
+        .controlSize(.small)
     }
 
     /// Promote the current timeline/media selection to the app-global inspected object. A single clip or
@@ -110,11 +208,17 @@ struct InspectorView: View {
 
     // MARK: - Breadcrumb header
 
-    /// Lightweight graph over the app-owned timeline + media, enough to resolve clip/asset breadcrumbs.
+    /// The read model over everything inspectable: engine snapshots (Bible entities, shots) plus the
+    /// app-owned timeline and media — so breadcrumbs resolve real names (`Character › Mara`).
     private var objectGraph: ObjectGraph {
         var names: [String: String] = [:]
         for asset in editor.mediaAssets { names[asset.id] = asset.name }
-        return ObjectGraph.from(bible: nil, shotlist: nil, timeline: editor.timeline, assetNames: names)
+        return ObjectGraph.from(
+            bible: editor.bible,
+            shotlist: editor.shotlist,
+            timeline: editor.timeline,
+            assetNames: names
+        )
     }
 
     private var currentBreadcrumb: ObjectBreadcrumb {
@@ -144,10 +248,17 @@ struct InspectorView: View {
                             .foregroundStyle(AppTheme.Text.mutedColor)
                     }
                     let isLast = index == crumb.segments.count - 1
-                    Text(segment.label)
+                    let label = Text(segment.label)
                         .font(.system(size: AppTheme.FontSize.xs, weight: isLast ? .semibold : .regular))
                         .foregroundStyle(isLast ? AppTheme.Text.primaryColor : AppTheme.Text.tertiaryColor)
                         .lineLimit(1)
+                    // Parent segments that resolve to an object navigate to it — the graph's payoff.
+                    if !isLast, let target = segment.object {
+                        Button { editor.inspectedObject = target } label: { label }
+                            .buttonStyle(.plain)
+                    } else {
+                        label
+                    }
                 }
                 Spacer(minLength: 0)
             }

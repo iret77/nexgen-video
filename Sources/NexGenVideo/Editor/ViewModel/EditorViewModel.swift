@@ -285,6 +285,32 @@ final class EditorViewModel {
         projectState = (try? result.get()) ?? nil
     }
 
+    /// Best-effort snapshots of the Bible and shotlist for object inspection and name-resolved
+    /// breadcrumbs. Nil when absent or unreadable — the cockpit panels keep their own richer load
+    /// pipelines (loading/error/retry); these feed the read model only.
+    private(set) var bible: BibleData?
+    private(set) var shotlist: ShotlistData?
+    @ObservationIgnored private var engineArtifactsLoadToken = 0
+
+    /// Refresh every engine-read snapshot (pipeline state, Bible, shotlist) in one pass.
+    func refreshEngineState() async {
+        guard let dir = studioProjectDir else {
+            bible = nil
+            shotlist = nil
+            await refreshProjectState()
+            return
+        }
+        engineArtifactsLoadToken += 1
+        let token = engineArtifactsLoadToken
+        async let bibleResult = CockpitDataService.bible(projectDir: dir)
+        async let shotlistResult = CockpitDataService.shotlist(projectDir: dir)
+        async let stateRefresh: Void = refreshProjectState()
+        let (b, s, _) = await (bibleResult, shotlistResult, stateRefresh)
+        guard token == engineArtifactsLoadToken else { return }
+        bible = (try? b.get()) ?? nil
+        shotlist = (try? s.get()) ?? nil
+    }
+
     var keyframesPanelVisible: Bool = {
         UserDefaults.standard.object(forKey: "keyframesPanelVisible") as? Bool ?? false
     }() {

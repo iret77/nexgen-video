@@ -26,10 +26,10 @@ struct TitleBarView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(AppTheme.Border.primaryColor).frame(height: AppTheme.BorderWidth.hairline)
         }
-        .task(id: editor.projectURL) { await editor.refreshProjectState() }
+        .task(id: editor.projectURL) { await editor.refreshEngineState() }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             // Re-read on window activation so gate approvals / engine runs done elsewhere show up.
-            Task { await editor.refreshProjectState() }
+            Task { await editor.refreshEngineState() }
         }
     }
 
