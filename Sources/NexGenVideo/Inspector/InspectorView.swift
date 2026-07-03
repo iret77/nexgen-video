@@ -59,7 +59,8 @@ struct InspectorView: View {
     @ViewBuilder
     private var inspectorContent: some View {
         if editor.isMarqueeSelecting {
-            marqueeSelectionSummary
+            // The breadcrumb already shows the live count; no body echo.
+            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if isMultiClipSelection {
             clipInspectorContent()
         } else if let object = editor.inspectedObject {
@@ -81,7 +82,7 @@ struct InspectorView: View {
                 emptyInspectorState
             }
         case .entity, .look, .shot, .shotUse:
-            cockpitObjectPlaceholder
+            cockpitObjectTeaser(object)
         }
     }
 
@@ -173,33 +174,29 @@ struct InspectorView: View {
         .padding(AppTheme.Spacing.lg)
     }
 
-    private var cockpitObjectPlaceholder: some View {
-        VStack(spacing: AppTheme.Spacing.sm) {
+    /// Entity/shot/look objects are worked on in the Project cockpit; the Inspector offers the jump.
+    /// (Dedicated entity/shot inspectors are Phase B.)
+    private func cockpitObjectTeaser(_ object: InspectedObject) -> some View {
+        let target: CockpitTab = switch object {
+        case .shot, .shotUse: .shotlist
+        default: .bible
+        }
+        return VStack(spacing: AppTheme.Spacing.smMd) {
             Spacer()
             Text(currentBreadcrumb.flatText)
                 .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
                 .multilineTextAlignment(.center)
-            Text("Open the Project tab to work with this.")
-                .font(.system(size: AppTheme.FontSize.xs))
-                .foregroundStyle(AppTheme.Text.tertiaryColor)
-                .multilineTextAlignment(.center)
+            Button("Open in Project") {
+                editor.revealCockpit(target)
+            }
+            .controlSize(.small)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(AppTheme.Spacing.lg)
     }
 
-    private var marqueeSelectionSummary: some View {
-        VStack {
-            Spacer()
-            Text("\(editor.selectedClipIds.count) selected")
-                .font(.system(size: AppTheme.FontSize.sm))
-                .foregroundStyle(AppTheme.Text.tertiaryColor)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 
     private func resolvePreferredTab() {
         let isSingleText = selectedVisualClips.count + selectedAudioClips.count == 1
@@ -335,13 +332,13 @@ struct InspectorView: View {
     }
 
     private func tabBar(_ tabs: [ClipTab]) -> some View {
-        genericTabBar(titles: tabs.map(\.rawValue), selected: activeTab?.rawValue, raisedBackground: true) { title in
+        genericTabBar(titles: tabs.map(\.rawValue), selected: activeTab?.rawValue) { title in
             if let tab = tabs.first(where: { $0.rawValue == title }) { preferredTab = tab }
         }
     }
 
     private func assetTabBar(_ tabs: [AssetTab]) -> some View {
-        genericTabBar(titles: tabs.map(\.rawValue), selected: preferredAssetTab.rawValue, raisedBackground: true) { title in
+        genericTabBar(titles: tabs.map(\.rawValue), selected: preferredAssetTab.rawValue) { title in
             if let tab = tabs.first(where: { $0.rawValue == title }) { preferredAssetTab = tab }
         }
     }
@@ -351,7 +348,12 @@ struct InspectorView: View {
         raisedBackground: Bool = false,
         onSelect: @escaping (String) -> Void
     ) -> some View {
-        SegmentedTabBar(titles: titles, selected: selected, raisedBackground: raisedBackground, onSelect: onSelect)
+        SegmentedTabBar(
+            titles: titles, selected: selected,
+            raisedBackground: raisedBackground,
+            accentedTitles: [ClipTab.ai.rawValue],
+            onSelect: onSelect
+        )
     }
 
     @ViewBuilder

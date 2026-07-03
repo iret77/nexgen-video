@@ -192,7 +192,8 @@ final class EditorViewModel {
 
     /// Agent is now a tab of the left sidebar, not a separate column. Kept as a computed proxy so the
     /// many "reveal the agent" call sites (agent replies, media routing, menu, tour) keep working:
-    /// setting it `true` shows the sidebar on the Agent tab; `false` returns to the Media tab.
+    /// setting it `true` shows the sidebar on the Agent tab; `false` restores the tab that was active
+    /// before the Agent took over (a user on Project must not be dumped on Media).
     var agentPanelVisible: Bool {
         get { mediaPanelVisible && leftSidebarTab == .agent }
         set {
@@ -200,10 +201,12 @@ final class EditorViewModel {
                 mediaPanelVisible = true
                 leftSidebarTab = .agent
             } else if leftSidebarTab == .agent {
-                leftSidebarTab = .media
+                leftSidebarTab = lastNonAgentSidebarTab
             }
         }
     }
+
+    @ObservationIgnored private var lastNonAgentSidebarTab: LeftSidebarTab = .media
 
     var mediaPanelVisible: Bool = {
         UserDefaults.standard.object(forKey: "mediaPanelVisible") as? Bool ?? true
@@ -217,25 +220,25 @@ final class EditorViewModel {
         didSet { UserDefaults.standard.set(inspectorPanelVisible, forKey: "inspectorPanelVisible") }
     }
 
-    var workspaceFocus: WorkspaceFocus = {
-        if let raw = UserDefaults.standard.string(forKey: "workspaceFocus"),
-           let focus = WorkspaceFocus(rawValue: raw) { return focus }
-        return .edit
-    }() {
-        didSet { UserDefaults.standard.set(workspaceFocus.rawValue, forKey: "workspaceFocus") }
-    }
+    /// Per-project, session-scoped — not a global preference. The initial value is derived from the
+    /// project's content on open (`applyDefaultWorkspaceFocus`): empty project → Produce, cut → Edit
+    /// (docs/UI_UX_CONCEPT.md §3).
+    var workspaceFocus: WorkspaceFocus = .edit
 
     var leftSidebarTab: LeftSidebarTab = {
         if let raw = UserDefaults.standard.string(forKey: "leftSidebarTab"),
            let tab = LeftSidebarTab(rawValue: raw) { return tab }
         return .media
     }() {
-        didSet { UserDefaults.standard.set(leftSidebarTab.rawValue, forKey: "leftSidebarTab") }
+        didSet {
+            UserDefaults.standard.set(leftSidebarTab.rawValue, forKey: "leftSidebarTab")
+            if leftSidebarTab != .agent { lastNonAgentSidebarTab = leftSidebarTab }
+        }
     }
 
     /// Selected tab of the Project cockpit. Kept on the view model (not local `@State`) so the status
     /// strip can deep-link into a specific panel (e.g. clicking it opens Project → Pipeline).
-    var cockpitTab: CockpitTab = .project
+    var cockpitTab: CockpitTab = .pipeline
 
     /// Reveal the Project cockpit on a specific panel (used by the status strip / cross-panel links).
     func revealCockpit(_ tab: CockpitTab) {
@@ -249,6 +252,12 @@ final class EditorViewModel {
         if focus == .produce { leftSidebarTab = .project }
     }
 
+    /// Derive the focus from the project's content on open: nothing on the timeline yet → Produce
+    /// (the project wants generating), an existing cut → Edit.
+    func applyDefaultWorkspaceFocus() {
+        setWorkspaceFocus(timeline.tracks.allSatisfy(\.clips.isEmpty) ? .produce : .edit)
+    }
+
     var keyframesPanelVisible: Bool = {
         UserDefaults.standard.object(forKey: "keyframesPanelVisible") as? Bool ?? false
     }() {
@@ -257,6 +266,16 @@ final class EditorViewModel {
 
     // MARK: - Media panel navigation routing
 
+    /// The Media panel's second-level tabs. On the view model (like `cockpitTab`) so tab state survives
+    /// sidebar switches and other panels can deep-link.
+    enum MediaPanelTab: String, CaseIterable {
+        case assets = "Assets"
+        case captions = "Captions"
+        case music = "Music"
+    }
+
+    var mediaPanelTab: MediaPanelTab = .assets
+
     var mediaPanelOrderedItemIds: [String] = []
     var mediaPanelColumnCount: Int = 1
     var mediaPanelScrollTarget: String?
@@ -264,13 +283,12 @@ final class EditorViewModel {
     var mediaPanelOpenFolderId: String?
     var mediaPanelCurrentFolderId: String?
     var mediaPanelPasteRequestTick: Int = 0
-    var mediaPanelShowMediaTabTick: Int = 0
     var mediaPanelToast: MediaPanelToast?
     @ObservationIgnored var mediaImportTail: Task<MediaImportSummary, Never>?
     @ObservationIgnored var mediaImportSequence: Int = 0
 
     func showMediaPanelMediaTab() {
-        mediaPanelShowMediaTabTick += 1
+        mediaPanelTab = .assets
         // Refresh offline status when the user opens the media tab, so missing
         // files show as offline even for assets not on the timeline.
         refreshMissingMediaCache()

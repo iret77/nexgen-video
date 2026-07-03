@@ -288,6 +288,7 @@ final class VideoProject: NSDocument {
             editorViewModel.timeline = loaded
             loadedTimeline = nil
         }
+        editorViewModel.applyDefaultWorkspaceFocus()
         editorViewModel.undoManager = undoManager
         editorViewModel.projectURL = fileURL
         editorViewModel.agentService.loadSessions(from: fileURL)
