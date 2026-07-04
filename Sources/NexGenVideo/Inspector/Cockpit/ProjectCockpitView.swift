@@ -7,10 +7,11 @@ enum CockpitTab: String, Hashable, CaseIterable {
     case bible = "Bible"
     case pipeline = "Pipeline"
     case shotlist = "Shotlist"
+    case review = "Review"
     case sanity = "Sanity"
     case project = "Project"
 
-    static let visibleTabs: [CockpitTab] = [.bible, .pipeline, .shotlist, .sanity]
+    static let visibleTabs: [CockpitTab] = [.bible, .pipeline, .shotlist, .review, .sanity]
 }
 
 /// The Project cockpit — the canonical home for project-level artifacts (the engine-read Bible /
@@ -37,6 +38,7 @@ struct ProjectCockpitView: View {
                 case .bible: BiblePanelView()
                 case .pipeline: PipelinePanelView()
                 case .shotlist: ShotlistPanelView()
+                case .review: ReviewPanelView()
                 case .sanity: SanityPanelView()
                 case .project: ProjectSettingsView()
                 }

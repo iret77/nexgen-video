@@ -396,6 +396,7 @@ struct SheetThumbnailView: View {
     let label: String
     let path: String
     let projectDir: URL?
+    var tileHeight: CGFloat = 64
 
     @State private var image: NSImage?
     @State private var didAttempt = false
@@ -419,7 +420,7 @@ struct SheetThumbnailView: View {
                         .foregroundStyle(AppTheme.Text.mutedColor)
                 }
             }
-            .frame(height: 64)
+            .frame(height: tileHeight)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
             .overlay(

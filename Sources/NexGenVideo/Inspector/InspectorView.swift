@@ -19,6 +19,7 @@ struct InspectorView: View {
 
     @State private var preferredTab: ClipTab = .video
     @State private var preferredAssetTab: AssetTab = .details
+    @State private var contextualPromptDraft = ""
     @State private var transformExpanded = true
     @State var collapsedAdjustSections: Set<String> = ["Curves", "Color Wheels", "Hue Curves", "LUTs", "Effects"]
     @State var collapsedAdjustSubgroups: Set<String> = [
@@ -110,6 +111,7 @@ struct InspectorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                 BibleEntityCard(entity: entity, projectDir: editor.studioProjectDir)
+                contextualPromptField(placeholder: "Change \(entity.name)…")
                 openInProjectLink(.bible)
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
@@ -169,6 +171,7 @@ struct InspectorView: View {
                             .textSelection(.enabled)
                     }
                 }
+                contextualPromptField(placeholder: "Change this shot…")
                 openInProjectLink(.shotlist)
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
@@ -182,6 +185,36 @@ struct InspectorView: View {
             editor.revealCockpit(tab)
         }
         .controlSize(.small)
+    }
+
+    // MARK: - Contextual one-shot prose (ladder rung 3 — docs/UI_UX_CONCEPT.md §4)
+
+    /// A one-shot prompt bound to the inspected object: the prose goes to the agent as typed, the
+    /// scope travels invisibly via the selection context. Not a mini-chat — the field clears on send
+    /// and the Agent tab opens to show the work.
+    private func contextualPromptField(placeholder: String) -> some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            TextField(placeholder, text: $contextualPromptDraft)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .onSubmit(sendContextualPrompt)
+            Button {
+                sendContextualPrompt()
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: AppTheme.FontSize.lg))
+            }
+            .buttonStyle(.plain)
+            .disabled(contextualPromptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+    }
+
+    private func sendContextualPrompt() {
+        let text = contextualPromptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        contextualPromptDraft = ""
+        editor.agentService.send(text: text, mentions: [])
+        editor.agentPanelVisible = true
     }
 
     /// Promote the current timeline/media selection to the app-global inspected object. A single clip or

@@ -12,6 +12,7 @@ Kinds:
   sanity    → audit findings dict, or {"error":"no shotlist", ...} (mcp_server.run_sanity)
   phases    → ordered phase list incl. active-pack phases (mcp_server.phases)
   shotlist  → latest shotlist dict or null (shotlist.schema.load(...).model_dump)
+  frames    → frame candidates per shot from disk (frames.inventory.inventory)
 """
 
 from __future__ import annotations
@@ -22,9 +23,10 @@ from pathlib import Path
 from typing import Any
 
 from nexgen_engine import mcp_server
+from nexgen_engine.frames import inventory as frames_inventory
 from nexgen_engine.shotlist import schema as shotlist_schema
 
-KINDS = ("state", "bible", "sanity", "phases", "shotlist")
+KINDS = ("state", "bible", "sanity", "phases", "shotlist", "frames")
 
 
 def _shotlist(project_dir: str) -> dict[str, Any] | None:
@@ -49,6 +51,8 @@ def read(kind: str, project_dir: str | None) -> Any:
         return mcp_server.run_sanity(project_dir)
     if kind == "shotlist":
         return _shotlist(project_dir)
+    if kind == "frames":
+        return frames_inventory.inventory(project_dir)
     raise ValueError(f"unhandled kind {kind!r}")  # pragma: no cover
 
 
