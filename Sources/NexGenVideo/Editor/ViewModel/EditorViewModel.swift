@@ -333,6 +333,8 @@ final class EditorViewModel {
     private(set) var bible: BibleData?
     private(set) var shotlist: ShotlistData?
     private(set) var ledger: LedgerData?
+    private(set) var brief: BriefData?
+    private(set) var uiContract: ContractData?
     @ObservationIgnored private var engineArtifactsLoadToken = 0
 
     /// Refresh every engine-read snapshot (pipeline state, Bible, shotlist) in one pass.
@@ -341,6 +343,8 @@ final class EditorViewModel {
             bible = nil
             shotlist = nil
             ledger = nil
+            brief = nil
+            uiContract = nil
             await refreshProjectState()
             return
         }
@@ -349,12 +353,16 @@ final class EditorViewModel {
         async let bibleResult = CockpitDataService.bible(projectDir: dir)
         async let shotlistResult = CockpitDataService.shotlist(projectDir: dir)
         async let ledgerResult = CockpitDataService.ledger(projectDir: dir)
+        async let briefResult = CockpitDataService.brief(projectDir: dir)
+        async let contractResult = CockpitDataService.contract(projectDir: dir)
         async let stateRefresh: Void = refreshProjectState()
-        let (b, s, l, _) = await (bibleResult, shotlistResult, ledgerResult, stateRefresh)
+        let (b, s, l, br, ct, _) = await (bibleResult, shotlistResult, ledgerResult, briefResult, contractResult, stateRefresh)
         guard token == engineArtifactsLoadToken else { return }
         bible = (try? b.get()) ?? nil
         shotlist = (try? s.get()) ?? nil
         ledger = (try? l.get()) ?? nil
+        brief = (try? br.get()) ?? nil
+        uiContract = (try? ct.get()) ?? nil
     }
 
     var keyframesPanelVisible: Bool = {

@@ -20,6 +20,10 @@ struct InspectorView: View {
     @State private var preferredTab: ClipTab = .video
     @State private var preferredAssetTab: AssetTab = .details
     @State private var contextualPromptDraft = ""
+    @State private var entityEditTarget: String?
+    @State private var entityEditName = ""
+    @State private var entityEditPrompt = ""
+    @State private var entityEditTrait = ""
     @State private var transformExpanded = true
     @State var collapsedAdjustSections: Set<String> = ["Curves", "Color Wheels", "Hue Curves", "LUTs", "Effects"]
     @State var collapsedAdjustSubgroups: Set<String> = [
@@ -111,6 +115,22 @@ struct InspectorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                 BibleEntityCard(entity: entity, projectDir: editor.studioProjectDir)
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Button("Edit…") {
+                        entityEditName = entity.name
+                        entityEditPrompt = entity.visualPrompt
+                        entityEditTrait = entity.hardRecognitionTrait
+                        entityEditTarget = entity.id
+                    }
+                    .controlSize(.small)
+                    .popover(isPresented: Binding(
+                        get: { entityEditTarget == entity.id },
+                        set: { if !$0 { entityEditTarget = nil } }
+                    )) {
+                        entityEditForm(entity)
+                    }
+                    scopedThreadButton
+                }
                 ledgerSection(for: .entity(BibleEntityRef(kind: entityKind(of: entity), id: entity.id)))
                 usageSection(of: entity)
                 contextualPromptField(placeholder: "Change \(entity.name)…")
@@ -176,6 +196,7 @@ struct InspectorView: View {
                 }
                 ledgerSection(for: .shot(shot.id))
                 shotProvenanceSections(shot.id)
+                scopedThreadButton
                 contextualPromptField(placeholder: "Change this shot…")
                 openInProjectLink(.shotlist)
             }
@@ -288,6 +309,65 @@ struct InspectorView: View {
         case is BibleLocation: .location
         default: .character
         }
+    }
+
+    /// A scoped, temporary thread about the inspected object (ladder rung 4): a fresh agent chat,
+    /// the scope visible in the prefilled opener, context accumulating across turns.
+    private var scopedThreadButton: some View {
+        Button("Thread…") {
+            editor.agentService.newChat()
+            editor.agentService.draft = "About \(currentBreadcrumb.flatText): "
+            editor.agentPanelVisible = true
+        }
+        .controlSize(.small)
+        .help("Start a focused thread about this object")
+    }
+
+    /// Structured Bible editing: the form composes ONE precise agent command — the bible phase
+    /// tooling stays the single writer, so schema/sheet invariants hold.
+    private func entityEditForm(_ entity: any BibleEntity) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+            Text("Edit \(entity.name)")
+                .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
+                .foregroundStyle(AppTheme.Text.secondaryColor)
+            TextField("Name", text: $entityEditName)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: AppTheme.FontSize.sm))
+            TextField("Visual prompt", text: $entityEditPrompt, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .lineLimit(3...6)
+            TextField("Hard recognition trait", text: $entityEditTrait)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: AppTheme.FontSize.sm))
+            HStack {
+                Spacer()
+                Button("Apply via Agent") { applyEntityEdit(entity) }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(AppTheme.Spacing.mdLg)
+        .frame(width: 340)
+    }
+
+    private func applyEntityEdit(_ entity: any BibleEntity) {
+        var changes: [String] = []
+        let name = entityEditName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = entityEditPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trait = entityEditTrait.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty, name != entity.name { changes.append("name → \u{201C}\(name)\u{201D}") }
+        if !prompt.isEmpty, prompt != entity.visualPrompt { changes.append("visual_prompt → \u{201C}\(prompt)\u{201D}") }
+        if !trait.isEmpty, trait != entity.hardRecognitionTrait { changes.append("hard_recognition_trait → \u{201C}\(trait)\u{201D}") }
+        entityEditTarget = nil
+        guard !changes.isEmpty else { return }
+        let kind = entityKind(of: entity).rawValue
+        editor.agentService.send(
+            text: "Update the Bible \(kind) \u{201C}\(entity.id)\u{201D}: "
+                + changes.joined(separator: "; ")
+                + ". Apply it through the bible tooling (keep schema + sheets consistent) and confirm the diff.",
+            mentions: []
+        )
+        editor.agentPanelVisible = true
     }
 
     private func openInProjectLink(_ tab: CockpitTab) -> some View {
