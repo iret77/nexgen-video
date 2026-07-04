@@ -176,6 +176,16 @@ exists.
   them in `referenceMediaRefs`. The order MUST match the reference
   priority (F2.10).
 
+#### F2.4b — Ledger directives in the prompt (MANDATORY)
+
+Before any `generate_image` call: `get_ledger` (engine MCP) and collect
+what applies to this shot — the `film` and `look` singletons, the shot's
+bible refs (`character:<id>` / `ensemble:<id>` / `location:<id>` /
+`prop:<id>`), and `shot:<id>` itself. Append each attribute's
+`directive` to the prompt. **Locked** directives are non-negotiable
+content: a prompt that drops one is a defect (the engine's
+`lint_locked_directives` flags exactly this as an error).
+
 #### F2.5 — Anchor frames are exact t=0 / t=duration frames
 
 - `start` shows EXACTLY the initial state: pose at t=0, visible objects
@@ -435,6 +445,25 @@ Per shot:
 
 Hallucinating "I re-rendered" is impossible — no new file without a
 `generate_image` call, no approval question without a visible image.
+
+**Distill intent into the ledger (MANDATORY after every revise):**
+
+A revision note is creative memory, not throwaway chat. After each
+revise — and any prose feedback stating a durable preference — decide:
+
+- **Rule** (holds beyond this one image) → write it to the Intent Ledger
+  via `set_ledger_attribute` (engine MCP). `kind`/`object_id` = the
+  affected object: `shot` + id for staging/framing, `character` /
+  `prop` / `location` + id for identity facts, `look` (no id) for global
+  style. `key` is a stable name (`wardrobe`, `framing`, `grain`, …),
+  `tag` the short visible handle, `directive` the model-ready phrasing,
+  `source` the user's original words. RECONCILE: update the existing
+  key; never invent near-duplicate keys.
+- The user insists, repeats it, or says "always" → additionally
+  `lock_ledger_attribute`. A lock is a promise: it must appear in every
+  future prompt and cannot be removed while locked.
+- **One-off** (only this image) → do NOT write the ledger; just fix and
+  re-render.
 
 **Mode specifics** (`per_shot` / `per_section` / `all_at_once`):
 

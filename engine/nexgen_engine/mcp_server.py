@@ -26,6 +26,8 @@ from nexgen_engine.render import costs as costs_mod
 from nexgen_engine.render import manifest as manifest_mod
 from nexgen_engine.sanity.audit import AuditContext, SanityCheck, audit
 from nexgen_engine.sanity.checks import register_core_checks
+from nexgen_engine.core import router as core_router
+from nexgen_engine.core import ui_contract as core_ui_contract
 from nexgen_engine.ledger import schema as ledger_schema
 from nexgen_engine.shotlist import schema as shotlist_schema
 from nexgen_engine.show.dispatch import show_gate_artifact
@@ -441,6 +443,25 @@ def remove_ledger_attribute_tool(
     """Remove an UNLOCKED ledger attribute (locked ones must be unlocked first). WRITES.
     `project_dir` is the `_studio/` data root."""
     return ledger_schema.remove_attribute(project_dir, kind, object_id, key)
+
+
+@mcp.tool(name="resolve_model")
+def resolve_model_tool(task_class: str, escalate: bool = False, project_dir: str = "") -> dict[str, Any]:
+    """Which model + effort a task gets (docs/UI_UX_CONCEPT.md §6). Read-only.
+
+    `task_class` is one of distill/classification/assembly/review/planning/interpretation.
+    Returns `{task_class, tier, model, effort, escalated}` — the fixed floor, or with
+    `escalate=true` exactly ONE tier up (use only after a concrete gate failure: lint error,
+    schema violation, user reject; never speculatively). Optional `project_dir` (the `_studio/`
+    data root) applies the project's models.yaml manifest override."""
+    return core_router.resolve(task_class, escalate=escalate, project_dir=project_dir or None)
+
+
+@mcp.tool(name="get_ui_contract")
+def get_ui_contract_tool() -> dict[str, Any]:
+    """Per-phase UI contract: the default interaction surface (choice/prose/review) and router
+    task class for every phase (engine core + installed packs). Read-only."""
+    return core_ui_contract.full_contract()
 
 
 def main() -> None:  # pragma: no cover
