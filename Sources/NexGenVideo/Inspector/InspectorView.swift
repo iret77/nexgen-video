@@ -111,6 +111,7 @@ struct InspectorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                 BibleEntityCard(entity: entity, projectDir: editor.studioProjectDir)
+                usageSection(of: entity)
                 contextualPromptField(placeholder: "Change \(entity.name)…")
                 openInProjectLink(.bible)
             }
@@ -171,12 +172,71 @@ struct InspectorView: View {
                             .textSelection(.enabled)
                     }
                 }
+                shotProvenanceSections(shot.id)
                 contextualPromptField(placeholder: "Change this shot…")
                 openInProjectLink(.shotlist)
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.vertical, AppTheme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Shot↔entity provenance: which shots use this entity (click → inspect the shot).
+    @ViewBuilder
+    private func usageSection(of entity: any BibleEntity) -> some View {
+        let graph = objectGraph
+        let refs = BibleEntityKind.allCases.map { BibleEntityRef(kind: $0, id: entity.id) }
+        let shots = refs.flatMap { graph.usage(of: $0) }
+        if !shots.isEmpty {
+            metadataSection(title: "Used in shots") {
+                chipRow(shots.map { (graph.shotLabel($0) ?? $0, InspectedObject.shot($0)) })
+            }
+        }
+    }
+
+    /// Shot provenance: entities the shot uses + timeline clips that realize it.
+    @ViewBuilder
+    private func shotProvenanceSections(_ shotID: String) -> some View {
+        let graph = objectGraph
+        let entities = graph.entities(usedBy: shotID)
+        if !entities.isEmpty {
+            metadataSection(title: "Uses") {
+                chipRow(entities.map { (graph.entityName($0) ?? $0.id, InspectedObject.entity($0)) })
+            }
+        }
+        let clips = graph.clips(realizing: shotID)
+        if !clips.isEmpty {
+            metadataSection(title: "On timeline") {
+                chipRow(clips.map { clipID in
+                    let label = [graph.clipTrackLabels[clipID], graph.clipName(clipID)]
+                        .compactMap(\.self).joined(separator: " · ")
+                    return (label.isEmpty ? "Clip" : label, InspectedObject.clip(clipID))
+                })
+            }
+        }
+    }
+
+    /// A wrapping row of navigable object chips (label → inspect target).
+    private func chipRow(_ items: [(String, InspectedObject)]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                Button {
+                    if case .clip(let id) = item.1 { editor.selectedClipIds = [id] }
+                    editor.inspectedObject = item.1
+                } label: {
+                    Text(item.0)
+                        .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                        .foregroundStyle(AppTheme.Text.secondaryColor)
+                        .lineLimit(1)
+                        .padding(.horizontal, AppTheme.Spacing.sm)
+                        .padding(.vertical, AppTheme.Spacing.xxs)
+                        .background { Capsule().fill(AppTheme.Background.raisedColor) }
+                        .overlay(Capsule().strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.hairline))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -245,12 +305,17 @@ struct InspectorView: View {
     /// app-owned timeline and media — so breadcrumbs resolve real names (`Character › Mara`).
     private var objectGraph: ObjectGraph {
         var names: [String: String] = [:]
-        for asset in editor.mediaAssets { names[asset.id] = asset.name }
+        var paths: [String: String] = [:]
+        for asset in editor.mediaAssets {
+            names[asset.id] = asset.name
+            paths[asset.id] = asset.url.path
+        }
         return ObjectGraph.from(
             bible: editor.bible,
             shotlist: editor.shotlist,
             timeline: editor.timeline,
-            assetNames: names
+            assetNames: names,
+            assetPaths: paths
         )
     }
 

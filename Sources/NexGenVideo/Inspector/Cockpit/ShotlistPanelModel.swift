@@ -38,11 +38,18 @@ struct ShotSummary: Decodable, Sendable, Equatable, Identifiable {
     var visualPrompt: String
     var framing: String?
     var mood: String
+    // Bible provenance: entity ids this shot uses (the object graph's shot↔entity edges).
+    var characterRefs: [String]
+    var locationRef: String?
+    var propRefs: [String]
 
     enum CodingKeys: String, CodingKey {
         case id, section, type, description, framing, mood
         case durationS = "duration_s"
         case visualPrompt = "visual_prompt"
+        case characterRefs = "character_refs"
+        case locationRef = "location_ref"
+        case propRefs = "prop_refs"
     }
 
     init(from decoder: Decoder) throws {
@@ -55,6 +62,9 @@ struct ShotSummary: Decodable, Sendable, Equatable, Identifiable {
         visualPrompt = try c.decodeIfPresent(String.self, forKey: .visualPrompt) ?? ""
         framing = try c.decodeIfPresent(String.self, forKey: .framing)
         mood = try c.decodeIfPresent(String.self, forKey: .mood) ?? ""
+        characterRefs = try c.decodeIfPresent([String].self, forKey: .characterRefs) ?? []
+        locationRef = try c.decodeIfPresent(String.self, forKey: .locationRef)
+        propRefs = try c.decodeIfPresent([String].self, forKey: .propRefs) ?? []
     }
 
     /// A one-line summary preferring the human description, then the visual prompt.

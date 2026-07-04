@@ -162,3 +162,54 @@ struct ObjectGraphSeamTests {
         #expect(graph.clips(realizing: "s1").isEmpty)
     }
 }
+
+@Suite("ObjectGraph provenance edges")
+struct ObjectGraphProvenanceTests {
+
+    private func makeGraph() throws -> (ObjectGraph, Timeline, Clip) {
+        let bibleJSON = #"{"characters":[{"id":"mara","name":"Mara"}],"ensembles":[],"props":[{"id":"jacket","name":"Jacket"}],"locations":[{"id":"rooftop","name":"Rooftop"}]}"#
+        let bible = try JSONDecoder().decode(BibleData.self, from: Data(bibleJSON.utf8))
+        let shotlistJSON = #"{"shots":[{"id":"s001","character_refs":["mara"],"location_ref":"rooftop","prop_refs":["jacket"]},{"id":"s002","character_refs":["mara","ghost"]}]}"#
+        let shotlist = try JSONDecoder().decode(ShotlistData.self, from: Data(shotlistJSON.utf8))
+        let clip = Clip(mediaRef: "assetR", startFrame: 0, durationFrames: 30)
+        var timeline = Timeline()
+        timeline.tracks = [Track(type: .video, clips: [clip])]
+        let graph = ObjectGraph.from(
+            bible: bible, shotlist: shotlist, timeline: timeline,
+            assetNames: ["assetR": "s001.mp4"],
+            assetPaths: ["assetR": "/proj/_studio/renders/s001.mp4"]
+        )
+        return (graph, timeline, clip)
+    }
+
+    @Test func usageListsShotsInShotlistOrder() throws {
+        let (graph, _, _) = try makeGraph()
+        #expect(graph.usage(of: BibleEntityRef(kind: .character, id: "mara")) == ["s001", "s002"])
+        #expect(graph.usage(of: BibleEntityRef(kind: .location, id: "rooftop")) == ["s001"])
+        #expect(graph.usage(of: BibleEntityRef(kind: .prop, id: "jacket")) == ["s001"])
+    }
+
+    @Test func unresolvableRefsAreDropped() throws {
+        let (graph, _, _) = try makeGraph()
+        // "ghost" is not in the Bible → no edge is invented.
+        let s2 = graph.entities(usedBy: "s002")
+        #expect(s2 == [BibleEntityRef(kind: .character, id: "mara")])
+    }
+
+    @Test func clipsRealizingMatchesRenderPath() throws {
+        let (graph, _, clip) = try makeGraph()
+        #expect(graph.clips(realizing: "s001") == [clip.id])
+        #expect(graph.clips(realizing: "s002").isEmpty)
+    }
+
+    @Test func assetNameStemAloneAlsoRealizes() {
+        let clip = Clip(mediaRef: "a", startFrame: 0, durationFrames: 10)
+        var timeline = Timeline()
+        timeline.tracks = [Track(type: .video, clips: [clip])]
+        let graph = ObjectGraph.from(
+            bible: nil, shotlist: nil, timeline: timeline,
+            assetNames: ["a": "s009.mp4"], assetPaths: [:]
+        )
+        #expect(graph.clips(realizing: "s009") == [clip.id])
+    }
+}

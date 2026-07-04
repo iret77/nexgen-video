@@ -1,13 +1,13 @@
+import Foundation
+
 /// A read-model over the project's objects: the one place that resolves an `InspectedObject` to a
 /// human breadcrumb and answers relationship queries. It holds *resolved* lookup maps rather than the
 /// raw engine documents, so it stays a plain `Sendable` value (usable off-main and trivially testable)
 /// and never re-runs the Bible/shotlist decode. Rebuild it (see `from(...)`) when its sources change.
 ///
-/// The entity↔shot↔clip *edges* (`usage(of:)`, `clips(realizing:)`) are the seams the Bible usage-map
-/// and sanity→timeline navigation will consume. They return empty today: the engine read model does
-/// not yet record which entities a shot uses, nor which clip realized a shot. Filling them is Phase C
-/// (see docs/UI_UX_CONCEPT.md §9). They are exposed now so callers can be written against the final
-/// shape, not so they can pretend the edges exist.
+/// The entity↔shot↔clip *edges*: `usage(of:)`/`entities(usedBy:)` derive from the shotlist's Bible
+/// refs, `clips(realizing:)` from the render-path convention — provenance is read, never invented
+/// (docs/UI_UX_CONCEPT.md §9 Phase C).
 struct ObjectGraph: Sendable, Equatable {
     var entityNames: [BibleEntityRef: String]   // entity ref → display name
     var shotLabels: [String: String]            // ShotSummary.id → "Shot N"
@@ -15,6 +15,9 @@ struct ObjectGraph: Sendable, Equatable {
     var clipMediaRefs: [String: String]         // Clip.id → MediaAsset.id
     var clipTrackLabels: [String: String]       // Clip.id → "V2" / "A1"
     var hasLook: Bool
+    var shotEntities: [String: [BibleEntityRef]] // Shot id → entities the shot uses (shotlist refs)
+    var orderedShotIDs: [String]                 // Shotlist order, for stable usage listings
+    var assetPaths: [String: String]             // MediaAsset.id → absolute/relative source path
 
     init(
         entityNames: [BibleEntityRef: String] = [:],
@@ -22,7 +25,10 @@ struct ObjectGraph: Sendable, Equatable {
         assetNames: [String: String] = [:],
         clipMediaRefs: [String: String] = [:],
         clipTrackLabels: [String: String] = [:],
-        hasLook: Bool = false
+        hasLook: Bool = false,
+        shotEntities: [String: [BibleEntityRef]] = [:],
+        orderedShotIDs: [String] = [],
+        assetPaths: [String: String] = [:]
     ) {
         self.entityNames = entityNames
         self.shotLabels = shotLabels
@@ -30,6 +36,9 @@ struct ObjectGraph: Sendable, Equatable {
         self.clipMediaRefs = clipMediaRefs
         self.clipTrackLabels = clipTrackLabels
         self.hasLook = hasLook
+        self.shotEntities = shotEntities
+        self.orderedShotIDs = orderedShotIDs
+        self.assetPaths = assetPaths
     }
 }
 
@@ -42,7 +51,8 @@ extension ObjectGraph {
         bible: BibleData?,
         shotlist: ShotlistData?,
         timeline: Timeline,
-        assetNames: [String: String]
+        assetNames: [String: String],
+        assetPaths: [String: String] = [:]
     ) -> ObjectGraph {
         var entityNames: [BibleEntityRef: String] = [:]
         if let bible {
@@ -53,9 +63,29 @@ extension ObjectGraph {
         }
 
         var shotLabels: [String: String] = [:]
+        var shotEntities: [String: [BibleEntityRef]] = [:]
+        var orderedShotIDs: [String] = []
         if let shotlist {
             for (index, shot) in shotlist.shots.enumerated() {
                 shotLabels[shot.id] = "Shot \(index + 1)"
+                orderedShotIDs.append(shot.id)
+                var refs: [BibleEntityRef] = []
+                for id in shot.characterRefs {
+                    // A character_ref may name a character or an ensemble; resolve against both.
+                    let character = BibleEntityRef(kind: .character, id: id)
+                    let ensemble = BibleEntityRef(kind: .ensemble, id: id)
+                    if entityNames[character] != nil { refs.append(character) }
+                    else if entityNames[ensemble] != nil { refs.append(ensemble) }
+                }
+                if let loc = shot.locationRef {
+                    let ref = BibleEntityRef(kind: .location, id: loc)
+                    if entityNames[ref] != nil { refs.append(ref) }
+                }
+                for id in shot.propRefs {
+                    let ref = BibleEntityRef(kind: .prop, id: id)
+                    if entityNames[ref] != nil { refs.append(ref) }
+                }
+                if !refs.isEmpty { shotEntities[shot.id] = refs }
             }
         }
 
@@ -79,7 +109,10 @@ extension ObjectGraph {
             assetNames: assetNames,
             clipMediaRefs: clipMediaRefs,
             clipTrackLabels: clipTrackLabels,
-            hasLook: bible != nil
+            hasLook: bible != nil,
+            shotEntities: shotEntities,
+            orderedShotIDs: orderedShotIDs,
+            assetPaths: assetPaths
         )
     }
 }
@@ -138,11 +171,39 @@ extension ObjectGraph {
 // MARK: - Relationship queries (Phase C seams)
 
 extension ObjectGraph {
-    /// Shots that use the given entity — the Bible usage-map. Empty until the engine read model exposes
-    /// shot↔entity edges (Phase C).
-    func usage(of entity: BibleEntityRef) -> [String] { [] }
+    /// Shots that use the given entity (shotlist `character_refs`/`location_ref`/`prop_refs`), in
+    /// shotlist order — the Bible usage-map.
+    func usage(of entity: BibleEntityRef) -> [String] {
+        orderedShotIDs.filter { shotEntities[$0]?.contains(entity) == true }
+    }
 
-    /// Timeline clips that realize the given shot — the seam for sanity→timeline navigation. Empty until
-    /// shot↔clip provenance is recorded (Phase C).
-    func clips(realizing shotID: String) -> [String] { [] }
+    /// Entities a shot uses, in shotlist declaration order.
+    func entities(usedBy shotID: String) -> [BibleEntityRef] {
+        shotEntities[shotID] ?? []
+    }
+
+    /// Timeline clips whose source asset realizes the given shot. Provenance is derived from the
+    /// render path convention (`renders/<shot_id>…`) or an asset named after the shot — nothing is
+    /// invented beyond what the file system shows.
+    func clips(realizing shotID: String) -> [String] {
+        guard !shotID.isEmpty else { return [] }
+        return clipMediaRefs.compactMap { clipID, assetID in
+            assetRealizes(assetID: assetID, shotID: shotID) ? clipID : nil
+        }
+        .sorted { (clipTrackLabels[$0] ?? "") < (clipTrackLabels[$1] ?? "") }
+    }
+
+    private func assetRealizes(assetID: String, shotID: String) -> Bool {
+        if let path = assetPaths[assetID] {
+            let url = URL(fileURLWithPath: path)
+            let stem = url.deletingPathExtension().lastPathComponent
+            let parent = url.deletingLastPathComponent().lastPathComponent
+            if path.contains("renders/") && (stem == shotID || parent == shotID) { return true }
+        }
+        if let name = assetNames[assetID] {
+            let stem = (name as NSString).deletingPathExtension
+            if stem == shotID { return true }
+        }
+        return false
+    }
 }
