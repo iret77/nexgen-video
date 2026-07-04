@@ -53,6 +53,10 @@ class Gate(BaseModel):
             raise ValueError(f"state must be one of {', '.join(GATE_STATES)}")
         if self.approved and self.state in ("pending", "needs_revision"):
             self.state = "approved_with_notes" if self.notes else "approved"
+        elif not self.approved and self.state in ("approved", "approved_with_notes"):
+            # Contradictory hand-edited file: the pipeline blocks on `approved`, so the richer
+            # state must not claim otherwise.
+            self.state = "pending"
         return self
 
 

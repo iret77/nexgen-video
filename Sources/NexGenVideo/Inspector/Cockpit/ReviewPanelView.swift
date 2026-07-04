@@ -41,6 +41,7 @@ struct ReviewPanelView: View {
     @State private var remixSelection: [String: Set<String>] = [:]
     @State private var remixShot: String?
     @State private var remixTakes: [String: String] = [:]
+    @State private var remixTakesShot: String?
     @State private var remixNote = ""
 
     var body: some View {
@@ -120,8 +121,12 @@ struct ReviewPanelView: View {
                 }
                 if (remixSelection[shot.shotId]?.count ?? 0) >= 2 {
                     Button("Remix…") {
-                        remixTakes = [:]
-                        remixNote = ""
+                        // Reset only when switching shots — reopening the popover keeps typed takes.
+                        if remixTakesShot != shot.shotId {
+                            remixTakes = [:]
+                            remixNote = ""
+                            remixTakesShot = shot.shotId
+                        }
                         remixShot = shot.shotId
                     }
                     .controlSize(.small)
@@ -198,7 +203,14 @@ struct ReviewPanelView: View {
                 guard let t = redoTarget, t.shotId == shotId, t.frameName == frame.name else { return nil }
                 return t
             },
-            set: { redoTarget = $0 }
+            set: { newValue in
+                if let newValue {
+                    redoTarget = newValue
+                } else if redoTarget?.shotId == shotId, redoTarget?.frameName == frame.name {
+                    // A dismissing popover may fire after ANOTHER one opened — only clear our own.
+                    redoTarget = nil
+                }
+            }
         )
     }
 
@@ -245,7 +257,8 @@ struct ReviewPanelView: View {
     private func remixPopoverBinding(_ shotId: String) -> Binding<Bool> {
         Binding(
             get: { remixShot == shotId },
-            set: { if !$0 { remixShot = nil } }
+            // A dismissing popover may fire after ANOTHER one opened — only clear our own state.
+            set: { if !$0, remixShot == shotId { remixShot = nil } }
         )
     }
 
@@ -300,6 +313,9 @@ struct ReviewPanelView: View {
         if !note.isEmpty { command += " Note: \(note)" }
         remixShot = nil
         remixSelection[shotId] = []
+        remixTakes = [:]
+        remixTakesShot = nil
+        remixNote = ""
         send(command)
     }
 
@@ -330,7 +346,9 @@ struct ReviewPanelView: View {
         }
         loadToken += 1
         let token = loadToken
-        state = .loading
+        // Silent when already populated: a post-agent-turn refresh must not dismiss open popovers
+        // or drop the remix selection's visual context.
+        if case .loaded = state {} else { state = .loading }
         let result = await CockpitDataService.frames(projectDir: dir)
         guard token == loadToken else { return }
         switch result {

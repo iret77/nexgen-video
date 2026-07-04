@@ -289,6 +289,11 @@ final class AgentService {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions[idx].isOpen = false
         if currentSessionId == id {
+            // Closing the active tab mid-stream: stop the stream and keep its partial reply with
+            // THIS session — otherwise the still-running task appends into the next tab's messages.
+            currentTask?.cancel()
+            isStreaming = false
+            syncMessagesIntoCurrentSession()
             if let next = sessions.first(where: { $0.isOpen }) {
                 currentSessionId = next.id
                 messages = next.messages

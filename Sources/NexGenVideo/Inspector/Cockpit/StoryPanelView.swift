@@ -222,7 +222,9 @@ struct StoryPanelView: View {
         }
         loadToken += 1
         let token = loadToken
-        treatment = .loading
+        // Silent when already populated: a post-agent-turn refresh must not tear down the view
+        // (killing field focus) just to show a spinner.
+        if case .loaded = treatment {} else { treatment = .loading }
         let result = await CockpitDataService.treatment(projectDir: dir)
         guard token == loadToken else { return }
         switch result {
