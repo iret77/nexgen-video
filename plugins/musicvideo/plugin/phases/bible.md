@@ -146,6 +146,16 @@ From treatment + brief + storyboard, for every entity:
 User approval per entity via `AskUserQuestion` (see the approval loop
 below).
 
+### 4b. Director's decisions → Intent Ledger (not the Bible)
+
+The Bible *describes* entities; the Intent Ledger records the user's
+*decisions* about them — and survives Bible regeneration. When the user
+states durable creative direction ("keep her red jacket", "always shoot
+him low-angle"), write it via `set_ledger_attribute` (engine MCP) onto
+the entity/shot/look it belongs to, with the user's words as `source`;
+lock it (`lock_ledger_attribute`) when they insist. Reconcile — update
+existing keys instead of inventing near-duplicates.
+
 ### 5. Style header in `bible.look`
 
 ```yaml

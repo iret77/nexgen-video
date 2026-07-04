@@ -288,3 +288,35 @@ def lint_prompt_against_shot(
         ))
 
     return out
+
+
+def _normalize(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def lint_locked_directives(
+    provider_prompt: str,
+    locked_directives: list[str],
+) -> list[ComplianceFinding]:
+    """Pre-generation, on TEXT: every locked ledger directive must appear in the finished
+    provider prompt (builders append them verbatim, so absence means the payload skipped the
+    ledger). Severity `error` — a lock is a promise. Distinct from the frame audit, which
+    verifies the rendered PIXELS honored the lock; a green prompt lint never implies a green
+    frame (docs/UI_UX_CONCEPT.md §5)."""
+    prompt_norm = _normalize(provider_prompt)
+    out: list[ComplianceFinding] = []
+    for directive in locked_directives:
+        if _normalize(directive) not in prompt_norm:
+            out.append(
+                ComplianceFinding(
+                    severity="error",
+                    code="LOCKED_DIRECTIVE_MISSING",
+                    matched=directive,
+                    message=(
+                        f"Locked directive missing from the prompt: {directive!r}. "
+                        "Compose the payload with the ledger directives "
+                        "(render.prompt.ledger_directives.directives_for_shot)."
+                    ),
+                )
+            )
+    return out

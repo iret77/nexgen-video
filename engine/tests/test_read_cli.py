@@ -154,3 +154,46 @@ def test_bad_project_dir_does_not_crash(tmp_path: Path):
     data = json.loads(proc.stdout)
     assert "error" in data
     assert "Traceback" not in proc.stdout
+
+
+def test_frames_empty_project_returns_empty_shots(tmp_path: Path):
+    data_root = _project(tmp_path)
+    proc = _run("frames", str(data_root))
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["project"] == "demo"
+    assert data["shots"] == []
+
+
+def test_frames_lists_candidates_per_shot_sorted(tmp_path: Path):
+    data_root = _project(tmp_path)
+    shot = data_root / "frames" / "s001"
+    shot.mkdir(parents=True, exist_ok=True)
+    (shot / "b.png").write_bytes(b"png")
+    (shot / "a.png").write_bytes(b"png")
+    (shot / "notes.txt").write_text("not an image", encoding="utf-8")
+    (shot / "_frame_audit.yaml").write_text("status: pass\n", encoding="utf-8")
+    (data_root / "frames" / "empty_dir").mkdir(exist_ok=True)
+
+    proc = _run("frames", str(data_root))
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert len(data["shots"]) == 1  # image-less dirs are skipped
+    entry = data["shots"][0]
+    assert entry["shot_id"] == "s001"
+    assert [f["name"] for f in entry["frames"]] == ["a.png", "b.png"]
+    # Paths are relative to the project home, so the host can resolve them.
+    assert entry["frames"][0]["path"].endswith("frames/s001/a.png")
+    assert entry["audit"] == {"status": "pass"}
+
+
+def test_frames_malformed_audit_is_treated_as_absent(tmp_path: Path):
+    data_root = _project(tmp_path)
+    shot = data_root / "frames" / "s002"
+    shot.mkdir(parents=True, exist_ok=True)
+    (shot / "kf.png").write_bytes(b"png")
+    (shot / "_frame_audit.yaml").write_text("[not: a: mapping", encoding="utf-8")
+
+    proc = _run("frames", str(data_root))
+    data = json.loads(proc.stdout)
+    assert data["shots"][0]["audit"] is None

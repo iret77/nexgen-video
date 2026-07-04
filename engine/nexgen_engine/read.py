@@ -12,6 +12,10 @@ Kinds:
   sanity    → audit findings dict, or {"error":"no shotlist", ...} (mcp_server.run_sanity)
   phases    → ordered phase list incl. active-pack phases (mcp_server.phases)
   shotlist  → latest shotlist dict or null (shotlist.schema.load(...).model_dump)
+  frames    → frame candidates per shot from disk (frames.inventory.inventory)
+  ledger    → the Intent Ledger (ledger.schema.load)
+  router    → model routing table: tiers manifest + task-class floors (core.router)
+  contract  → per-phase UI contract: surface + task class (core.ui_contract)
 """
 
 from __future__ import annotations
@@ -22,9 +26,16 @@ from pathlib import Path
 from typing import Any
 
 from nexgen_engine import mcp_server
+from nexgen_engine.frames import inventory as frames_inventory
+from nexgen_engine.core import router as core_router
+from nexgen_engine.core import ui_contract as core_ui_contract
+from nexgen_engine.ledger import schema as ledger_schema
 from nexgen_engine.shotlist import schema as shotlist_schema
 
-KINDS = ("state", "bible", "sanity", "phases", "shotlist")
+KINDS = ("state", "bible", "sanity", "phases", "shotlist", "frames", "ledger", "router", "contract")
+
+# Kinds that answer without a project (router accepts an optional one for the manifest override).
+PROJECTLESS_KINDS = ("phases", "router", "contract")
 
 
 def _shotlist(project_dir: str) -> dict[str, Any] | None:
@@ -37,6 +48,10 @@ def read(kind: str, project_dir: str | None) -> Any:
     the caller turns any exception into an `{"error": ...}` document."""
     if kind == "phases":
         return mcp_server.phases()
+    if kind == "router":
+        return core_router.describe(project_dir or None)
+    if kind == "contract":
+        return core_ui_contract.full_contract()
     if kind not in KINDS:
         raise ValueError(f"unknown kind {kind!r}; expected one of {', '.join(KINDS)}")
     if not project_dir:
@@ -49,6 +64,10 @@ def read(kind: str, project_dir: str | None) -> Any:
         return mcp_server.run_sanity(project_dir)
     if kind == "shotlist":
         return _shotlist(project_dir)
+    if kind == "frames":
+        return frames_inventory.inventory(project_dir)
+    if kind == "ledger":
+        return ledger_schema.load(project_dir).model_dump(by_alias=True, mode="json")
     raise ValueError(f"unhandled kind {kind!r}")  # pragma: no cover
 
 
@@ -63,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     if kind not in KINDS:
         print(json.dumps({"error": f"unknown kind {kind!r}; expected one of {', '.join(KINDS)}"}))
         return 2
-    if kind != "phases" and not project_dir:
+    if kind not in PROJECTLESS_KINDS and not project_dir:
         print(json.dumps({"error": f"kind {kind!r} requires a project_dir"}))
         return 2
 

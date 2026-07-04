@@ -47,3 +47,4 @@ class MusicvideoPack:
         registry.register_sanity_check("tempo", _tempo_check)
         registry.register_sanity_check("pacing", _pacing_check)
         registry.register_phase("analysis", _analysis_phase)
+        registry.register_ui_contract("analysis", surface="choice", task_class="classification")

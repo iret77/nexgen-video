@@ -107,6 +107,17 @@ enum CockpitDataService {
         await decoded(kind: "shotlist", projectDir: projectDir, decodeError: "Couldn't read the shotlist.")
     }
 
+    /// Frame candidates per shot, straight from disk (`frames` read kind). Never null from the
+    /// engine; empty `shots` when nothing has been generated yet.
+    static func frames(projectDir: URL) async -> Result<FramesData?, CockpitError> {
+        await decoded(kind: "frames", projectDir: projectDir, decodeError: "Couldn't read the frames.")
+    }
+
+    /// The Intent Ledger (`ledger` read kind). Never null; empty `objects` when nothing is recorded.
+    static func ledger(projectDir: URL) async -> Result<LedgerData?, CockpitError> {
+        await decoded(kind: "ledger", projectDir: projectDir, decodeError: "Couldn't read the ledger.")
+    }
+
     /// Shared run + decode for kinds that follow the Bible idiom: literal `null` → `.success(nil)`,
     /// a `{"error": ...}` envelope → `.failure(.engine)`, otherwise decode `T`.
     private static func decoded<T: Decodable & Sendable>(

@@ -19,6 +19,7 @@ struct InspectorView: View {
 
     @State private var preferredTab: ClipTab = .video
     @State private var preferredAssetTab: AssetTab = .details
+    @State private var contextualPromptDraft = ""
     @State private var transformExpanded = true
     @State var collapsedAdjustSections: Set<String> = ["Curves", "Color Wheels", "Hue Curves", "LUTs", "Effects"]
     @State var collapsedAdjustSubgroups: Set<String> = [
@@ -110,6 +111,9 @@ struct InspectorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                 BibleEntityCard(entity: entity, projectDir: editor.studioProjectDir)
+                ledgerSection(for: .entity(BibleEntityRef(kind: entityKind(of: entity), id: entity.id)))
+                usageSection(of: entity)
+                contextualPromptField(placeholder: "Change \(entity.name)…")
                 openInProjectLink(.bible)
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
@@ -126,6 +130,7 @@ struct InspectorView: View {
                         plainMetadataRow(label: field.label, value: field.value)
                     }
                 }
+                ledgerSection(for: .look)
                 openInProjectLink(.bible)
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
@@ -169,6 +174,9 @@ struct InspectorView: View {
                             .textSelection(.enabled)
                     }
                 }
+                ledgerSection(for: .shot(shot.id))
+                shotProvenanceSections(shot.id)
+                contextualPromptField(placeholder: "Change this shot…")
                 openInProjectLink(.shotlist)
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
@@ -177,11 +185,146 @@ struct InspectorView: View {
         }
     }
 
+    /// Shot↔entity provenance: which shots use this entity (click → inspect the shot).
+    @ViewBuilder
+    private func usageSection(of entity: any BibleEntity) -> some View {
+        let graph = objectGraph
+        let refs = BibleEntityKind.allCases.map { BibleEntityRef(kind: $0, id: entity.id) }
+        let shots = refs.flatMap { graph.usage(of: $0) }
+        if !shots.isEmpty {
+            metadataSection(title: "Used in shots") {
+                chipRow(shots.map { (graph.shotLabel($0) ?? $0, InspectedObject.shot($0)) })
+            }
+        }
+    }
+
+    /// Shot provenance: entities the shot uses + timeline clips that realize it.
+    @ViewBuilder
+    private func shotProvenanceSections(_ shotID: String) -> some View {
+        let graph = objectGraph
+        let entities = graph.entities(usedBy: shotID)
+        if !entities.isEmpty {
+            metadataSection(title: "Uses") {
+                chipRow(entities.map { (graph.entityName($0) ?? $0.id, InspectedObject.entity($0)) })
+            }
+        }
+        let clips = graph.clips(realizing: shotID)
+        if !clips.isEmpty {
+            metadataSection(title: "On timeline") {
+                chipRow(clips.map { clipID in
+                    let label = [graph.clipTrackLabels[clipID], graph.clipName(clipID)]
+                        .compactMap(\.self).joined(separator: " · ")
+                    return (label.isEmpty ? "Clip" : label, InspectedObject.clip(clipID))
+                })
+            }
+        }
+    }
+
+    /// A wrapping row of navigable object chips (label → inspect target).
+    private func chipRow(_ items: [(String, InspectedObject)]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                Button {
+                    if case .clip(let id) = item.1 { editor.selectedClipIds = [id] }
+                    editor.inspectedObject = item.1
+                } label: {
+                    Text(item.0)
+                        .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                        .foregroundStyle(AppTheme.Text.secondaryColor)
+                        .lineLimit(1)
+                        .padding(.horizontal, AppTheme.Spacing.sm)
+                        .padding(.vertical, AppTheme.Spacing.xxs)
+                        .background { Capsule().fill(AppTheme.Background.raisedColor) }
+                        .overlay(Capsule().strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.hairline))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// The Intent Ledger on the object: tags always visible, locks marked — the object is the unit
+    /// of memory (docs/UI_UX_CONCEPT.md §5). Read-only; the agent writes via its ledger tools.
+    @ViewBuilder
+    private func ledgerSection(for object: InspectedObject) -> some View {
+        let attributes = editor.ledger?.attributes(for: object) ?? []
+        if !attributes.isEmpty {
+            metadataSection(title: "Intent") {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    ForEach(attributes, id: \.key) { entry in
+                        HStack(spacing: AppTheme.Spacing.xs) {
+                            if entry.attribute.locked {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: AppTheme.FontSize.micro))
+                                    .foregroundStyle(AppTheme.Text.secondaryColor)
+                            }
+                            Text(entry.attribute.tag)
+                                .font(.system(size: AppTheme.FontSize.xs, weight: entry.attribute.locked ? .semibold : .medium))
+                                .foregroundStyle(entry.attribute.locked ? AppTheme.Text.primaryColor : AppTheme.Text.secondaryColor)
+                                .lineLimit(2)
+                        }
+                        .padding(.horizontal, AppTheme.Spacing.sm)
+                        .padding(.vertical, AppTheme.Spacing.xxs)
+                        .background { Capsule().fill(AppTheme.Background.raisedColor) }
+                        .overlay(Capsule().strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.hairline))
+                        .help(ledgerHelp(entry.key, entry.attribute))
+                    }
+                }
+            }
+        }
+    }
+
+    private func ledgerHelp(_ key: String, _ attribute: LedgerAttribute) -> String {
+        var parts = ["\(key): \(attribute.directive)"]
+        if !attribute.source.isEmpty { parts.append("Source: \u{201C}\(attribute.source)\u{201D}") }
+        if attribute.locked { parts.append("Locked — generation must honor this.") }
+        return parts.joined(separator: "\n")
+    }
+
+    private func entityKind(of entity: any BibleEntity) -> BibleEntityKind {
+        switch entity {
+        case is BibleEnsemble: .ensemble
+        case is BibleProp: .prop
+        case is BibleLocation: .location
+        default: .character
+        }
+    }
+
     private func openInProjectLink(_ tab: CockpitTab) -> some View {
         Button("Open in Project") {
             editor.revealCockpit(tab)
         }
         .controlSize(.small)
+    }
+
+    // MARK: - Contextual one-shot prose (ladder rung 3 — docs/UI_UX_CONCEPT.md §4)
+
+    /// A one-shot prompt bound to the inspected object: the prose goes to the agent as typed, the
+    /// scope travels invisibly via the selection context. Not a mini-chat — the field clears on send
+    /// and the Agent tab opens to show the work.
+    private func contextualPromptField(placeholder: String) -> some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            TextField(placeholder, text: $contextualPromptDraft)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .onSubmit(sendContextualPrompt)
+            Button {
+                sendContextualPrompt()
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: AppTheme.FontSize.lg))
+            }
+            .buttonStyle(.plain)
+            .disabled(contextualPromptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+    }
+
+    private func sendContextualPrompt() {
+        let text = contextualPromptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        contextualPromptDraft = ""
+        editor.agentService.send(text: text, mentions: [])
+        editor.agentPanelVisible = true
     }
 
     /// Promote the current timeline/media selection to the app-global inspected object. A single clip or
@@ -212,12 +355,17 @@ struct InspectorView: View {
     /// app-owned timeline and media — so breadcrumbs resolve real names (`Character › Mara`).
     private var objectGraph: ObjectGraph {
         var names: [String: String] = [:]
-        for asset in editor.mediaAssets { names[asset.id] = asset.name }
+        var paths: [String: String] = [:]
+        for asset in editor.mediaAssets {
+            names[asset.id] = asset.name
+            paths[asset.id] = asset.url.path
+        }
         return ObjectGraph.from(
             bible: editor.bible,
             shotlist: editor.shotlist,
             timeline: editor.timeline,
-            assetNames: names
+            assetNames: names,
+            assetPaths: paths
         )
     }
 

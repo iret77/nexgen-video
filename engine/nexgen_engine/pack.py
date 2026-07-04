@@ -53,6 +53,7 @@ class EngineRegistry:
         self.duration_policy: DurationPolicy | None = None
         self.libraries: dict[str, object] = {}
         self.project_dirs: list[str] = []
+        self.ui_contracts: dict[str, dict[str, str]] = {}
 
     def register_phase(self, name: str, runner: PhaseRunner) -> None:
         self.phases[name] = runner
@@ -71,6 +72,13 @@ class EngineRegistry:
     def register_library(self, name: str, library: object) -> None:
         """Domain reference data (e.g. music genre/mood pattern library)."""
         self.libraries[name] = library
+
+    def register_ui_contract(self, phase: str, *, surface: str, task_class: str) -> None:
+        """The phase's default interaction surface (choice/prose/review) and its router task
+        class (docs/UI_UX_CONCEPT.md §7). Overrides the engine's core default for that phase."""
+        from nexgen_engine.core.ui_contract import validate_entry
+
+        self.ui_contracts[phase] = validate_entry(phase, {"surface": surface, "task_class": task_class})
 
 
 @runtime_checkable
