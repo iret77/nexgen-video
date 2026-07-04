@@ -92,6 +92,12 @@ class PromptPayload:
     # Reference-Image-Arrays exakt entsprechen.
     multi_ref_hints: list[str] = field(default_factory=list)
 
+    # INTENT — Ledger-Direktiven (docs/UI_UX_CONCEPT.md §5)
+    directives: list[str] = field(default_factory=list)
+    """Modellfertige Direktiven aus dem Intent Ledger (Shot + dessen
+    Bible-Refs + look/film). Locked-Direktiven MÜSSEN hier stehen —
+    der Compliance-Lint prüft den fertigen Prompt dagegen."""
+
 
 # ----- Standard-Negative-Listen (Style-Excludes, kein Inhalts-Block) -----
 
@@ -585,6 +591,7 @@ def build_for_nano_banana(payload: PromptPayload, *, sheet_kind: str = "characte
                 dedup.append(p)
                 seen.add(p.lower())
         parts.append("Composition rules: " + ", ".join(dedup))
+    parts.extend(payload.directives)
     return _join_clean(parts)
 
 
@@ -682,6 +689,7 @@ def build_for_gpt_image_2(payload: PromptPayload, *, sheet_kind: str = "characte
                 dedup.append(p)
                 seen.add(p.lower())
         lines.append("Constraints:\n" + ", ".join(dedup))
+    lines.extend(payload.directives)
     return "\n\n".join(line for line in lines if line and line.strip())
 
 
@@ -728,6 +736,7 @@ def build_for_imagen(payload: PromptPayload, *, sheet_kind: str = "character") -
             "Output a single full-frame image filling the entire frame "
             "edge-to-edge as one unified continuous picture."
         )
+    parts.extend(payload.directives)
     return _join_clean(parts)
 
 
@@ -1131,6 +1140,7 @@ def build_for_seedance_2(
         parts.append(
             f"{header_kind}. Total: {duration:.0f}s / {aspect}."
         )
+    parts.extend(payload.directives)
     return _join_clean(parts)
 
 
