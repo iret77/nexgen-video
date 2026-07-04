@@ -37,7 +37,8 @@ mcp = FastMCP("engine")
 
 
 def project_state(project_dir: str) -> dict[str, Any]:
-    return build_snapshot(Path(project_dir)).model_dump()
+    # Merged phase order: pack phases (e.g. musicvideo's analysis) appear in the pipeline too.
+    return build_snapshot(Path(project_dir), tuple(phases())).model_dump()
 
 
 def phases() -> list[str]:
@@ -108,6 +109,7 @@ def approve_gate(project_dir: str, phase: str, notes: str | None = None) -> dict
         "project": g.project,
         "phase": phase,
         "approved": gate.approved,
+        "state": gate.state,
         "approved_at": gate.approved_at,
         "approved_by": gate.approved_by,
         "notes": gate.notes,
@@ -123,7 +125,7 @@ def rewind(project_dir: str, target_phase: str) -> dict[str, Any]:
 def estimate_cost(project_dir: str) -> dict[str, Any]:
     """The project's budget picture from the render ledger (no forward estimate)."""
     root = Path(project_dir)
-    snap = build_snapshot(root)
+    snap = build_snapshot(root, tuple(phases()))  # merged order — pack phases count too
     spent = costs_mod.already_spent_in_project(root)
     return {
         "project": snap.project,
