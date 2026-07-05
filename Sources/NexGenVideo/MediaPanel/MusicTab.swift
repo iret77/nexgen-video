@@ -11,8 +11,10 @@ struct MusicTab: View {
     @State private var generatingLabel = "Generating..."
     @State private var note: String?
 
+    // Every music model belongs here — filtering on a video input hid text-to-music models
+    // entirely and showed "No music models available" although the catalog had them.
     private var models: [AudioModelConfig] {
-        AudioModelConfig.allModels.filter { $0.inputs.contains(.video) && $0.category == .music }
+        AudioModelConfig.allModels.filter { $0.category == .music }
     }
 
     private var model: AudioModelConfig? {
@@ -24,9 +26,16 @@ struct MusicTab: View {
         m.category == .music && m.inputs.contains(.text)
     }
 
-    /// Text mode only when the selected model supports text-to-music.
+    private func supportsVideoMode(_ m: AudioModelConfig) -> Bool {
+        m.inputs.contains(.video)
+    }
+
+    /// The chosen mode, clamped to what the selected model can actually do.
     private var effectiveMode: MusicGenerationSubmission.Mode {
-        (model.map(supportsTextMode) ?? false) ? mode : .videoToMusic
+        guard let model else { return mode }
+        if mode == .videoToMusic, !supportsVideoMode(model) { return .textToMusic }
+        if mode == .textToMusic, !supportsTextMode(model) { return .videoToMusic }
+        return mode
     }
     private var isTextMode: Bool { effectiveMode == .textToMusic }
 
@@ -110,7 +119,7 @@ struct MusicTab: View {
 
     private var sourceSection: some View {
         InspectorSection("Source") {
-            if model.map(supportsTextMode) == true {
+            if let model, supportsTextMode(model), supportsVideoMode(model) {
                 InspectorRow(icon: "slider.horizontal.3", label: "Input") {
                     Menu {
                         Button("Video to Music") { mode = .videoToMusic }
@@ -127,7 +136,7 @@ struct MusicTab: View {
                 ) {
                     ScrubbableNumberField(
                         value: textDuration,
-                        range: 1...600,
+                        range: Double(model?.minSeconds ?? 1)...Double(model?.maxSeconds ?? 600),
                         format: "%.0f",
                         valueSuffix: " s",
                         onChanged: { textDuration = $0 }
