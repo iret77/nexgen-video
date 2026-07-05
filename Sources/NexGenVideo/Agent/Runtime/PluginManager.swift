@@ -21,6 +21,42 @@ enum PluginManager {
         let installRoot: URL
         /// `<root>/<name>/plugin/` — the loadable Claude-Code layer (the `--plugin-dir`).
         let pluginDir: URL
+        /// Visual identity (Epic #98 / #95 C1). From `<installRoot>/ngv-plugin.json` — a separate
+        /// NGV manifest so claude's own plugin.json stays untouched. Everything optional with
+        /// graceful fallbacks; `headerImageURL` is nil when the referenced file doesn't exist.
+        let displayName: String
+        let tagline: String?
+        let headerImageURL: URL?
+    }
+
+    /// Parse `<installRoot>/ngv-plugin.json` (all fields optional) with fallbacks: displayName ←
+    /// capitalized folder name; tagline ← claude plugin.json's description; header ← nil.
+    static func visualMetadata(
+        installRoot: URL, pluginDir: URL, name: String
+    ) -> (displayName: String, tagline: String?, headerImageURL: URL?) {
+        var displayName = name.prefix(1).uppercased() + name.dropFirst()
+        var tagline: String?
+        var headerImageURL: URL?
+
+        let ngvManifest = installRoot.appendingPathComponent("ngv-plugin.json")
+        if let data = try? Data(contentsOf: ngvManifest),
+           let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            if let dn = json["displayName"] as? String, !dn.isEmpty { displayName = dn }
+            if let tl = json["tagline"] as? String, !tl.isEmpty { tagline = tl }
+            if let rel = json["headerImage"] as? String, !rel.isEmpty {
+                let url = installRoot.appendingPathComponent(rel)
+                if FileManager.default.fileExists(atPath: url.path) { headerImageURL = url }
+            }
+        }
+        if tagline == nil {
+            let claudeManifest = pluginDir.appendingPathComponent(".claude-plugin/plugin.json")
+            if let data = try? Data(contentsOf: claudeManifest),
+               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+               let desc = json["description"] as? String, !desc.isEmpty {
+                tagline = desc
+            }
+        }
+        return (displayName, tagline, headerImageURL)
     }
 
     /// `~/Library/Application Support/NexGenVideo/plugins/` — where users drop imported plugins.
@@ -55,7 +91,11 @@ enum PluginManager {
                 let manifest = pluginDir.appendingPathComponent(".claude-plugin/plugin.json")
                 guard fm.fileExists(atPath: manifest.path) else { continue }
                 seen.insert(name)
-                result.append(Plugin(name: name, installRoot: installRoot, pluginDir: pluginDir))
+                let visual = visualMetadata(installRoot: installRoot, pluginDir: pluginDir, name: name)
+                result.append(Plugin(
+                    name: name, installRoot: installRoot, pluginDir: pluginDir,
+                    displayName: visual.displayName, tagline: visual.tagline,
+                    headerImageURL: visual.headerImageURL))
             }
         }
         return result
