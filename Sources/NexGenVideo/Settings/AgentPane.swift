@@ -11,6 +11,9 @@ struct AgentPane: View {
     @FocusState private var isFocused: Bool
 
     @AppStorage("useClaudeCodeRuntime") private var useClaudeRuntime: Bool = false
+    @State private var externalServers: [String: String] = ExternalMcpServers.all()
+    @State private var newServerName = ""
+    @State private var newServerCommand = ""
     @AppStorage("claudeRuntimePluginDir") private var claudePluginDir: String = ""
     @AppStorage("claudeRuntimePermissionMode") private var claudePermissionMode: String = "bypassPermissions"
 
@@ -293,7 +296,63 @@ struct AgentPane: View {
             folderRow(title: "Extra plugin folder (optional)", path: $claudePluginDir)
             permissionRow
             engineRow
+            externalServersSection
         }
+    }
+
+    // External MCP servers for the embedded runtime — how tools like ACE Studio 2 (built-in stdio
+    // MCP server, "copy command" in its settings) plug into the agent. Merged into --mcp-config.
+    @ViewBuilder
+    private var externalServersSection: some View {
+        ForEach(externalServers.keys.sorted(), id: \.self) { name in
+            runtimeRow {
+                Text(name)
+                    .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
+                    .foregroundStyle(AppTheme.Text.secondaryColor)
+                Text(ExternalMcpServers.commandPreview(entryJSON: externalServers[name] ?? ""))
+                    .font(.system(size: AppTheme.FontSize.xs, design: .monospaced))
+                    .foregroundStyle(AppTheme.Text.tertiaryColor)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Button("Remove") {
+                    ExternalMcpServers.remove(name: name)
+                    externalServers = ExternalMcpServers.all()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+            }
+        }
+        runtimeRow {
+            TextField("Name (e.g. acestudio)", text: $newServerName)
+                .textFieldStyle(.plain)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .frame(width: 140)
+            TextField("MCP command, server URL, or pasted JSON config", text: $newServerCommand)
+                .textFieldStyle(.plain)
+                .font(.system(size: AppTheme.FontSize.sm, design: .monospaced))
+            Button("Add") { addExternalServer() }
+                .buttonStyle(.plain)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .foregroundStyle(AppTheme.Accent.primary)
+                .disabled(newServerCommand.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        Text("External MCP servers for the embedded agent — e.g. ACE Studio 2's MCP command (Settings → MCP → copy command) or OpenArt's hosted server (https://mcp.openart.ai/mcp; OAuth servers need one interactive sign-in via `claude mcp add` first). The agent can then drive those tools directly.")
+            .font(.system(size: AppTheme.FontSize.xs))
+            .foregroundStyle(AppTheme.Text.mutedColor)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func addExternalServer() {
+        guard let entry = ExternalMcpServers.entryJSON(fromUserInput: newServerCommand) else { return }
+        let name = newServerName.trimmingCharacters(in: .whitespaces).isEmpty
+            ? (ExternalMcpServers.nameHint(fromUserInput: newServerCommand) ?? "external")
+            : newServerName.trimmingCharacters(in: .whitespaces)
+        ExternalMcpServers.set(name: name, entryJSON: entry)
+        externalServers = ExternalMcpServers.all()
+        newServerName = ""
+        newServerCommand = ""
     }
 
     private var claudeFound: Bool { ClaudeCodeLocator.locateOnly() != nil }

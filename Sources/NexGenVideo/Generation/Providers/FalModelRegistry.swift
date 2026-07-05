@@ -31,6 +31,7 @@ enum FalAudioMode: Sendable {
     case tts             // { text, voice } → audio.url
     case soundEffect     // { text }        → audio.url
     case music           // { prompt, seconds_total } → audio_file.url
+    case musicMs         // ElevenLabs Music: { prompt, music_length_ms, force_instrumental } → audio.url
 }
 
 enum FalUpscaleKind: Sendable {
@@ -179,6 +180,8 @@ enum FalModelRegistry {
               mode: .soundEffect, caps: sfxCaps),
         audio("fal-ai/stable-audio", "Stable Audio",
               mode: .music, caps: musicCaps),
+        audio("fal-ai/elevenlabs/music", "ElevenLabs Music",
+              mode: .musicMs, caps: elevenMusicCaps),
     ]
 
     private static func audio(_ id: String, _ name: String, mode: FalAudioMode, caps: AudioCaps) -> FalModel {
@@ -211,6 +214,13 @@ enum FalModelRegistry {
         supportsLyrics: false, supportsInstrumental: true, supportsStyleInstructions: false,
         durations: nil, minPromptLength: 1, inputs: ["text"],
         promptLabel: "Music description", minSeconds: 1, maxSeconds: 47
+    )
+
+    private static let elevenMusicCaps = AudioCaps(
+        category: "music", voices: nil, defaultVoice: nil,
+        supportsLyrics: false, supportsInstrumental: true, supportsStyleInstructions: false,
+        durations: nil, minPromptLength: 1, inputs: ["text"],
+        promptLabel: "Music description", minSeconds: 3, maxSeconds: 600
     )
 
     // MARK: - Upscale

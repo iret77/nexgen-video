@@ -125,7 +125,14 @@ enum EngineRuntime {
         }
         let target = "\(pluginInstallRoot.path)[\(extra)]"
         do {
-            try await run("uv", ["pip", "install", "--python", venvPython.path, "-e", target])
+            // madmom's sdist doesn't declare its build deps (Cython/numpy/setuptools), and PEP 517
+            // build isolation hides preinstalled ones — the build died with "No module named
+            // 'Cython'". Seed the build deps into the venv, then install without isolation.
+            // Verified to build madmom 0.16.1 on Python 3.12.
+            try await run("uv", ["pip", "install", "--python", venvPython.path,
+                                 "Cython", "numpy", "setuptools"])
+            try await run("uv", ["pip", "install", "--python", venvPython.path,
+                                 "--no-build-isolation", "-e", target])
             return .installed
         } catch {
             return .failed(error.localizedDescription)

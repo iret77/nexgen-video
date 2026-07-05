@@ -43,6 +43,13 @@ enum FalInputBuilder {
             return ["text": p.prompt]
         case .music:
             return ["prompt": p.prompt, "seconds_total": p.durationSeconds ?? 30]
+        case .musicMs:
+            // fal-ai/elevenlabs/music: length in ms (3s–600s), instrumental as a hard guarantee.
+            return [
+                "prompt": p.prompt,
+                "music_length_ms": (p.durationSeconds ?? 90) * 1000,
+                "force_instrumental": p.instrumental,
+            ]
         }
     }
 
