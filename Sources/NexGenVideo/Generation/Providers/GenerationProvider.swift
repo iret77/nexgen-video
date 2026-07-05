@@ -7,8 +7,6 @@ extension Notification.Name {
 enum GenerationProvider: String, CaseIterable, Identifiable {
     case fal
     case runway
-    case openart
-    case higgsfield
     case elevenlabs
     case marble
 
@@ -18,8 +16,6 @@ enum GenerationProvider: String, CaseIterable, Identifiable {
         switch self {
         case .fal: return "fal.ai"
         case .runway: return "Runway"
-        case .openart: return "OpenArt"
-        case .higgsfield: return "Higgsfield"
         case .elevenlabs: return "ElevenLabs"
         case .marble: return "Marble"
         }
@@ -29,8 +25,6 @@ enum GenerationProvider: String, CaseIterable, Identifiable {
         switch self {
         case .fal: return "Video · Image · Audio"
         case .runway: return "Video"
-        case .openart: return "Image"
-        case .higgsfield: return "Video"
         case .elevenlabs: return "Voice · SFX · Music"
         case .marble: return "3D World · Panorama"
         }
@@ -40,8 +34,6 @@ enum GenerationProvider: String, CaseIterable, Identifiable {
         switch self {
         case .fal: return URL(string: "https://fal.ai/dashboard/keys")!
         case .runway: return URL(string: "https://dev.runwayml.com")!
-        case .openart: return URL(string: "https://openart.ai/api")!
-        case .higgsfield: return URL(string: "https://higgsfield.ai")!
         case .elevenlabs: return URL(string: "https://elevenlabs.io/app/settings/api-keys")!
         case .marble: return URL(string: "https://platform.worldlabs.ai/")!
         }
@@ -72,6 +64,7 @@ extension GenerationProvider {
     /// account, no fal middleman) and fall back to fal's hosted endpoints otherwise; the rest is fal.
     static func servicing(modelId: String) -> GenerationProvider {
         if MarbleModelRegistry.isMarbleModel(modelId) { return .marble }
+        if RunwayModelRegistry.isRunwayModel(modelId) { return .runway }
         if modelId.hasPrefix("fal-ai/elevenlabs"), GenerationProvider.elevenlabs.hasKey {
             return .elevenlabs
         }

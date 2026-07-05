@@ -180,8 +180,6 @@ final class ClaudeCodeRuntime {
     private static let providerEnvNames: [(GenerationProvider, String)] = [
         (.fal, "FAL_KEY"),
         (.runway, "RUNWAYML_API_SECRET"),
-        (.openart, "OPENART_API_KEY"),
-        (.higgsfield, "HIGGSFIELD_API_KEY"),
         (.elevenlabs, "ELEVENLABS_API_KEY"),
         (.marble, "WORLD_LABS_API_KEY"),
     ]
