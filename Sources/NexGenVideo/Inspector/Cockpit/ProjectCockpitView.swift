@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Tabs of the Project cockpit: Story (brief + treatment, the pipeline's front), Bible, Pipeline
@@ -73,6 +74,7 @@ struct ProjectCockpitView: View {
 /// contained so it does not depend on the Inspector's private row helpers.
 struct ProjectSettingsView: View {
     @Environment(EditorViewModel.self) private var editor
+    @State private var plugins: [PluginManager.Plugin] = []
 
     var body: some View {
         ScrollView {
@@ -89,10 +91,104 @@ struct ProjectSettingsView: View {
                     menuRow("Frame Rate", "\(editor.timeline.fps) fps") { fpsMenuItems }
                     menuRow("Aspect Ratio", formatAspectRatio(width: editor.timeline.width, height: editor.timeline.height)) { aspectMenuItems }
                 }
+
+                pluginSection
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.vertical, AppTheme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Format plugin (the activation surface — Epic #98 / #95 C3)
+
+    /// Exactly one plugin is active per project ("installed ≠ active"); none = the generic
+    /// workflow. This gallery is the ONLY activation surface — never the prompt suggestions.
+    private var pluginSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+            Text("FORMAT PLUGIN")
+                .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                .tracking(AppTheme.Tracking.wide)
+                .foregroundStyle(AppTheme.Text.mutedColor)
+            Text(editor.activePluginName == nil
+                 ? "Generic production workflow. Activate a plugin to specialize this project."
+                 : "The active plugin drives this project's production workflow. One plugin per project.")
+                .font(.system(size: AppTheme.FontSize.xs))
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(plugins, id: \.name) { plugin in
+                pluginCard(plugin)
+            }
+            if plugins.isEmpty {
+                Text("No format plugins installed.")
+                    .font(.system(size: AppTheme.FontSize.sm))
+                    .foregroundStyle(AppTheme.Text.tertiaryColor)
+            }
+        }
+        .onAppear { plugins = PluginManager.discoverPlugins() }
+    }
+
+    private func pluginCard(_ plugin: PluginManager.Plugin) -> some View {
+        let isActive = editor.activePluginName == plugin.name
+        return ZStack(alignment: .bottomLeading) {
+            headerImage(for: plugin)
+                .frame(height: 96)
+                .frame(maxWidth: .infinity)
+                .clipped()
+            LinearGradient(colors: [.clear, Color.black.opacity(AppTheme.Opacity.strong)],
+                           startPoint: .top, endPoint: .bottom)
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+                    Text(plugin.displayName)
+                        .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                        .foregroundStyle(.white)
+                    if let tagline = plugin.tagline {
+                        Text(tagline)
+                            .font(.system(size: AppTheme.FontSize.xs))
+                            .foregroundStyle(.white.opacity(AppTheme.Opacity.prominent))
+                            .lineLimit(2)
+                    }
+                }
+                Spacer(minLength: AppTheme.Spacing.md)
+                if isActive {
+                    Button("Deactivate") { editor.setActivePlugin(nil) }
+                        .buttonStyle(.capsule(.secondary, size: .regular))
+                        .controlSize(.small)
+                } else {
+                    Button("Activate") { editor.setActivePlugin(plugin.name) }
+                        .buttonStyle(.capsule(.prominent, size: .regular))
+                        .controlSize(.small)
+                }
+            }
+            .padding(AppTheme.Spacing.md)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous)
+                .strokeBorder(isActive ? AppTheme.Accent.primary : AppTheme.Border.subtleColor,
+                              lineWidth: isActive ? AppTheme.BorderWidth.medium : AppTheme.BorderWidth.hairline)
+        )
+        .overlay(alignment: .topTrailing) {
+            if isActive {
+                Label("Active", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, AppTheme.Spacing.sm)
+                    .padding(.vertical, AppTheme.Spacing.xxs)
+                    .background(Capsule().fill(AppTheme.Accent.primary))
+                    .padding(AppTheme.Spacing.sm)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func headerImage(for plugin: PluginManager.Plugin) -> some View {
+        if let url = plugin.headerImageURL, let image = NSImage(contentsOf: url) {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } else {
+            AppTheme.aiGradient
         }
     }
 

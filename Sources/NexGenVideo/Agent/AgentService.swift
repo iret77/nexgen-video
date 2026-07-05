@@ -384,6 +384,9 @@ final class AgentService {
     /// includes the `engine` MCP — without an app restart. See the `claudeRuntime` accessor.
     @ObservationIgnored
     private var claudeRuntimeBuiltWithEngine = false
+    /// The active plugin the cached runtime was built with — a change rebuilds on the next send.
+    @ObservationIgnored
+    private var claudeRuntimeBuiltWithPlugin: String?
 
     /// The embedded Claude Code runtime, lazily built and cached. Rebuilt (only when safe — never
     /// mid-stream) once the engine becomes available after the cached runtime was created engine-less,
@@ -392,7 +395,8 @@ final class AgentService {
     private var claudeRuntime: ClaudeCodeRuntime {
         let engineAvailable = Self.engineAvailable
         if let runtime = _claudeRuntime {
-            if engineAvailable, !claudeRuntimeBuiltWithEngine, !isStreaming {
+            let pluginChanged = claudeRuntimeBuiltWithPlugin != editor?.activePluginName
+            if (engineAvailable && !claudeRuntimeBuiltWithEngine || pluginChanged), !isStreaming {
                 runtime.stop()
                 return makeClaudeRuntime(engineAvailable: engineAvailable)
             }
@@ -412,7 +416,7 @@ final class AgentService {
     private func makeClaudeRuntime(engineAvailable: Bool) -> ClaudeCodeRuntime {
         ensureEngineBootstrapped()
         let runtime = ClaudeCodeRuntime(
-            pluginDirectories: Self.configuredPluginDirectories(),
+            pluginDirectories: configuredPluginDirectories(),
             mcpPort: Int(MCPService.port),
             permissionMode: Self.configuredPermissionMode(),
             resolveWorkingDirectory: { [weak self] in
@@ -423,6 +427,7 @@ final class AgentService {
                 self?.isStreaming = isStreaming
             }
         )
+        claudeRuntimeBuiltWithPlugin = editor?.activePluginName
         _claudeRuntime = runtime
         claudeRuntimeBuiltWithEngine = engineAvailable
         return runtime
@@ -457,9 +462,10 @@ final class AgentService {
     }
 
     /// Auto-discovered plugin dirs (bundled + user import dir) unioned with the optional manual
-    /// "Plugin folder" override, de-duped by path. The manual entry leads so an explicit pick wins
-    /// ordering; discovery fills in everything installed on disk without the user pointing at a folder.
-    private static func configuredPluginDirectories() -> [URL] {
+    /// Installed ≠ active: only the project's ACTIVE plugin loads (exactly one, chosen in Project
+    /// settings; none → the generic workflow). The dev "extra plugin folder" override always loads —
+    /// that's for pack development, not activation.
+    private func configuredPluginDirectories() -> [URL] {
         var ordered: [URL] = []
         var seen = Set<String>()
         func add(_ url: URL) {
@@ -468,7 +474,10 @@ final class AgentService {
         if let path = UserDefaults.standard.string(forKey: "claudeRuntimePluginDir"), !path.isEmpty {
             add(URL(fileURLWithPath: path))
         }
-        for dir in PluginManager.discoveredPluginDirectories() { add(dir) }
+        if let active = editor?.activePluginName,
+           let plugin = PluginManager.discoverPlugins().first(where: { $0.name == active }) {
+            add(plugin.pluginDir)
+        }
         return ordered
     }
 

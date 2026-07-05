@@ -66,7 +66,9 @@ struct AgentPanelView: View {
             discoveredPlugins = []
             return
         }
-        discoveredPlugins = PluginCommandCatalog.discover()
+        // Installed ≠ active: chips and launcher surface only the project's ACTIVE plugin — a
+        // command of an inactive plugin couldn't run anyway (its dir isn't loaded).
+        discoveredPlugins = PluginCommandCatalog.discover().filter { $0.name == editor.activePluginName }
     }
 
     private var floatingTabBar: some View {
