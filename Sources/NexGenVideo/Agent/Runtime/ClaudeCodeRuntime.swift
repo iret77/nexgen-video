@@ -78,7 +78,8 @@ final class ClaudeCodeRuntime {
             workingDirectory: workingDirectory,
             pluginDirectories: pluginDirectories,
             pluginMcpServers: Self.loadPluginMcpServers(pluginDirectories)
-                .merging(Self.engineMcpServers()) { existing, _ in existing },
+                .merging(Self.engineMcpServers()) { existing, _ in existing }
+                .merging(ExternalMcpServers.all()) { existing, _ in existing },
             mcpPort: mcpPort,
             permissionMode: permissionMode
         )
