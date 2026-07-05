@@ -244,13 +244,10 @@ echo "==> Building DMG"
 rm -f "$DMG"
 DMG_VOLNAME="NexGenVideo"
 
-# Resize the splash to the DMG window size for a crisp background (sips is macOS-only).
-DMG_BG=""
-DMG_BG_SRC="$RESOURCES/Images/welcome-splash.png"
-if command -v sips >/dev/null 2>&1 && [ -f "$DMG_BG_SRC" ]; then
-  DMG_BG="$(mktemp -d)/dmg-bg.png"
-  sips -z 400 600 "$DMG_BG_SRC" --out "$DMG_BG" >/dev/null 2>&1 || DMG_BG=""
-fi
+# Dedicated branded install-window backdrop (retina @2x, 144 dpi → ~750x525 pt). Used as-is; the
+# artwork is authored at the window size, so no resizing/distortion.
+DMG_BG="$ROOT/assets/dmg-background.png"
+[ -f "$DMG_BG" ] || DMG_BG=""
 
 # Prefer dmgbuild (headless — writes the .DS_Store directly, no Finder/AppleScript) for a branded
 # window background; fall back to a plain DMG so a release is never blocked on cosmetics.
