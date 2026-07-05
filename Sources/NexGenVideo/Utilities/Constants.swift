@@ -121,8 +121,16 @@ enum Project {
     static let thumbnailFilename = "thumbnail.jpg"
     static let mediaDirectoryName = "media"
 
+    /// UserDefaults key backing the user-chosen projects folder (Settings → Storage).
+    static let projectsFolderKey = "projectsFolder"
+
+    /// Where new projects are created. User-configurable in Settings → Storage; the
+    /// ~/Documents/NexGenVideo path is only the fallback until the user picks their own location.
     static var storageDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        if let custom = UserDefaults.standard.string(forKey: projectsFolderKey), !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Documents/NexGenVideo", isDirectory: true)
     }
 
