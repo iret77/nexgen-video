@@ -11,6 +11,7 @@ extension ToolExecutor {
             guard let model = VideoModelConfig.allModels.first(where: { $0.id == modelId }) else {
                 throw ToolError("Unknown model '\(modelId)'. Available: \(VideoModelConfig.allModels.map(\.id).joined(separator: ", "))")
             }
+            try PromptCompiler.enforceGate(args: args, prompt: prompt, modelId: model.id)
             return model.requiresSourceVideo
                 ? try generateVideoEdit(editor, args, prompt: prompt, model: model)
                 : try generateVideoText(editor, args, prompt: prompt, model: model)
@@ -151,6 +152,7 @@ extension ToolExecutor {
         guard let model = ImageModelConfig.allModels.first(where: { $0.id == modelId }) else {
             throw ToolError("Unknown model '\(modelId)'. Available: \(ImageModelConfig.allModels.map(\.id).joined(separator: ", "))")
         }
+        try PromptCompiler.enforceGate(args: args, prompt: prompt, modelId: model.id)
         let aspectRatio = args.string("aspectRatio") ?? model.aspectRatios.first ?? ""
         let resolution = args.string("resolution") ?? model.resolutions?.first
         let quality = args.string("quality") ?? model.qualities?.last
@@ -207,6 +209,19 @@ extension ToolExecutor {
         return .ok("Generation started. Placeholder asset ID: \(placeholderId). Model: \(model.displayName), aspect: \(aspectRatio)")
     }
 
+    func compilePrompt(_ editor: EditorViewModel, _ args: [String: Any]) async throws -> ToolResult {
+        let intent = try args.requireString("intent")
+        let modelId = try args.requireString("model")
+        let compiled = try await PromptCompiler.compile(intent: intent, modelId: modelId, editor: editor)
+        let body: [String: Any] = [
+            "compiledPrompt": compiled.text,
+            "compileToken": compiled.token,
+            "notes": compiled.notes,
+        ]
+        guard let json = Self.jsonString(body) else { return .error("Failed to encode compiled prompt") }
+        return .ok(json)
+    }
+
     func generateAudio(_ editor: EditorViewModel, _ args: [String: Any]) async throws -> ToolResult {
         guard let modelId = args.string("model") ?? AudioModelConfig.allModels.first?.id else {
             throw ToolError("Model catalog not loaded yet. Try again in a moment.")
@@ -216,6 +231,9 @@ extension ToolExecutor {
         }
 
         let prompt = (args.string("prompt") ?? "").trimmingCharacters(in: .whitespaces)
+        if !prompt.isEmpty {
+            try PromptCompiler.enforceGate(args: args, prompt: prompt, modelId: model.id)
+        }
         let acceptsVideo = model.inputs.contains(.video)
         var videoURL: String?
         var spanSeconds: Double?

@@ -7,6 +7,8 @@ struct ProvidersPane: View {
     @State private var draft: [String: String] = [:]
     @FocusState private var focusedProvider: String?
 
+    @AppStorage(PromptCompiler.rawPromptsDefaultsKey) private var allowRawPrompts = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
             header
@@ -18,6 +20,25 @@ struct ProvidersPane: View {
             }
         }
         .onAppear(perform: refresh)
+            Divider().overlay(AppTheme.Border.subtleColor)
+
+            HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    Text("Raw prompts (pro)")
+                        .font(.system(size: AppTheme.FontSize.md))
+                        .foregroundStyle(AppTheme.Text.primaryColor)
+                    Text("Send prompts to generation models without NGV's prompt engine. For pros who know exactly what a model expects — the engine's translation, context, and consistency passes are skipped.")
+                        .font(.system(size: AppTheme.FontSize.sm))
+                        .foregroundStyle(AppTheme.Text.tertiaryColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: AppTheme.Spacing.lg)
+                Toggle("", isOn: $allowRawPrompts)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+
     }
 
     private var header: some View {
