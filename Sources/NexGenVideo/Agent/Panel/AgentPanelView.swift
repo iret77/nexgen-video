@@ -55,6 +55,10 @@ struct AgentPanelView: View {
                 messageList
                 floatingTabBar
             }
+            if let dialog = service.pendingDialog {
+                AgentDialogCard(dialog: dialog)
+                    .padding(.bottom, AppTheme.Spacing.xs)
+            }
             footer
         }
         .background(AppTheme.Background.surfaceColor)

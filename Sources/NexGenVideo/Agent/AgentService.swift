@@ -83,6 +83,25 @@ final class AgentService {
 
     var draft: String = ""
     var mentions: [AgentMention] = []
+
+    /// The ONE pending generative dialog (#96, composer-dock architecture). Set by the show_dialog
+    /// tool; the card renders above the input. Submitting composes a single structured message —
+    /// the compact transcript record — and clears; cancel clears silently (the agent was told to
+    /// wait for the next user message either way).
+    var pendingDialog: AgentDialog?
+
+    func submitDialog(title: String, answers: [String]) {
+        pendingDialog = nil
+        let direction = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        var line = "Dialog \u{201C}\(title)\u{201D} \u{2014} " + (answers.isEmpty ? "confirmed" : answers.joined(separator: "; "))
+        if !direction.isEmpty { line += ". Direction: \(direction)" }
+        draft = ""
+        send(text: line, mentions: [])
+    }
+
+    func cancelDialog() {
+        pendingDialog = nil
+    }
     private static let clipMentionLabelMaxLength = 24
 
     /// Bumped to ask the input field to take focus (e.g. after the plugin launcher inserts a command

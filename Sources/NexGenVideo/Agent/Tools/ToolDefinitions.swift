@@ -19,6 +19,7 @@ enum ToolName: String, CaseIterable, Sendable {
     case addTexts = "add_texts"
     case addCaptions = "add_captions"
     case exportProject = "export_project"
+    case showDialog = "show_dialog"
     case compilePrompt = "compile_prompt"
     case generateVideo = "generate_video"
     case generateImage = "generate_image"
@@ -59,6 +60,46 @@ enum ToolDefinitions {
                     "startFrame": ["type": "integer", "description": "Optional. Window start (inclusive); only clips intersecting [startFrame, endFrame) are returned. Tracks report totalClips when the window hides some."],
                     "endFrame": ["type": "integer", "description": "Optional. Window end (exclusive)."],
                 ]
+            )
+        ),
+        AgentTool(
+            name: .showDialog,
+            description: "Present a native structured dialog in the chat composer so the user shapes a step with clicks instead of prose — USE THIS instead of asking multi-option questions in text whenever a step has enumerable choices (styles, sections, modes, candidates). It renders as a card docked above the input (never a modal, never in the transcript); the input field becomes the dialog's free-text direction. After calling: STOP. The user's structured answer arrives as the next user message (\u{201C}Dialog \u{2026}\u{201D}); do not proceed with the step until then. Give every option a fitting SF Symbol; include costHint when the confirmed step will spend money.",
+            inputSchema: objectSchema(
+                properties: [
+                    "title": ["type": "string", "description": "Short imperative title, e.g. 'Shape the B-roll'."],
+                    "symbol": ["type": "string", "description": "SF Symbol for the dialog, e.g. 'film'."],
+                    "intro": ["type": "string", "description": "One short sentence of context (optional)."],
+                    "costHint": ["type": "string", "description": "Approximate cost of the confirmed step, e.g. '\u{2248} \u{20AC}0.80'."],
+                    "confirmLabel": ["type": "string", "description": "Confirm button label (default 'Continue')."],
+                    "textPlaceholder": ["type": "string", "description": "Placeholder for the dialog-scoped free-text input."],
+                    "sections": [
+                        "type": "array",
+                        "description": "1\u{2013}4 structured sections.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "id": ["type": "string"],
+                                "label": ["type": "string"],
+                                "type": ["type": "string", "enum": ["choices", "toggle"]],
+                                "multiSelect": ["type": "boolean"],
+                                "defaultOn": ["type": "boolean", "description": "toggle sections only"],
+                                "options": [
+                                    "type": "array",
+                                    "items": [
+                                        "type": "object",
+                                        "properties": [
+                                            "id": ["type": "string"],
+                                            "label": ["type": "string"],
+                                            "symbol": ["type": "string", "description": "SF Symbol per option"],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                required: ["title", "sections"]
             )
         ),
         AgentTool(

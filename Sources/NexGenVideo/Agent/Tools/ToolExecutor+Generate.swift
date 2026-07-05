@@ -209,6 +209,13 @@ extension ToolExecutor {
         return .ok("Generation started. Placeholder asset ID: \(placeholderId). Model: \(model.displayName), aspect: \(aspectRatio)")
     }
 
+    func showDialog(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
+        let dialog = try AgentDialog.parse(args)
+        editor.agentService.pendingDialog = dialog
+        editor.agentPanelVisible = true
+        return .ok("Dialog \u{201C}\(dialog.title)\u{201D} is presented in the composer. STOP \u{2014} the user's structured answer arrives as the next user message; do not act on this step until then.")
+    }
+
     func compilePrompt(_ editor: EditorViewModel, _ args: [String: Any]) async throws -> ToolResult {
         let intent = try args.requireString("intent")
         let modelId = try args.requireString("model")
