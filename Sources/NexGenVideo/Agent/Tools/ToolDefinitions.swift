@@ -19,6 +19,7 @@ enum ToolName: String, CaseIterable, Sendable {
     case addTexts = "add_texts"
     case addCaptions = "add_captions"
     case exportProject = "export_project"
+    case compilePrompt = "compile_prompt"
     case generateVideo = "generate_video"
     case generateImage = "generate_image"
     case generateAudio = "generate_audio"
@@ -58,6 +59,17 @@ enum ToolDefinitions {
                     "startFrame": ["type": "integer", "description": "Optional. Window start (inclusive); only clips intersecting [startFrame, endFrame) are returned. Tracks report totalClips when the window hides some."],
                     "endFrame": ["type": "integer", "description": "Optional. Window end (exclusive)."],
                 ]
+            )
+        ),
+        AgentTool(
+            name: .compilePrompt,
+            description: "MANDATORY before any generate_* call: compiles user/agent intent into the final model prompt. NGV never sends raw prompts to content models — several cheap LLM turns are cheaper than one failed render. YOUR part of the contract before calling: translate the intent to English, resolve contradictions, and if essential information is missing (subject, style, format), ASK THE USER FIRST — never guess and spend money. The tool merges the project's locked ledger directives, enforces the model's prompt limits, and returns { compiledPrompt, compileToken, notes }. Pass compiledPrompt AND compileToken to the generate tool unchanged.",
+            inputSchema: objectSchema(
+                properties: [
+                    "intent": ["type": "string", "description": "The prepared, English, contradiction-free generation intent."],
+                    "model": ["type": "string", "description": "Target model id from list_models — limits and dialect are model-specific."],
+                ],
+                required: ["intent", "model"]
             )
         ),
         AgentTool(
@@ -408,9 +420,11 @@ enum ToolDefinitions {
         ),
         AgentTool(
             name: .generateVideo,
-            description: "Starts an async AI video generation. Returns a placeholder asset ID immediately; generation runs in the background and the asset becomes usable in add_clips once ready. Costs real money and is not undoable.",
+            description: "Starts an async AI video generation. Returns a placeholder asset ID immediately; generation runs in the background and the asset becomes usable in add_clips once ready. Costs real money and is not undoable. PROMPT GATE: 'prompt' must be the compiledPrompt returned by compile_prompt, passed together with its compileToken — never your own phrasing. Raw prompts (rawPrompt=true) work only when the user enabled the pro setting.",
             inputSchema: objectSchema(
                 properties: [
+                    "compileToken": ["type": "string", "description": "Token from compile_prompt proving 'prompt' is the compiled prompt. Required unless rawPrompt=true."],
+                    "rawPrompt": ["type": "boolean", "description": "Pro escape hatch: send the prompt uncompiled. Only works when the user enabled Raw prompts in Settings."],
                     "prompt": ["type": "string", "description": "Text description of the video to generate"],
                     "name": ["type": "string", "description": "Display name for the asset in the media library. Defaults to first 30 chars of prompt."],
                     "model": ["type": "string", "description": "Model ID (e.g. 'veo3.1-fast'). Use list_models to see options. Defaults to first available model."],
@@ -434,6 +448,8 @@ enum ToolDefinitions {
             description: "Starts an async AI image generation. Returns a placeholder asset ID immediately; generation runs in the background. Costs real money and is not undoable.",
             inputSchema: objectSchema(
                 properties: [
+                    "compileToken": ["type": "string", "description": "Token from compile_prompt proving 'prompt' is the compiled prompt. Required unless rawPrompt=true."],
+                    "rawPrompt": ["type": "boolean", "description": "Pro escape hatch: send the prompt uncompiled. Only works when the user enabled Raw prompts in Settings."],
                     "prompt": ["type": "string", "description": "Text description of the image to generate"],
                     "name": ["type": "string", "description": "Display name for the asset in the media library. Defaults to first 30 chars of prompt."],
                     "model": ["type": "string", "description": "Model ID (e.g. 'nano-banana-pro'). Use list_models to see options. Defaults to first available model."],
@@ -451,6 +467,8 @@ enum ToolDefinitions {
             description: "Starts an async AI audio generation: text-to-speech, text-to-music, or video-to-music (scoring a video). Returns a placeholder asset ID immediately; the asset appears in get_media and becomes usable in add_clips once ready. TTS models (elevenlabs-tts-v3, gemini-3.1-flash-tts) convert the prompt into speech and accept a 'voice'. Music models (lyria3-pro, minimax-music-v2.6, elevenlabs-music, sonilo-v1.1-video-to-music) generate tracks from a prompt; include lyrics/tempo/vocal style in the prompt for Lyria 3 Pro, pass 'lyrics' for MiniMax vocals, or set 'instrumental' true when the selected model supports it. Video-to-audio models (inputs include 'video' — see list_models, e.g. sonilo-v1.1-video-to-music, mirelo-sfx-v1.5-video-to-audio) generate audio that matches a VIDEO: provide a timeline span via videoSourceStartFrame+videoSourceEndFrame (e.g. to score the timeline), or a video asset via videoSourceMediaRef; the prompt is then an optional style guide. PLACEMENT: when you pass a timeline span, the result is placed on the timeline automatically at that span (no add_clips needed); for a media-asset source or a plain text-to-speech/music result, the asset lands in the library and you place it with add_clips. Use list_models with type='audio' to see each model's 'inputs', category, and voices. Costs real money and is not undoable.",
             inputSchema: objectSchema(
                 properties: [
+                    "compileToken": ["type": "string", "description": "Token from compile_prompt proving 'prompt' is the compiled prompt. Required unless rawPrompt=true."],
+                    "rawPrompt": ["type": "boolean", "description": "Pro escape hatch: send the prompt uncompiled. Only works when the user enabled Raw prompts in Settings."],
                     "prompt": ["type": "string", "description": "Required for TTS (the text to speak) and text-to-music (style/mood/genre; MiniMax needs ≥10 chars). For Lyria 3 Pro, include lyrics, tempo, language, and vocal style directly in the prompt. Optional style guide for video-to-music models."],
                     "name": ["type": "string", "description": "Display name for the asset in the media library. Defaults to first 30 chars of prompt."],
                     "model": ["type": "string", "description": "Model ID. Use list_models with type='audio' to see options and their 'inputs'. Defaults to the first model."],
