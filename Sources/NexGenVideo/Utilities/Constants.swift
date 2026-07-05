@@ -47,8 +47,11 @@ enum Layout {
     // Timeline
     static let timelineMinHeight: CGFloat = 100
     static let timelineMaxHeight: CGFloat = 700
-    /// Produce focus: the timeline as a fixed display strip of accumulating shot blocks.
-    static let produceTimelineStripHeight: CGFloat = 72
+    /// Produce focus: minimum height of the resizable timeline strip — toolbar (38) + ruler (24) +
+    /// drop zone (60) + one track lane (50), so at least one row of clips is always visible.
+    static let produceTimelineStripHeight: CGFloat = 180
+    /// Produce focus: the timeline strip's default opened height (drag to taste; persists per split).
+    static let produceTimelineStripDefault: CGFloat = 280
     /// Produce focus: minimum height of the docked preview in the right column.
     static let producePreviewMinHeight: CGFloat = 180
     /// Produce focus: default width of the right column (preview over inspector).
