@@ -83,6 +83,25 @@ final class AgentService {
 
     var draft: String = ""
     var mentions: [AgentMention] = []
+
+    /// The ONE pending generative dialog (#96, composer-dock architecture). Set by the show_dialog
+    /// tool; the card renders above the input. Submitting composes a single structured message —
+    /// the compact transcript record — and clears; cancel clears silently (the agent was told to
+    /// wait for the next user message either way).
+    var pendingDialog: AgentDialog?
+
+    func submitDialog(title: String, answers: [String]) {
+        pendingDialog = nil
+        let direction = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        var line = "Dialog \u{201C}\(title)\u{201D} \u{2014} " + (answers.isEmpty ? "confirmed" : answers.joined(separator: "; "))
+        if !direction.isEmpty { line += ". Direction: \(direction)" }
+        draft = ""
+        send(text: line, mentions: [])
+    }
+
+    func cancelDialog() {
+        pendingDialog = nil
+    }
     private static let clipMentionLabelMaxLength = 24
 
     /// Bumped to ask the input field to take focus (e.g. after the plugin launcher inserts a command
@@ -350,8 +369,14 @@ final class AgentService {
     /// Grounds scoped prose ("make this warmer") in the user's current selection — the app tells the
     /// agent what "this" is, instead of the agent guessing (docs/UI_UX_CONCEPT.md §4).
     private static func selectionHint(editor: EditorViewModel?) -> String? {
-        guard let description = editor?.selectionContextHint else { return nil }
-        return "The user is currently inspecting \(description); unscoped references like \u{201C}this\u{201D} refer to it."
+        let pluginLine: String
+        if let active = editor?.activePluginName {
+            pluginLine = "Active format plugin for this project: \(active)."
+        } else {
+            pluginLine = "No format plugin is active \u{2014} this project uses the generic production workflow."
+        }
+        guard let description = editor?.selectionContextHint else { return pluginLine }
+        return pluginLine + " The user is currently inspecting \(description); unscoped references like \u{201C}this\u{201D} refer to it."
     }
 
     func cancel() {
@@ -384,6 +409,9 @@ final class AgentService {
     /// includes the `engine` MCP — without an app restart. See the `claudeRuntime` accessor.
     @ObservationIgnored
     private var claudeRuntimeBuiltWithEngine = false
+    /// The active plugin the cached runtime was built with — a change rebuilds on the next send.
+    @ObservationIgnored
+    private var claudeRuntimeBuiltWithPlugin: String?
 
     /// The embedded Claude Code runtime, lazily built and cached. Rebuilt (only when safe — never
     /// mid-stream) once the engine becomes available after the cached runtime was created engine-less,
@@ -392,7 +420,8 @@ final class AgentService {
     private var claudeRuntime: ClaudeCodeRuntime {
         let engineAvailable = Self.engineAvailable
         if let runtime = _claudeRuntime {
-            if engineAvailable, !claudeRuntimeBuiltWithEngine, !isStreaming {
+            let pluginChanged = claudeRuntimeBuiltWithPlugin != editor?.activePluginName
+            if (engineAvailable && !claudeRuntimeBuiltWithEngine || pluginChanged), !isStreaming {
                 runtime.stop()
                 return makeClaudeRuntime(engineAvailable: engineAvailable)
             }
@@ -412,7 +441,7 @@ final class AgentService {
     private func makeClaudeRuntime(engineAvailable: Bool) -> ClaudeCodeRuntime {
         ensureEngineBootstrapped()
         let runtime = ClaudeCodeRuntime(
-            pluginDirectories: Self.configuredPluginDirectories(),
+            pluginDirectories: configuredPluginDirectories(),
             mcpPort: Int(MCPService.port),
             permissionMode: Self.configuredPermissionMode(),
             resolveWorkingDirectory: { [weak self] in
@@ -423,6 +452,7 @@ final class AgentService {
                 self?.isStreaming = isStreaming
             }
         )
+        claudeRuntimeBuiltWithPlugin = editor?.activePluginName
         _claudeRuntime = runtime
         claudeRuntimeBuiltWithEngine = engineAvailable
         return runtime
@@ -457,9 +487,10 @@ final class AgentService {
     }
 
     /// Auto-discovered plugin dirs (bundled + user import dir) unioned with the optional manual
-    /// "Plugin folder" override, de-duped by path. The manual entry leads so an explicit pick wins
-    /// ordering; discovery fills in everything installed on disk without the user pointing at a folder.
-    private static func configuredPluginDirectories() -> [URL] {
+    /// Installed ≠ active: only the project's ACTIVE plugin loads (exactly one, chosen in Project
+    /// settings; none → the generic workflow). The dev "extra plugin folder" override always loads —
+    /// that's for pack development, not activation.
+    private func configuredPluginDirectories() -> [URL] {
         var ordered: [URL] = []
         var seen = Set<String>()
         func add(_ url: URL) {
@@ -468,7 +499,10 @@ final class AgentService {
         if let path = UserDefaults.standard.string(forKey: "claudeRuntimePluginDir"), !path.isEmpty {
             add(URL(fileURLWithPath: path))
         }
-        for dir in PluginManager.discoveredPluginDirectories() { add(dir) }
+        if let active = editor?.activePluginName,
+           let plugin = PluginManager.discoverPlugins().first(where: { $0.name == active }) {
+            add(plugin.pluginDir)
+        }
         return ordered
     }
 

@@ -78,7 +78,8 @@ final class ClaudeCodeRuntime {
             workingDirectory: workingDirectory,
             pluginDirectories: pluginDirectories,
             pluginMcpServers: Self.loadPluginMcpServers(pluginDirectories)
-                .merging(Self.engineMcpServers()) { existing, _ in existing },
+                .merging(Self.engineMcpServers()) { existing, _ in existing }
+                .merging(ExternalMcpServers.all()) { existing, _ in existing },
             mcpPort: mcpPort,
             permissionMode: permissionMode
         )
@@ -180,8 +181,6 @@ final class ClaudeCodeRuntime {
     private static let providerEnvNames: [(GenerationProvider, String)] = [
         (.fal, "FAL_KEY"),
         (.runway, "RUNWAYML_API_SECRET"),
-        (.openart, "OPENART_API_KEY"),
-        (.higgsfield, "HIGGSFIELD_API_KEY"),
         (.elevenlabs, "ELEVENLABS_API_KEY"),
         (.marble, "WORLD_LABS_API_KEY"),
     ]

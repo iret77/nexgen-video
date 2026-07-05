@@ -206,6 +206,7 @@ final class EditorViewModel {
     var projectURL: URL? {
         didSet {
             guard projectURL != oldValue else { return }
+            activePluginName = ProjectPluginSettings.activePlugin(projectURL: projectURL)
             projectId = projectURL.flatMap { url in
                 let resolved = url.standardizedFileURL
                 return ProjectRegistry.shared.entries
@@ -215,6 +216,17 @@ final class EditorViewModel {
         }
     }
     private(set) var projectId: String?
+
+    /// The project's ACTIVE format plugin — exactly one, or nil for the generic workflow. Installed
+    /// plugins stay inert until activated here (gallery in Project settings). The embedded runtime
+    /// loads only this plugin's dir; changing it applies to the NEXT agent session.
+    private(set) var activePluginName: String?
+
+    func setActivePlugin(_ name: String?) {
+        guard let projectURL else { return }
+        ProjectPluginSettings.setActivePlugin(name, projectURL: projectURL)
+        activePluginName = name
+    }
 
     /// The generic-workflow entry (docs/UI_UX_CONCEPT.md, Epic #98/G): every project can start AI
     /// production — no plugin required. Composes a deterministic agent command (concrete paths, no

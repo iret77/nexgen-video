@@ -85,8 +85,10 @@ struct PluginsPane: View {
                     Text(msg)
                         .font(.system(size: AppTheme.FontSize.sm))
                         .foregroundStyle(AppTheme.Text.tertiaryColor)
-                        .lineLimit(1)
+                        .lineLimit(3)
                         .truncationMode(.middle)
+                        .textSelection(.enabled)
+                        .help(msg)  // full error on hover — a one-line truncation made failures undiagnosable
                     Spacer()
                     Button("Try again", action: installAudio)
                         .buttonStyle(.capsule(.prominent, size: .regular))

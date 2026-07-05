@@ -326,6 +326,36 @@ final class GenerationService {
             return
         }
 
+        if HiggsfieldModelRegistry.isHiggsfieldModel(endpoint) {
+            await runHiggsfieldJob(
+                endpoint: endpoint, params: params,
+                placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure
+            )
+            return
+        }
+
+        if RunwayModelRegistry.isRunwayModel(endpoint) {
+            await runRunwayJob(
+                endpoint: endpoint, params: params,
+                placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure
+            )
+            return
+        }
+
+        // ElevenLabs-family models run directly against the user's ElevenLabs key when present
+        // (their account, no fal middleman); without one they fall through to fal's hosted endpoints.
+        if endpoint.hasPrefix("fal-ai/elevenlabs"), ProviderKeychain.load(.elevenlabs) != nil,
+           case .audio(let audioParams) = params {
+            await runElevenLabsJob(
+                endpoint: endpoint, params: audioParams,
+                placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure
+            )
+            return
+        }
+
         let falModel = FalModelRegistry.model(for: endpoint)
         let input: [String: Any]
         let shape: CatalogEntry.ResponseShape
@@ -406,6 +436,138 @@ final class GenerationService {
                 editor: editor,
                 onComplete: onComplete,
                 onFailure: onFailure
+            )
+        } catch {
+            failJob(placeholders, error.localizedDescription, onFailure)
+        }
+    }
+
+    private func runHiggsfieldJob(
+        endpoint: String,
+        params: BackendGenerationParams,
+        placeholders: [MediaAsset],
+        editor: EditorViewModel,
+        onComplete: (@MainActor (MediaAsset) -> Void)?,
+        onFailure: (@MainActor () -> Void)?
+    ) async {
+        guard let apiKey = ProviderKeychain.load(.higgsfield) else {
+            return failJob(placeholders, "Add a Higgsfield API key in Settings to generate.", onFailure)
+        }
+        guard let model = HiggsfieldModelRegistry.model(for: endpoint) else {
+            return failJob(placeholders, "Unknown Higgsfield model: \(endpoint)", onFailure)
+        }
+        guard case .video(let p) = params else {
+            return failJob(placeholders, "Unsupported Higgsfield request: \(endpoint)", onFailure)
+        }
+        guard let image = p.referenceImageURLs.first ?? p.startFrameURL else {
+            return failJob(placeholders,
+                           "\(model.entry.displayName) is image-to-video — add a reference image.",
+                           onFailure)
+        }
+        do {
+            let client = HiggsfieldClient(apiKey: apiKey)
+            let urls = try await client.dopImageToVideo(
+                model: model.apiModel, prompt: p.prompt, imageURL: image)
+            let job = BackendGenerationJob(
+                _id: UUID().uuidString, status: .succeeded, resultUrls: urls,
+                errorMessage: nil, costCredits: nil, completedAt: nil)
+            await finalizeSuccess(
+                job: job, placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure)
+        } catch {
+            failJob(placeholders, error.localizedDescription, onFailure)
+        }
+    }
+
+    private func runRunwayJob(
+        endpoint: String,
+        params: BackendGenerationParams,
+        placeholders: [MediaAsset],
+        editor: EditorViewModel,
+        onComplete: (@MainActor (MediaAsset) -> Void)?,
+        onFailure: (@MainActor () -> Void)?
+    ) async {
+        guard let apiKey = ProviderKeychain.load(.runway) else {
+            return failJob(placeholders, "Add a Runway API key in Settings to generate.", onFailure)
+        }
+        guard let model = RunwayModelRegistry.model(for: endpoint) else {
+            return failJob(placeholders, "Unknown Runway model: \(endpoint)", onFailure)
+        }
+        do {
+            let client = RunwayClient(apiKey: apiKey)
+            let urls: [String]
+            switch params {
+            case .video(let p):
+                guard let image = p.referenceImageURLs.first ?? p.startFrameURL else {
+                    return failJob(placeholders,
+                                   "\(model.entry.displayName) is image-to-video — add a reference image.",
+                                   onFailure)
+                }
+                urls = try await client.imageToVideo(
+                    model: model.apiModel, promptImage: image, promptText: p.prompt,
+                    ratio: RunwayModelRegistry.videoRatio(for: p.aspectRatio), duration: p.duration)
+            case .image(let p):
+                urls = try await client.textToImage(
+                    model: model.apiModel, promptText: p.prompt,
+                    ratio: RunwayModelRegistry.imageRatio(for: p.aspectRatio))
+            default:
+                return failJob(placeholders, "Unsupported Runway request: \(endpoint)", onFailure)
+            }
+            let job = BackendGenerationJob(
+                _id: UUID().uuidString, status: .succeeded, resultUrls: urls,
+                errorMessage: nil, costCredits: nil, completedAt: nil)
+            await finalizeSuccess(
+                job: job, placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure)
+        } catch {
+            failJob(placeholders, error.localizedDescription, onFailure)
+        }
+    }
+
+    private func runElevenLabsJob(
+        endpoint: String,
+        params: AudioGenerationParams,
+        placeholders: [MediaAsset],
+        editor: EditorViewModel,
+        onComplete: (@MainActor (MediaAsset) -> Void)?,
+        onFailure: (@MainActor () -> Void)?
+    ) async {
+        guard let apiKey = ProviderKeychain.load(.elevenlabs) else {
+            return failJob(placeholders, "Add an ElevenLabs API key in Settings to generate.", onFailure)
+        }
+        guard let placeholder = placeholders.first else { return }
+        do {
+            let client = ElevenLabsClient(apiKey: apiKey)
+            let data: Data
+            switch endpoint {
+            case "fal-ai/elevenlabs/tts/multilingual-v2":
+                data = try await client.textToSpeech(text: params.prompt, voiceName: params.voice ?? "Rachel")
+            case "fal-ai/elevenlabs/sound-effects":
+                data = try await client.soundEffect(
+                    text: params.prompt, durationSeconds: params.durationSeconds.map(Double.init))
+            case "fal-ai/elevenlabs/music":
+                data = try await client.music(
+                    prompt: params.prompt,
+                    lengthMs: (params.durationSeconds ?? 90) * 1000,
+                    forceInstrumental: params.instrumental)
+            default:
+                return failJob(placeholders, "Unsupported ElevenLabs model: \(endpoint)", onFailure)
+            }
+            // Bytes arrive directly (no result URL) — write to the placeholder's destination and
+            // run the same finalize steps downloadAndFinalize performs after its move.
+            try? FileManager.default.removeItem(at: placeholder.url)
+            try data.write(to: placeholder.url, options: .atomic)
+            placeholder.generationStatus = .none
+            editor.importMediaAsset(placeholder, skipAppend: true)
+            editor.appendGenerationLog(for: placeholder)
+            await editor.finalizeImportedAsset(placeholder)
+            onComplete?(placeholder)
+            AppNotifications.generationComplete(
+                assetId: placeholder.id,
+                projectURL: editor.projectURL,
+                assetName: placeholder.name,
+                assetType: placeholder.type,
+                count: 1
             )
         } catch {
             failJob(placeholders, error.localizedDescription, onFailure)

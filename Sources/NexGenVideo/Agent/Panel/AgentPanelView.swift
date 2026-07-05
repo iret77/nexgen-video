@@ -55,6 +55,10 @@ struct AgentPanelView: View {
                 messageList
                 floatingTabBar
             }
+            if let dialog = service.pendingDialog {
+                AgentDialogCard(dialog: dialog)
+                    .padding(.bottom, AppTheme.Spacing.xs)
+            }
             footer
         }
         .background(AppTheme.Background.surfaceColor)
@@ -66,7 +70,9 @@ struct AgentPanelView: View {
             discoveredPlugins = []
             return
         }
-        discoveredPlugins = PluginCommandCatalog.discover()
+        // Installed ≠ active: chips and launcher surface only the project's ACTIVE plugin — a
+        // command of an inactive plugin couldn't run anyway (its dir isn't loaded).
+        discoveredPlugins = PluginCommandCatalog.discover().filter { $0.name == editor.activePluginName }
     }
 
     private var floatingTabBar: some View {
