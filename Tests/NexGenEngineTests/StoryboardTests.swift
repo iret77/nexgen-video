@@ -40,7 +40,7 @@ struct StoryboardTests {
     // MARK: - Step.source_mode (hybrid production, issue #129)
 
     @Test("Step.sourceMode defaults to .generated and round-trips per mode",
-          arguments: [SourceMode.generated, .liveAction, .aiEnhanced])
+          arguments: [SourceMode.generated, .imported, .aiEnhanced])
     func stepSourceModeRoundTrips(_ mode: SourceMode) throws {
         let step = try Step(id: "verse1.01", function: .story, sourceMode: mode, subject: "s", camera: "c")
         #expect(step.sourceMode == mode)

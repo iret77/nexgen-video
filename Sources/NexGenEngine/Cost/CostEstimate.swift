@@ -97,11 +97,11 @@ public func estimate(
     for shot in shotlist.shots {
         // live_action shots are shot by the user, never provider-rendered → 0 cost. ai_enhanced
         // shots run a provider video-to-video pass, so they're billed like generated (below).
-        if shot.sourceMode == .liveAction {
+        if shot.sourceMode == .imported {
             estimates.append(
                 ShotEstimate(
                     shotId: shot.id, runwayModel: "", durationS: pyRound(shot.durationS, 3), eur: 0.0,
-                    truncated: false, notes: "live action"
+                    truncated: false, notes: "imported"
                 )
             )
             continue

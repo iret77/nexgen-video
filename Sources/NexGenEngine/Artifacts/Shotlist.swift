@@ -103,19 +103,35 @@ public enum LensHint: String, Codable, Sendable, CaseIterable {
 }
 
 /// How a shot's footage is sourced. NexGenVideo is a full NLE: any shot may be
-/// AI-generated, shot live, or imported-then-AI-post-processed. The default is
+/// AI-generated, imported, or imported-then-AI-post-processed. The default is
 /// `.generated` so every pre-existing shotlist decodes unchanged.
 ///
 /// - `generated`: rendered by a provider (the classic image/video pipeline).
-/// - `liveAction`: shot by the user; the assistant emits directorial specs
+/// - `imported`: pre-existing footage the user brings in (usually live action,
+///   but any content form: animation, screencast, archive). For material still
+///   to be shot the assistant emits directorial specs
 ///   (framing/camera/light/blocking/style refs), never a generation prompt.
 ///   Never provider-rendered.
 /// - `aiEnhanced`: imported live footage carried through a provider
 ///   video-to-video pass (the existing "AI Edit" path). Provider-billed.
 public enum SourceMode: String, Codable, Sendable, CaseIterable {
     case generated
-    case liveAction = "live_action"
+    case imported
     case aiEnhanced = "ai_enhanced"
+
+    // How the shot's material COMES TO BE — not what its content IS (that's the
+    // Brief's visual_medium axis). "live_action" was the 0.7.0 spelling; accept
+    // it as a legacy alias so early shotlists keep decoding.
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        if raw == "live_action" { self = .imported; return }
+        guard let mode = SourceMode(rawValue: raw) else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "Unknown source_mode '\(raw)'"))
+        }
+        self = mode
+    }
 }
 
 // MARK: - Structs

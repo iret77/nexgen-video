@@ -271,7 +271,7 @@ enum ShowFormatters {
                 var flags: [String] = []
                 switch shot.sourceMode {
                 case .generated: break
-                case .liveAction: flags.append("🎬 live")
+                case .imported: flags.append("📥 imported")
                 case .aiEnhanced: flags.append("✨ enhanced")
                 }
                 if shot.redo { flags.append("⟳ redo") }

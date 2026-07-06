@@ -97,7 +97,7 @@ struct ShotSummary: Decodable, Sendable, Equatable, Identifiable {
 /// the shot inspector menu. Mirrors NexGenEngine's `SourceMode` snake_case raw values.
 enum SourceModeTag: String, CaseIterable, Identifiable {
     case generated
-    case liveAction = "live_action"
+    case imported
     case aiEnhanced = "ai_enhanced"
 
     var id: String { rawValue }
@@ -108,7 +108,7 @@ enum SourceModeTag: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .generated: "sparkles"
-        case .liveAction: "video"
+        case .imported: "square.and.arrow.down"
         case .aiEnhanced: "wand.and.rays"
         }
     }
@@ -117,7 +117,7 @@ enum SourceModeTag: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .generated: "Generated"
-        case .liveAction: "Live"
+        case .imported: "Imported"
         case .aiEnhanced: "Enhanced"
         }
     }

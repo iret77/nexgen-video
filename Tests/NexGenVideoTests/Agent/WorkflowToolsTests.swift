@@ -282,7 +282,7 @@ struct WorkflowToolsTests {
         #expect(next?["source_mode"] as? String == "generated")
     }
 
-    /// A 3-shot shotlist: s001 live_action, s002 generated, s003 ai_enhanced.
+    /// A 3-shot shotlist: s001 imported, s002 generated, s003 ai_enhanced.
     private func hybridShotlist() throws -> Shotlist {
         func shot(_ id: String, _ start: Double, _ mode: SourceMode) throws -> Shot {
             try Shot(
@@ -295,21 +295,21 @@ struct WorkflowToolsTests {
             schema_: shotlistSchemaVersion, mode: .section, project: "demo", song: song,
             generated: "2026-01-01", generator: "test",
             shots: [
-                try shot("s001", 0.0, .liveAction),
+                try shot("s001", 0.0, .imported),
                 try shot("s002", 4.0, .generated),
                 try shot("s003", 8.0, .aiEnhanced),
             ]
         )
     }
 
-    @Test("next_render_shot skips live_action shots and returns ai_enhanced with its source_mode")
+    @Test("next_render_shot skips imported shots and returns ai_enhanced with its source_mode")
     func nextRenderShotSkipsLiveAction() async throws {
         let (h, dataRoot, cleanup) = try scaffold()
         defer { try? FileManager.default.removeItem(at: cleanup) }
         _ = try saveShotlist(try hybridShotlist(), to: dataRoot)
         let dir = dataRoot.path
 
-        // s001 is live_action → skipped; the first render shot is the generated s002.
+        // s001 is imported → skipped; the first render shot is the generated s002.
         let first = try await h.runOK("next_render_shot", args: ["project_dir": dir, "phase": "preview"]) as? [String: Any]
         #expect(first?["shot_id"] as? String == "s002")
         #expect(first?["source_mode"] as? String == "generated")
@@ -322,7 +322,7 @@ struct WorkflowToolsTests {
         #expect(second?["shot_id"] as? String == "s003")
         #expect(second?["source_mode"] as? String == "ai_enhanced")
 
-        // Record s003 → done. s001 (live_action) never appears, so the queue is empty.
+        // Record s003 → done. s001 (imported) never appears, so the queue is empty.
         _ = try await h.runOK("record_render", args: [
             "project_dir": dir, "phase": "preview", "shot_id": "s003", "output": "s003.mp4", "cost_eur": 1.0,
         ])

@@ -130,7 +130,7 @@ struct SanityChecksTests {
         let brief = try Brief(
             project: "proj", generated: "2026-01-01", mission: .demo, targetPlatform: "web",
             aspectRatio: .landscape16x9, projectMode: "section", conceptType: .abstract,
-            visualMedium: .liveActionRealistic, figures: .none, lyricsIntegration: .ignored
+            visualMedium: .importedRealistic, figures: .none, lyricsIntegration: .ignored
         )
         let findings = try modeMatchCheck(AuditContext(shotlist: shotlist, brief: brief))
         #expect(findings.isEmpty)
@@ -142,7 +142,7 @@ struct SanityChecksTests {
         let brief = try Brief(
             project: "proj", generated: "2026-01-01", mission: .demo, targetPlatform: "web",
             aspectRatio: .landscape16x9, projectMode: "beat", conceptType: .abstract,
-            visualMedium: .liveActionRealistic, figures: .none, lyricsIntegration: .ignored
+            visualMedium: .importedRealistic, figures: .none, lyricsIntegration: .ignored
         )
         let findings = try modeMatchCheck(AuditContext(shotlist: shotlist, brief: brief))
         #expect(findings.count == 1)
@@ -275,7 +275,7 @@ struct SanityChecksTests {
         let shotlist = try Self.shotlist(
             [
                 try Self.shotWithMode(idx: 1, mode: .generated),
-                try Self.shotWithMode(idx: 2, mode: .liveAction),
+                try Self.shotWithMode(idx: 2, mode: .imported),
                 try Self.shotWithMode(idx: 3, mode: .aiEnhanced),
             ],
             durationS: 12.0
@@ -286,7 +286,7 @@ struct SanityChecksTests {
         #expect(coverage.level == .info)
         #expect(coverage.shotId == nil)
         #expect(coverage.message.contains("generated: 1"))
-        #expect(coverage.message.contains("live_action: 1"))
+        #expect(coverage.message.contains("imported: 1"))
         #expect(coverage.message.contains("ai_enhanced: 1"))
 
         // Exactly the live + enhanced shots are flagged as needing footage; the generated one isn't.
