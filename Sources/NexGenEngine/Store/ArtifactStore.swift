@@ -53,6 +53,33 @@ public enum StudioLayout {
     public static func url(_ relative: String, in dataRoot: URL) -> URL {
         dataRoot.appendingPathComponent(relative)
     }
+
+    // MARK: Versioned families (treatment/storyboard/shotlist)
+
+    /// `treatment/vN.md` — treatment.py's `_treatment_dir(...) / f"v{n}.md"`.
+    public static func treatmentVersionFile(_ version: Int) -> String {
+        "\(treatmentDir)/v\(version).md"
+    }
+
+    public static let treatmentCurrentFile = "treatment/current.md"
+
+    /// `storyboard/vN.yaml` — storyboard.py's `_dir(...) / f"v{n}.yaml"`.
+    public static func storyboardVersionFile(_ version: Int) -> String {
+        "\(storyboardDir)/v\(version).yaml"
+    }
+
+    public static let storyboardCurrentFile = "storyboard/current.yaml"
+
+    /// `shotlist/vN.yaml` — shotlist.py's `shotlist_path(...)`. Shotlist has
+    /// no `current.yaml` mirror; the highest version wins on load.
+    public static func shotlistVersionFile(_ version: Int) -> String {
+        "\(shotlistDir)/v\(version).yaml"
+    }
+
+    /// `renders/manifest-<phase>.json` — render/manifest.py's `manifest_path`.
+    public static func renderManifestFile(phase: String) -> String {
+        "\(rendersDir)/manifest-\(phase).json"
+    }
 }
 
 /// Loads and saves engine artifacts of a given `Codable` type by their
@@ -90,5 +117,33 @@ public struct YAMLArtifactStore: ArtifactStore {
         )
         let yaml = try YAMLCoding.encode(artifact)
         try yaml.write(to: url, atomically: true, encoding: .utf8)
+    }
+}
+
+/// A JSON-backed `ArtifactStore` over a data root on disk, for the one
+/// artifact family the Python engine persists as JSON (`render/manifest.py`)
+/// rather than YAML.
+public struct JSONArtifactStore: ArtifactStore {
+    public let dataRoot: URL
+
+    public init(dataRoot: URL) {
+        self.dataRoot = dataRoot
+    }
+
+    public func load<Artifact: Decodable>(_ type: Artifact.Type, at relativePath: String) throws -> Artifact {
+        let url = StudioLayout.url(relativePath, in: dataRoot)
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode(type, from: data)
+    }
+
+    public func save<Artifact: Encodable>(_ artifact: Artifact, to relativePath: String) throws {
+        let url = StudioLayout.url(relativePath, in: dataRoot)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(artifact)
+        try data.write(to: url, options: .atomic)
     }
 }
