@@ -439,6 +439,13 @@ struct AgentPanelView: View {
             if !service.canStream && !service.messages.isEmpty {
                 missingKeyState
             }
+            // The agent input always shows what "this" resolves to before sending (docs/UI_UX_CONCEPT.md §2.2).
+            if let hint = editor.selectionContextHint {
+                HStack {
+                    ScopeChip(text: hint)
+                    Spacer(minLength: 0)
+                }
+            }
             AgentInputBox(
                 draft: $service.draft,
                 mentions: $service.mentions,
