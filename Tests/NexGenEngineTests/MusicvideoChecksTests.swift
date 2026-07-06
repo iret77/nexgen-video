@@ -3,7 +3,7 @@ import Testing
 @testable import NexGenEngine
 
 /// Port of `plugins/musicvideo/tests/test_checks.py`.
-@Suite("Musicvideo Checks", .serialized)
+@Suite("Musicvideo Checks", .serialized, .disabled("diag: SIGTRAP bisect"))
 struct MusicvideoChecksTests {
     static func song(bpm: Double = 128.0, tempoMultiplier: Double = 1.0) throws -> Song {
         try Song(

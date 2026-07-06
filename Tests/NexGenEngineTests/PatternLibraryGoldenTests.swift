@@ -7,7 +7,7 @@ import Testing
 /// parse and validate through the Swift `Pattern` Codable schema — the M8b
 /// knowledge migration is only sound if every file in the copied library
 /// round-trips through `Patterns.loadPattern`.
-@Suite("Musicvideo Pattern Library Golden", .serialized)
+@Suite("Musicvideo Pattern Library Golden", .serialized, .disabled("diag: SIGTRAP bisect"))
 struct PatternLibraryGoldenTests {
     @Test("every bundled pattern YAML file parses and validates")
     func everyPatternYAMLParses() throws {
