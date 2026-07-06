@@ -97,12 +97,19 @@ public enum Spectral {
         // real-to-complex forward transform packs the n/2 real+imag halves; we
         // split the interleaved frame into even/odd via `convert`, matching the
         // classic ctoz split. Available since macOS 10.15 → safe on macOS 26.
-        let log2n = vDSP_Length(log2(Double(nFFT)).rounded())
+        //
+        // The ctoz packing feeds the FFT split-complex buffers of length nFFT/2,
+        // so the transform is configured for nFFT/2 complex points → log2(nFFT/2).
+        // Using log2(nFFT) here makes `forward` read past the halfN-sized buffers
+        // (out-of-bounds → trap). Guard non-power-of-two / degenerate nFFT.
+        let halfN = nFFT / 2
+        guard halfN >= 2, nFFT == 1 << Int(log2(Double(nFFT)).rounded()) else {
+            return Spectrogram(magnitude: [], nBins: nBins, nFrames: 0, hopLength: hop, sampleRate: sampleRate)
+        }
+        let log2n = vDSP_Length(log2(Double(halfN)).rounded())
         guard let fft = vDSP.FFT(log2n: log2n, radix: .radix2, ofType: DSPSplitComplex.self) else {
             return Spectrogram(magnitude: [], nBins: nBins, nFrames: 0, hopLength: hop, sampleRate: sampleRate)
         }
-
-        let halfN = nFFT / 2
         var magnitude = [[Float]](repeating: [Float](repeating: 0, count: nBins), count: nFrames)
 
         var windowed = [Float](repeating: 0, count: nFFT)
