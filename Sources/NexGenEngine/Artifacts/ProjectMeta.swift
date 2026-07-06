@@ -8,6 +8,7 @@ public enum Mode: String, Codable, Sendable, CaseIterable {
     case phrase
     case section
     case multicam
+    case generic  // Swift-side follow-up (issue #99); Python modes.py has no such case yet.
 }
 
 /// Project metadata (`project.yaml`): mode + budget per project.

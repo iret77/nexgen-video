@@ -1,10 +1,13 @@
 import Foundation
+import NexGenEngine
 
-// Read-only bridge from the native cockpit UI to the engine's `nexgen_engine.read` CLI:
+// Read-only bridge from the native cockpit UI to the engine. Kinds the pure Swift engine can serve
+// (state, phases, contract, router, brief, treatment) are produced IN-PROCESS via NativeCockpitReader
+// — no venv, no subprocess, and NO EngineRuntime.ready requirement. The remaining kinds still shell
+// out to the Python read CLI:
 //   <enginePython> -m nexgen_engine.read <kind> <projectDir>  → one JSON document on stdout.
-// The CLI contract (engine/nexgen_engine/read.py) guarantees stdout is always parseable JSON —
-// success payloads or `{"error": "<message>"}`, never a traceback — so decoding is unconditional.
-// Everything here is read-only; the cockpit never mutates project state.
+// Both paths return byte-identical JSON shapes (engine/nexgen_engine/read.py), so the panel decoders
+// below are unchanged. Everything here is read-only; the cockpit never mutates project state.
 
 enum CockpitError: Error, Sendable, Equatable {
     /// Engine venv isn't set up yet (EngineRuntime not `.ready`). The UI offers to set it up in Settings.
@@ -168,6 +171,10 @@ enum CockpitDataService {
     /// whose stdout is still a parseable `{"error": ...}` document is treated as success at this layer
     /// (the caller decodes the envelope); only an unparseable non-zero exit becomes `.process`.
     private static func run(kind: String, projectDir: URL) async -> Result<Data, CockpitError> {
+        // Native in-process path — no venv, no subprocess, independent of EngineRuntime status.
+        if NativeCockpitReader.servesNatively(kind) {
+            return nativeRun(kind: kind, projectDir: projectDir)
+        }
         guard case .ready(let pythonPath) = EngineRuntime.status() else {
             return .failure(.engineNotReady)
         }
@@ -208,6 +215,36 @@ enum CockpitDataService {
             }
             return .success(outData)
         }.value
+    }
+
+    /// In-process native read for a kind NativeCockpitReader serves. Projectless kinds (contract,
+    /// router, phases) answer without a data root; state/brief/treatment resolve `<projectDir>/_studio`
+    /// first and report `.notInitialized` (the calm "no pipeline yet" state) when it isn't a project.
+    private static func nativeRun(kind: String, projectDir: URL) -> Result<Data, CockpitError> {
+        do {
+            switch kind {
+            case "phases":
+                return .success(try NativeCockpitReader.phasesJSON())
+            case "contract":
+                return .success(try NativeCockpitReader.contractJSON())
+            case "router":
+                return .success(try NativeCockpitReader.routerJSON(dataRoot: NativeCockpitReader.dataRoot(of: projectDir)))
+            default:
+                guard let root = NativeCockpitReader.dataRoot(of: projectDir) else {
+                    return .failure(.notInitialized)
+                }
+                switch kind {
+                case "state": return .success(try NativeCockpitReader.stateJSON(dataRoot: root))
+                case "brief": return .success(try NativeCockpitReader.briefJSON(dataRoot: root))
+                case "treatment": return .success(try NativeCockpitReader.treatmentJSON(dataRoot: root))
+                default: return .failure(.process("Unsupported native kind \(kind)."))
+                }
+            }
+        } catch NativeCockpitReader.NativeError.notInitialized {
+            return .failure(.notInitialized)
+        } catch {
+            return .failure(.decode("Couldn't read \(kind)."))
+        }
     }
 
     /// PATH-augmented environment mirroring EngineRuntime, so a python that shells out to sibling tools

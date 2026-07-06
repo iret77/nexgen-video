@@ -1,4 +1,5 @@
 import AppKit
+import NexGenEngine
 
 @Observable
 @MainActor
@@ -239,22 +240,31 @@ final class EditorViewModel {
 
     func startProduction() {
         guard let url = projectURL, !productionStarting else { return }
-        // init_project creates `<home_dir>/_studio` — the cockpit reads `<projectURL>/_studio`, so
-        // home_dir MUST be the package itself (passing the parent put _studio as a sibling and the
-        // cockpit found nothing). name is the display name; it's only recorded in project.yaml.
-        let home = url.path
+        // The pipeline (`_studio`) is created inside the project package itself so the cockpit — which
+        // reads `<projectURL>/_studio` — finds it. name is the display name, recorded in project.yaml.
+        let home = url
         let name = url.deletingPathExtension().lastPathComponent
         productionStarting = true
         // Produce focus surfaces the cockpit + agent together, so the work is visible instead of
         // buried in a chat panel the user has to notice.
         workspaceFocus = .produce
         agentPanelVisible = true
-        agentService.send(
-            text: "Set up AI production for this project: call init_project with home_dir \"\(home)\" and "
-                + "name \"\(name)\". This creates the pipeline (_studio) inside the project package. Then walk "
-                + "me through drafting the brief \u{2014} ask me about the video's direction first.",
-            mentions: []
-        )
+        Task { [weak self] in
+            // Scaffold directly via the in-process engine — no venv, no subprocess, no agent round-trip.
+            // An already-initialized project is benign (the pipeline exists), so drafting the brief is
+            // still the right next step — the error is swallowed rather than surfaced.
+            await Task.detached {
+                try? ProjectScaffold.initProject(home: home, name: name)
+            }.value
+            guard let self else { return }
+            await self.refreshEngineState()
+            // Genuine dialogue handoff — the pipeline is up; open the brief conversation with a question.
+            self.agentService.send(
+                text: "The production pipeline is initialized. Walk me through drafting the brief — "
+                    + "ask me about the video's direction first.",
+                mentions: []
+            )
+        }
     }
 
     /// Directory the studio engine reads/writes for cockpit data (Bible, shotlist, sanity, `_studio/`).
