@@ -4,7 +4,7 @@ import Testing
 
 /// Port of `plugins/musicvideo/tests/test_analysis_schema.py`, plus targeted
 /// coverage for `Analysis.perceivedBpm` and validation.
-@Suite("Musicvideo Analysis Schema", .serialized, .disabled("diag: SIGTRAP bisect"))
+@Suite("Musicvideo Analysis Schema", .serialized)
 struct AnalysisSchemaTests {
     @Test("schema version")
     func schemaVersion() {

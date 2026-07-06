@@ -6,7 +6,7 @@ import Testing
 /// directly from `nexgen_pack_musicvideo/analysis/preflight.py`'s rules:
 /// audio missing is a hard blocker, lyrics/reference-images missing are
 /// warnings only.
-@Suite("Musicvideo Preflight", .serialized, .disabled("diag: SIGTRAP bisect"))
+@Suite("Musicvideo Preflight", .serialized)
 struct PreflightTests {
     private func makeProjectDir() throws -> URL {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

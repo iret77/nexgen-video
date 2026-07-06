@@ -3,7 +3,7 @@ import Testing
 @testable import NexGenEngine
 
 /// Port of `plugins/musicvideo/tests/test_tempo.py`.
-@Suite("Musicvideo Tempo", .serialized, .disabled("diag: SIGTRAP bisect"))
+@Suite("Musicvideo Tempo", .serialized)
 struct TempoTests {
     @Test("tempo bands are non-empty")
     func tempoBandsNonEmpty() {

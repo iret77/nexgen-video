@@ -3,7 +3,7 @@ import Testing
 @testable import NexGenEngine
 
 /// Port of `plugins/musicvideo/tests/test_cover.py`.
-@Suite("Musicvideo Cover", .serialized, .disabled("diag: SIGTRAP bisect"))
+@Suite("Musicvideo Cover", .serialized)
 struct CoverTests {
     @Test("schema version")
     func schemaVersion() {
