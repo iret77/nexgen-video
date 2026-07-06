@@ -16,8 +16,8 @@ struct PromptLinterTests {
             subject: "a weathered detective standing in a doorway, arrested mid-step",
             setting: "a dim office, blinds half-drawn",
             camera: "static eye-level camera",
-            light: "warm morning light from the left, long soft shadow",
             style: "muted noir illustration",
+            light: "warm morning light from the left, long soft shadow",
             negatives: ["no text"]
         )
         let out = try PromptGenerator.buildImagePrompt(modelID: "openai:gpt-image-2", payload: payload)
