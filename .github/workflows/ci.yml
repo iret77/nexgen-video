@@ -47,7 +47,8 @@ jobs:
           attempts=3
           for i in $(seq 1 "$attempts"); do
             echo "::group::swift test (attempt $i/$attempts)"
-            swift test 2>&1 | tee "test-attempt-$i.log"
+            # DIAG (temporary): ASan run scoped to the corruption suite — revert after bisect
+            swift test --filter AudioAnalysisTests -Xswiftc -sanitize=address 2>&1 | tee "test-attempt-$i.log"
             code=${PIPESTATUS[0]}
             echo "::endgroup::"
             if [ "$code" -eq 0 ]; then
