@@ -48,7 +48,7 @@ struct MusicGenerationSubmission {
         // The rendered span is a throwaway temp file — hand it back via preprocessRef so
         // GenerationService's own upload pipeline deletes it once uploaded, same as video refs do.
         let preprocessRef: (@Sendable (Int, MediaAsset) async throws -> URL?)? =
-            videoReference == nil ? nil : { _, asset in asset.url }
+            videoReference == nil ? nil : { @Sendable _, asset in await MainActor.run { asset.url } }
 
         let durationSeconds = max(1, Int(spanSeconds.rounded()))
         let params = AudioGenerationParams(
