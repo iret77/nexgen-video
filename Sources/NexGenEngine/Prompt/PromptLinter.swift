@@ -11,6 +11,12 @@ public enum PromptLinter {
         public let severity: Severity
         public let code: String
         public let message: String
+
+        public init(severity: Severity, code: String, message: String) {
+            self.severity = severity
+            self.code = code
+            self.message = message
+        }
     }
 
     /// Port of `_LIGHT_MARKERS`.
