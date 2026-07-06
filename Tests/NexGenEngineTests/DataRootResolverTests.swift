@@ -27,7 +27,7 @@ struct DataRootResolverTests {
     func studioDirResolvesFlat() throws {
         // Python semantics: _studio/project.yaml is a valid flat marker, so
         // data_root_of(_studio) returns _studio itself (paths.py flat branch).
-        let studio = try fixtureProjectURL().appendingPathComponent("_studio", isDirectory: true)
+        let studio = try Self.fixtureHome().appendingPathComponent("_studio", isDirectory: true)
         #expect(DataRootResolver.dataRoot(of: studio) == studio.standardizedFileURL)
     }
 

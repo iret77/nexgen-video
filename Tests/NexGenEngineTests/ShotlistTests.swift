@@ -18,8 +18,8 @@ struct ShotlistTests {
         try Shot(
             id: id, section: section, timeStart: timeStart, timeEnd: timeEnd, durationS: durationS,
             type: .performance, description: "d", visualPrompt: "p", mood: "m",
-            characterRefs: characterRefs, cameraId: cameraId, cameraLabel: cameraLabel,
-            characterBlocking: characterBlocking
+            characterRefs: characterRefs, characterBlocking: characterBlocking,
+            cameraId: cameraId, cameraLabel: cameraLabel
         )
     }
 
