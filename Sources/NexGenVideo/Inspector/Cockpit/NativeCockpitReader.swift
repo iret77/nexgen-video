@@ -9,9 +9,13 @@ import NexGenEngine
 // Parity is proven in NexGenEngineTests: the `state` bytes here match the committed state.json golden.
 enum NativeCockpitReader {
 
-    /// True for the kinds served natively below. Everything else falls through to the Python CLI.
+    /// True for the kinds served natively below. After M7 every read kind is native; the Python
+    /// read CLI path in CockpitDataService is dead (M9 removes it).
     static func servesNatively(_ kind: String) -> Bool {
-        ["state", "phases", "contract", "router", "brief", "treatment"].contains(kind)
+        [
+            "state", "phases", "contract", "router", "brief", "treatment",
+            "bible", "shotlist", "sanity", "frames", "ledger", "cost",
+        ].contains(kind)
     }
 
     /// The project's data root (`<projectDir>/_studio` in the v2 layout, or the flat dir), or nil
@@ -127,6 +131,126 @@ enum NativeCockpitReader {
         let metaData = try JSONEncoder().encode(treatment.meta)
         let metaObject = try JSONSerialization.jsonObject(with: metaData)
         return try serialize(["meta": metaObject, "body_markdown": treatment.bodyMarkdown])
+    }
+
+    /// `read.py` "bible": `mcp_server.bible` → `Bible.model_dump(by_alias=True)` or literal `null`.
+    /// The engine Bible's CodingKeys carry the Python snake_case names, so a standard encoder emits
+    /// the by-alias shape the BibleData decoder expects.
+    static func bibleJSON(dataRoot: URL) throws -> Data {
+        guard let bible = try? loadBible(dataRoot: dataRoot), let bible else {
+            return Data("null".utf8)
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(bible)
+    }
+
+    /// `read.py` "shotlist": the latest shotlist `model_dump(by_alias=True, mode="json")`, or literal
+    /// `null` when none exists yet.
+    static func shotlistJSON(dataRoot: URL) throws -> Data {
+        guard let shotlist = try? loadShotlist(dataRoot: dataRoot), let shotlist else {
+            return Data("null".utf8)
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(shotlist)
+    }
+
+    /// `read.py` "ledger": `ledger.schema.load(...).model_dump(by_alias=True, mode="json")` —
+    /// `{schema, objects}`. Missing ledger.yaml loads the empty default (never null).
+    static func ledgerJSON(dataRoot: URL) throws -> Data {
+        let ledger = loadLedger(dataRoot: dataRoot)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(ledger)
+    }
+
+    /// `read.py` "frames": `frames.inventory.inventory(...)` → `{project, shots:[{shot_id, frames:
+    /// [{name, path}], audit}]}`. The audit passthrough is a YAML mapping (or null).
+    static func framesJSON(dataRoot: URL) throws -> Data {
+        let inventory = try FrameInventory.inventory(projectDir: dataRoot)
+        let shots: [[String: Any]] = inventory.shots.map { shot in
+            [
+                "shot_id": shot.shotId,
+                "frames": shot.frames.map { ["name": $0.name, "path": $0.path] },
+                "audit": shot.audit.map { yamlToJSONObject($0) } ?? NSNull(),
+            ]
+        }
+        return try serialize(["project": inventory.project, "shots": shots])
+    }
+
+    /// `read.py` "sanity": `mcp_server.run_sanity` → `{project, findings:[{level, code, shot_id,
+    /// message}]}`, or `{error:"no shotlist", project_dir}` when there's no shotlist yet.
+    static func sanityJSON(dataRoot: URL) throws -> Data {
+        guard let shotlist = try? loadShotlist(dataRoot: dataRoot), let shotlist else {
+            return try serialize(["error": "no shotlist", "project_dir": dataRoot.path])
+        }
+        let store = YAMLArtifactStore(dataRoot: dataRoot)
+        let brief = try? store.load(Brief.self, at: StudioLayout.briefFile)
+        let bible = (try? loadBible(dataRoot: dataRoot)) ?? nil
+        let registry = CheckRegistry()
+        registerCoreChecks(registry)
+        let report = audit(
+            AuditContext(shotlist: shotlist, brief: brief, bible: bible),
+            checks: registry.checks
+        )
+        let findings: [[String: Any]] = report.findings.map { f in
+            [
+                "level": f.level.rawValue,
+                "code": f.code,
+                "shot_id": f.shotId.map { $0 as Any } ?? NSNull(),
+                "message": f.message,
+            ]
+        }
+        return try serialize(["project": report.project, "findings": findings])
+    }
+
+    /// `read.py` "cost": `mcp_server.estimate_cost` → the spent/remaining budget picture (NOT the
+    /// forward per-shot estimate). `{project, budget_eur, spent_eur, remaining_eur, over_budget,
+    /// next_phase}`.
+    static func costJSON(dataRoot: URL) throws -> Data {
+        return try serialize(costDictionary(dataRoot: dataRoot))
+    }
+
+    /// The `estimate_cost` return dict — shared by the cost read kind and the `estimate_cost` tool.
+    static func costDictionary(dataRoot: URL) throws -> [String: Any] {
+        let snapshot: ProjectStateBuilder.ProjectState
+        do {
+            snapshot = try ProjectStateBuilder.buildSnapshot(dataRoot: dataRoot)
+        } catch {
+            throw NativeError.notInitialized
+        }
+        let spent = alreadySpentInProject(dataRoot: dataRoot)
+        return [
+            "project": snapshot.project,
+            "budget_eur": snapshot.budgetEur,
+            "spent_eur": spent,
+            "remaining_eur": max(0.0, snapshot.budgetEur - spent),
+            "over_budget": spent > snapshot.budgetEur,
+            "next_phase": snapshot.nextPhase.map { $0 as Any } ?? NSNull(),
+        ]
+    }
+
+    /// The Intent Ledger loaded from `ledger.yaml`, or the empty default when the file is missing —
+    /// mirrors `ledger.schema.load` (never raises for an absent file).
+    static func loadLedger(dataRoot: URL) -> Ledger {
+        let store = YAMLArtifactStore(dataRoot: dataRoot)
+        return (try? store.load(Ledger.self, at: StudioLayout.ledgerFile)) ?? Ledger()
+    }
+
+    /// A YAMLValue passthrough (the frame-audit mapping) as a Foundation JSON object graph.
+    static func yamlToJSONObject(_ value: YAMLValue) -> Any {
+        switch value {
+        case .null: return NSNull()
+        case .bool(let b): return b
+        case .number(let d): return d
+        case .string(let s): return s
+        case .sequence(let arr): return arr.map { yamlToJSONObject($0) }
+        case .mapping(let map):
+            var out: [String: Any] = [:]
+            for (k, v) in map { out[k] = yamlToJSONObject(v) }
+            return out
+        }
     }
 
     // MARK: - Serialization

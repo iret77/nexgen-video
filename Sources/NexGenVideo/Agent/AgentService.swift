@@ -510,8 +510,9 @@ final class AgentService {
         return makeClaudeRuntime(engineAvailable: engineAvailable)
     }
 
-    /// True when the engine venv is bootstrapped and its python key resolves — i.e. exactly when
-    /// `ClaudeCodeRuntime.engineMcpServers()` would register the `engine` MCP server.
+    /// True when the engine venv is bootstrapped and its python key resolves. The embedded runtime no
+    /// longer registers a Python `engine` MCP (M7 moved every engine tool onto `nexgen`); this only
+    /// still drives a one-shot runtime rebuild when the venv finishes bootstrapping. Removed in M9.
     private static var engineAvailable: Bool {
         if case .ready = EngineRuntime.status() { return true }
         return false
@@ -603,8 +604,9 @@ final class AgentService {
     private(set) var isBootstrappingEngine = false
 
     /// Kick off the engine venv bootstrap (uv) without blocking. Idempotent; on success it sets
-    /// `claudeRuntimeEnginePython`, which `ClaudeCodeRuntime` registers as the `engine` MCP server.
-    /// No-op without a bundled engine (dev builds).
+    /// `claudeRuntimeEnginePython`. The embedded runtime no longer registers a Python `engine` MCP
+    /// (M7 moved every engine tool onto `nexgen`); the venv now only backs pack install/discovery
+    /// (removed with EngineRuntime in M9). No-op without a bundled engine (dev builds).
     ///
     /// When the engine is already bootstrapped, re-check the discovered plugin packs instead — a
     /// plugin imported into the user dir after first setup still gets its pack installed (idempotent).

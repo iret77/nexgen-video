@@ -1,13 +1,11 @@
 import Foundation
 import NexGenEngine
 
-// Read-only bridge from the native cockpit UI to the engine. Kinds the pure Swift engine can serve
-// (state, phases, contract, router, brief, treatment) are produced IN-PROCESS via NativeCockpitReader
-// — no venv, no subprocess, and NO EngineRuntime.ready requirement. The remaining kinds still shell
-// out to the Python read CLI:
-//   <enginePython> -m nexgen_engine.read <kind> <projectDir>  → one JSON document on stdout.
-// Both paths return byte-identical JSON shapes (engine/nexgen_engine/read.py), so the panel decoders
-// below are unchanged. Everything here is read-only; the cockpit never mutates project state.
+// Read-only bridge from the native cockpit UI to the engine. Every read kind is now served IN-PROCESS
+// via NativeCockpitReader (M7) — no venv, no subprocess, and NO EngineRuntime.ready requirement. The
+// Python read-CLI subprocess path below is dead (no kind reaches it) and is removed in M9; it's kept
+// for now so nothing else has to move in this package. All emitted JSON matches the shapes the panel
+// decoders expect (engine/nexgen_engine/read.py). Everything here is read-only; never mutates state.
 
 enum CockpitError: Error, Sendable, Equatable {
     /// Engine venv isn't set up yet (EngineRuntime not `.ready`). The UI offers to set it up in Settings.
@@ -237,6 +235,12 @@ enum CockpitDataService {
                 case "state": return .success(try NativeCockpitReader.stateJSON(dataRoot: root))
                 case "brief": return .success(try NativeCockpitReader.briefJSON(dataRoot: root))
                 case "treatment": return .success(try NativeCockpitReader.treatmentJSON(dataRoot: root))
+                case "bible": return .success(try NativeCockpitReader.bibleJSON(dataRoot: root))
+                case "shotlist": return .success(try NativeCockpitReader.shotlistJSON(dataRoot: root))
+                case "sanity": return .success(try NativeCockpitReader.sanityJSON(dataRoot: root))
+                case "frames": return .success(try NativeCockpitReader.framesJSON(dataRoot: root))
+                case "ledger": return .success(try NativeCockpitReader.ledgerJSON(dataRoot: root))
+                case "cost": return .success(try NativeCockpitReader.costJSON(dataRoot: root))
                 default: return .failure(.process("Unsupported native kind \(kind)."))
                 }
             }

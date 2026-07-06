@@ -78,7 +78,6 @@ final class ClaudeCodeRuntime {
             workingDirectory: workingDirectory,
             pluginDirectories: pluginDirectories,
             pluginMcpServers: Self.loadPluginMcpServers(pluginDirectories)
-                .merging(Self.engineMcpServers()) { existing, _ in existing }
                 .merging(ExternalMcpServers.all()) { existing, _ in existing },
             mcpPort: mcpPort,
             permissionMode: permissionMode
@@ -159,23 +158,6 @@ final class ClaudeCodeRuntime {
             }
         }
         return result
-    }
-
-    /// The bundled Generic Engine's MCP server — `<engine python> -m nexgen_engine.mcp_server`
-    /// — registered alongside `nexgen` and the active pack (the standard surface from
-    /// docs/PLUGIN_STANDARD.md). The python path is the engine's auto-bootstrapped venv, set
-    /// once the engine is bundled + bootstrapped on the Mac. Absent → omitted, so the runtime
-    /// still works without the engine.
-    private static func engineMcpServers() -> [String: String] {
-        guard let python = UserDefaults.standard.string(forKey: "claudeRuntimeEnginePython"),
-              !python.isEmpty,
-              let data = try? JSONSerialization.data(withJSONObject: [
-                  "command": python,
-                  "args": ["-m", "nexgen_engine.mcp_server"],
-              ]),
-              let entry = String(data: data, encoding: .utf8)
-        else { return [:] }
-        return ["engine": entry]
     }
 
     private static let providerEnvNames: [(GenerationProvider, String)] = [

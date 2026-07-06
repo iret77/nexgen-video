@@ -53,7 +53,7 @@ let package = Package(
         ),
         .testTarget(
             name: "NexGenVideoTests",
-            dependencies: ["NexGenVideo"],
+            dependencies: ["NexGenVideo", "NexGenEngine"],
             path: "Tests/NexGenVideoTests"
         ),
         .testTarget(
