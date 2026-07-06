@@ -3,7 +3,7 @@ import Testing
 @testable import NexGenEngine
 
 /// Port of `plugins/musicvideo/tests/test_pack.py`.
-@Suite("Musicvideo Pack")
+@Suite("Musicvideo Pack", .serialized)
 struct MusicvideoPackTests {
     @Test("pack registers music behavior")
     func packRegistersMusicBehavior() {

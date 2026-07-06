@@ -7,7 +7,7 @@ import Testing
 /// consolidation rules are ported and exercised directly): boundary
 /// clustering, downbeat snapping, alignment-marker voting, and the two
 /// anomaly flags.
-@Suite("Musicvideo Consolidator")
+@Suite("Musicvideo Consolidator", .serialized)
 struct ConsolidatorTests {
     // MARK: - clusterBoundaries
 

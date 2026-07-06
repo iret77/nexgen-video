@@ -6,7 +6,7 @@ import Testing
 /// coverage for `PatternsSimilarity` and `PatternsMoodInference` (ported
 /// alongside `patterns.py`'s re-exports, not separately test-filed in the
 /// Python source).
-@Suite("Musicvideo Patterns")
+@Suite("Musicvideo Patterns", .serialized)
 struct PatternsTests {
     @Test("MoodBand raw values")
     func moodBandValues() {
