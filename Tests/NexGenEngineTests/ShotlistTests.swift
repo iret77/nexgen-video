@@ -57,7 +57,7 @@ struct ShotlistTests {
     // MARK: - source_mode (hybrid production, issue #129)
 
     @Test("sourceMode defaults to .generated and round-trips per mode",
-          arguments: [SourceMode.generated, .liveAction, .aiEnhanced])
+          arguments: [SourceMode.generated, .imported, .aiEnhanced])
     func sourceModeRoundTrips(_ mode: SourceMode) throws {
         let shot = try Shot(
             id: "s001", section: "verse", timeStart: 0.0, timeEnd: 4.0, durationS: 4.0,
@@ -70,9 +70,12 @@ struct ShotlistTests {
     }
 
     @Test("sourceMode raw values are snake_case")
-    func sourceModeRawValues() {
+    func sourceModeRawValues() throws {
         #expect(SourceMode.generated.rawValue == "generated")
-        #expect(SourceMode.liveAction.rawValue == "live_action")
+        #expect(SourceMode.imported.rawValue == "imported")
+        // 0.7.0 wrote "live_action"; the alias keeps those shotlists decoding.
+        let legacy = try YAMLCoding.decode(SourceMode.self, from: "live_action")
+        #expect(legacy == .imported)
         #expect(SourceMode.aiEnhanced.rawValue == "ai_enhanced")
     }
 

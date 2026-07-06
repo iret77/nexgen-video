@@ -193,7 +193,7 @@ live, or mixed. Each shot carries a `source_mode`:
 
 - `generated` (default) — a provider renders the shot. Everything above
   (visual_prompt, keyframe_strategy, references) applies.
-- `live_action` — the user shoots the footage. Do **not** write a
+- `imported` — the user shoots the footage. Do **not** write a
   provider `visual_prompt`; instead give a clear **directorial shooting
   spec** — framing, camera (position + move), lighting, blocking, and
   style references — that the user shoots and cuts in on the timeline.

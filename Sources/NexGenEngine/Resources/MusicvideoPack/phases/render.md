@@ -68,7 +68,7 @@ shots or changed shot IDs: warn the user before rendering.
 Not every shot is provider-rendered. Each shot carries a `source_mode`:
 
 - `generated` (default) — rendered here, the normal loop below.
-- `live_action` — the user shoots it. `next_render_shot` **skips** these
+- `imported` — the user shoots it. `next_render_shot` **skips** these
   automatically (they never appear in the loop) and they cost 0 in
   `estimate_cost`. Do not `generate_video` for them; they are shot to the
   directorial spec in `shotlist/current.yaml` and cut in on the timeline.
@@ -174,7 +174,7 @@ Repeat until `next_render_shot(project_dir, "<phase>")` reports
 
 1. **Get the next shot:** `next_render_shot(project_dir, "<phase>")`
    returns `{shot_id, source_mode, visual_prompt, framing, done}`
-   (`live_action` shots are already filtered out). Read the full shot
+   (`imported` shots are already filtered out). Read the full shot
    from `shotlist/current.yaml` for the remaining fields. If
    `source_mode` is `ai_enhanced`, route it through the video-to-video
    edit path (step 1a), not a from-scratch generation.

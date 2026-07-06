@@ -161,7 +161,7 @@ struct CostsTests {
 
     // MARK: - Source modes (hybrid production, issue #129)
 
-    /// live_action shots cost 0 with note "live action"; ai_enhanced shots are billed identically to
+    /// imported shots cost 0 with note "imported"; ai_enhanced shots are billed identically to
     /// generated (a provider video-to-video pass). A section shotlist so pricing hits the stitch branch.
     @Test("estimate — live_action bills 0, ai_enhanced bills like generated")
     func estimateSourceModes() throws {
@@ -179,7 +179,7 @@ struct CostsTests {
         )
         let liveShot = try makeShot(
             id: "s003", provider: .fal, suggestion: nil, section: "bridge",
-            timeStart: 16.0, timeEnd: 24.0, sourceMode: .liveAction
+            timeStart: 16.0, timeEnd: 24.0, sourceMode: .imported
         )
         let shotlist = try Shotlist(
             schema_: "shotlist/v3", mode: .section, project: "p", song: song,
@@ -194,9 +194,9 @@ struct CostsTests {
         #expect(est.shotEstimates[1].eur > 0)
         #expect(est.shotEstimates[1].runwayModel == est.shotEstimates[0].runwayModel)
 
-        // s003 (live_action) contributes 0 with the "live action" note and empty model.
+        // s003 (live_action) contributes 0 with the "imported" note and empty model.
         #expect(est.shotEstimates[2].eur == 0.0)
-        #expect(est.shotEstimates[2].notes == "live action")
+        #expect(est.shotEstimates[2].notes == "imported")
         #expect(est.shotEstimates[2].runwayModel == "")
         #expect(est.shotEstimates[2].truncated == false)
         // The live shot's declared duration is preserved (rounded), not zeroed.

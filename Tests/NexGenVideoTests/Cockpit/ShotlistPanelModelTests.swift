@@ -16,7 +16,7 @@ struct ShotlistPanelModelTests {
     @Test("each source_mode value decodes onto the ShotSummary",
           arguments: [
             ("generated", SourceModeTag.generated),
-            ("live_action", .liveAction),
+            ("imported", .imported),
             ("ai_enhanced", .aiEnhanced),
           ])
     func decodesEachMode(_ raw: String, _ expected: SourceModeTag) throws {
@@ -40,10 +40,10 @@ struct ShotlistPanelModelTests {
     @Test("SourceModeTag maps to the specified SF Symbols and engine mode")
     func tagSymbolsAndEngineMode() {
         #expect(SourceModeTag.generated.symbol == "sparkles")
-        #expect(SourceModeTag.liveAction.symbol == "video")
+        #expect(SourceModeTag.imported.symbol == "square.and.arrow.down")
         #expect(SourceModeTag.aiEnhanced.symbol == "wand.and.rays")
         #expect(SourceModeTag.generated.engineMode == .generated)
-        #expect(SourceModeTag.liveAction.engineMode == .liveAction)
+        #expect(SourceModeTag.imported.engineMode == .imported)
         #expect(SourceModeTag.aiEnhanced.engineMode == .aiEnhanced)
         // Raw values are shared with the engine enum.
         #expect(SourceModeTag.allCases.map(\.rawValue) == SourceMode.allCases.map(\.rawValue))
