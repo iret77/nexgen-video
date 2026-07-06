@@ -252,13 +252,21 @@ final class EditorViewModel {
         agentPanelVisible = true
         Task { [weak self] in
             // Scaffold directly via the in-process engine — no venv, no subprocess, no agent round-trip.
-            // An already-initialized project is benign (the pipeline exists), so drafting the brief is
-            // still the right next step — the error is swallowed rather than surfaced.
-            await Task.detached {
-                try? ProjectScaffold.initProject(home: home, name: name, extraDirs: extraDirs)
+            // Already-initialized is benign (the pipeline exists → brief drafting is still right);
+            // any OTHER scaffold failure must NOT masquerade as success.
+            let scaffoldError: (any Error)? = await Task.detached {
+                do { try ProjectScaffold.initProject(home: home, name: name, extraDirs: extraDirs); return nil }
+                catch ProjectScaffold.ScaffoldError.alreadyAProject { return nil }
+                catch { return error }
             }.value
             guard let self else { return }
             await self.refreshEngineState()
+            if let scaffoldError {
+                self.productionStarting = false
+                self.mediaPanelToast = MediaPanelToast(
+                    message: "Couldn't set up the production pipeline: \(scaffoldError.localizedDescription)")
+                return
+            }
             // Genuine dialogue handoff — the pipeline is up; open the brief conversation with a question.
             self.agentService.send(
                 text: "The production pipeline is initialized. Walk me through drafting the brief — "

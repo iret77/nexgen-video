@@ -258,7 +258,9 @@ struct PipelinePanelView: View {
     private func apply(_ write: (URL) throws -> Void) {
         guard let dir = editor.studioProjectDir, !gateWriting else { return }
         gateWriting = true
-        try? write(dir)
+        do { try write(dir) } catch {
+            editor.mediaPanelToast = MediaPanelToast(message: "Gate update failed: \(error.localizedDescription)")
+        }
         Task {
             await editor.refreshEngineState()
             await load()

@@ -151,17 +151,17 @@ extension ToolExecutor {
         let root = try resolveDataRoot(args, editor: editor)
         let target = try args.requireString("target_phase")
         var reset: [String] = []
-        _ = try mutateGates(dataRoot: root) { reset = (try? GatesOperations.rewindTo(&$0, target: target)) ?? [] }
+        _ = try mutateGates(dataRoot: root) { reset = try GatesOperations.rewindTo(&$0, target: target) }
         return try jsonResult(["target": target, "reset_phases": reset])
     }
 
     /// Load gates.yaml, apply `body`, save, and return the mutated gates. Same store/layout the
     /// NativeGateWriter uses.
-    private func mutateGates(dataRoot: URL, _ body: (inout Gates) -> Void) throws -> Gates {
+    private func mutateGates(dataRoot: URL, _ body: (inout Gates) throws -> Void) throws -> Gates {
         let store = YAMLArtifactStore(dataRoot: dataRoot)
         do {
             var gates = try store.load(Gates.self, at: StudioLayout.gatesFile)
-            body(&gates)
+            try body(&gates)
             try store.save(gates, to: StudioLayout.gatesFile)
             return gates
         } catch {
