@@ -43,13 +43,14 @@ public struct MusicvideoPack: Pack {
     public let name = "musicvideo"
     public let version = "0.0.1"
 
-    /// Values mirror the retired `plugins/musicvideo/ngv-plugin.json`; the
-    /// header image now ships as an app resource (`Resources/Images/musicvideo-header`).
+    /// Values mirror the retired `plugins/musicvideo/ngv-plugin.json`. The badge ships INSIDE the
+    /// pack's resources (self-contained — cut from the owner's badge masters in
+    /// `docs/design/plugin-badges/`, one per planned pack, uniform style).
     public let manifest = PackManifest(
         id: "musicvideo",
         displayName: "Music Video Studio",
         tagline: "Structured AI music-video production — analysis → treatment → storyboard → shotlist → render, with engine-enforced consistency.",
-        headerImageName: "musicvideo-header"
+        badgeURL: PackKnowledge.badgeURL()
     )
 
     /// One honest starter: kick off the production pipeline via the same direct
@@ -58,7 +59,8 @@ public struct MusicvideoPack: Pack {
         PackStarter(
             id: "start",
             title: "Start the music-video pipeline",
-            prompt: "Start the music-video production pipeline for this project. Initialize the pipeline if needed with init_project, then orient with get_project_state and walk me through drafting the brief — ask about the video's direction first."
+            prompt: "Start the music-video production pipeline for this project. Initialize the pipeline if needed with init_project, then orient with get_project_state and walk me through drafting the brief — ask about the video's direction first. "
+                + AgentPresentationRules.text
         )
     ]
 

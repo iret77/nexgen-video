@@ -83,20 +83,32 @@ public final class EngineRegistry: @unchecked Sendable {
 }
 
 /// A pack's presentation identity for the app's gallery/chip — the native
-/// replacement for the disk `ngv-plugin.json` (displayName/tagline/headerImage).
-/// `headerImageName` is a bundled app-resource base name, not a file path.
+/// replacement for the disk `ngv-plugin.json` (displayName/tagline/badge).
+/// `badgeURL` points into the pack's OWN resource bundle, so a pack ships
+/// self-contained with its badge art; nil → the gallery paints a fallback.
 public struct PackManifest: Sendable, Equatable {
     public let id: String
     public let displayName: String
     public let tagline: String
-    public let headerImageName: String?
+    public let badgeURL: URL?
 
-    public init(id: String, displayName: String, tagline: String, headerImageName: String? = nil) {
+    public init(id: String, displayName: String, tagline: String, badgeURL: URL? = nil) {
         self.id = id
         self.displayName = displayName
         self.tagline = tagline
-        self.headerImageName = headerImageName
+        self.badgeURL = badgeURL
     }
+}
+
+/// The presentation contract appended to production entry prompts (CTA path and pack
+/// starters alike — one string so they can't drift). The embedded runtime gets no system
+/// prompt, so these rules ride on the kickoff message itself.
+public enum AgentPresentationRules {
+    public static let text = "Presentation: I'm a filmmaker, not a developer — ask every question "
+        + "that has enumerable options via the show_dialog tool (add a free-text section for open "
+        + "input) instead of prose option lists; keep chat prose to a few short sentences; never "
+        + "print tool names, phase ids, or pipeline chains (the app's Pipeline panel visualizes "
+        + "them); no code blocks."
 }
 
 /// One agent-panel starter for a pack — a plain-language instruction the pack

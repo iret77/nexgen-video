@@ -10,8 +10,8 @@ struct InstalledPack: Identifiable, Equatable {
     let name: String
     let displayName: String
     let tagline: String?
-    /// Bundled app-resource base name for the gallery header (nil → gradient fallback).
-    let headerImageName: String?
+    /// Badge art inside the pack's own resource bundle (nil → gradient fallback).
+    let badgeURL: URL?
 
     var id: String { name }
 
@@ -19,7 +19,7 @@ struct InstalledPack: Identifiable, Equatable {
         self.name = pack.name
         self.displayName = pack.manifest.displayName
         self.tagline = pack.manifest.tagline.isEmpty ? nil : pack.manifest.tagline
-        self.headerImageName = pack.manifest.headerImageName
+        self.badgeURL = pack.manifest.badgeURL
     }
 
     /// Every first-party pack, gallery order.
@@ -31,18 +31,9 @@ struct InstalledPack: Identifiable, Equatable {
         return all.first { $0.name == name }
     }
 
-    /// The gallery header image, loaded from the app bundle's `Images/` — checks
-    /// both the flat assembled-.app layout and the SwiftPM resource-bundle layout
-    /// (same idiom as the welcome splash). nil → the gallery paints a gradient.
+    /// The pack's badge, loaded from the pack's own resource bundle — self-contained,
+    /// so a pack brings its art with it. nil → the gallery paints a gradient.
     func headerImage() -> NSImage? {
-        guard let base = headerImageName, let root = Bundle.main.resourceURL else { return nil }
-        let candidates = [
-            root.appendingPathComponent("Images/\(base).png"),
-            root.appendingPathComponent("NexGenVideo_NexGenVideo.bundle/Images/\(base).png"),
-        ]
-        for url in candidates where FileManager.default.fileExists(atPath: url.path) {
-            return NSImage(contentsOf: url)
-        }
-        return nil
+        badgeURL.flatMap { NSImage(contentsOf: $0) }
     }
 }

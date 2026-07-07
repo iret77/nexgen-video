@@ -270,7 +270,8 @@ final class EditorViewModel {
             // Genuine dialogue handoff — the pipeline is up; open the brief conversation with a question.
             self.agentService.send(
                 text: "The production pipeline is initialized. Walk me through drafting the brief — "
-                    + "ask me about the video's direction first.",
+                    + "ask me about the video's direction first. "
+                    + AgentPresentationRules.text,
                 mentions: []
             )
         }
@@ -444,9 +445,11 @@ final class EditorViewModel {
         case .success(let value):
             brief = value
             briefUnreadable = false
-        case .failure:
+        case .failure(let error):
             brief = nil
-            briefUnreadable = true
+            // "No pipeline yet" / "no project open" are bootstrap states, not a broken brief —
+            // only a real read/decode failure means an EXISTING brief we can't parse.
+            briefUnreadable = !(error == .notInitialized || error == .noProject)
         }
         uiContract = (try? ct.get()) ?? nil
         engineStateRevision += 1
