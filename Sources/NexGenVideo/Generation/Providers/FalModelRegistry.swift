@@ -160,7 +160,7 @@ enum FalModelRegistry {
               sendsAspect: false, sendsResolution: true, i2v: true),
         video("bytedance/seedance-2.0/image-to-video", "Seedance 2.0 (image)",
               durations: [5, 10, 15], aspects: ["16:9", "9:16"], resolutions: ["480p", "720p"],
-              sendsAspect: false, sendsResolution: true, i2v: true, generatesAudio: true),
+              sendsAspect: false, sendsResolution: true, generatesAudio: true, i2v: true),
     ]
 
     private static func video(
