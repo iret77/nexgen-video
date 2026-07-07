@@ -24,21 +24,13 @@ public struct MusicDurationPolicy: DurationPolicy {
     }
 }
 
-/// Thrown by the placeholder `"analysis"` phase runner — see the doc comment
-/// on `MusicvideoPack.register`.
-public struct AnalysisPhaseNotYetAvailable: Swift.Error, Sendable {
-    public init() {}
-}
-
 /// Port of `pack.py::MusicvideoPack`.
 ///
-/// The `analysis` phase's real runner pulls the DSP pipeline
-/// (`analysis/pipeline.py`, heavy librosa/numpy/essentia/etc. deps) landing
-/// separately as M8c — this work package (M8a/M8b) ports only the pure-logic
-/// + knowledge layer. `register` still claims the `"analysis"` phase name
-/// (mirroring Python's `register_phase`, and needed so `EngineRegistry`
-/// callers can already ask "does this pack have an analysis phase") but the
-/// runner throws until M8c wires the real one in.
+/// The `analysis` phase runner (M8c) locates the song in the project's
+/// `audio/` dir, decodes it via the host-injected `AudioPCMDecoding`, runs the
+/// native DSP pipeline, and persists `analysis/<song>.json`. It resolves the
+/// decoder from the registry at run time — nil decoder → an actionable error,
+/// never a crash.
 public struct MusicvideoPack: Pack {
     public let name = "musicvideo"
     public let version = "0.0.1"
@@ -71,7 +63,15 @@ public struct MusicvideoPack: Pack {
         registry.registerProjectDirs(["audio", "lyrics", "analysis"])
         registry.registerSanityCheck("tempo", MusicvideoChecks.tempoCheck)
         registry.registerSanityCheck("pacing", MusicvideoChecks.pacingCheck)
-        registry.registerPhase("analysis") { _ in throw AnalysisPhaseNotYetAvailable() }
+        // The runner resolves the audio decoder from the registry at run time
+        // (weak capture — the registry outlives the call; no retain cycle). A
+        // missing decoder surfaces as an actionable error, not a crash.
+        registry.registerPhase("analysis") { [weak registry] dataRoot in
+            guard let decoder = registry?.audioDecoder else {
+                throw MusicvideoAnalysisRunner.RunError.noDecoder
+            }
+            _ = try MusicvideoAnalysisRunner.run(dataRoot: dataRoot, decoder: decoder)
+        }
         try? registry.registerUIContract(phase: "analysis", surface: "choice", taskClass: "classification")
     }
 }
