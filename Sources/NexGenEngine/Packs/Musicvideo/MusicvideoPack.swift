@@ -59,7 +59,8 @@ public struct MusicvideoPack: Pack {
         PackStarter(
             id: "start",
             title: "Start the music-video pipeline",
-            prompt: "Start the music-video production pipeline for this project. Initialize the pipeline if needed with init_project, then orient with get_project_state and walk me through drafting the brief — ask about the video's direction first."
+            prompt: "Start the music-video production pipeline for this project. Initialize the pipeline if needed with init_project, then orient with get_project_state and walk me through drafting the brief — ask about the video's direction first. "
+                + AgentPresentationRules.text
         )
     ]
 

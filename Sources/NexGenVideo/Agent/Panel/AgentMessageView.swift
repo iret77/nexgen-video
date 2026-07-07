@@ -128,11 +128,13 @@ private struct ToolRunRow: View {
     private var isRunning: Bool { result == nil }
     private var statusIcon: String {
         guard let result else { return "circle.dotted" }
-        return result.isError ? "xmark.circle.fill" : "checkmark.circle.fill"
+        return result.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
     }
     private var statusTint: Color {
         guard let result else { return AppTheme.Text.mutedColor }
-        return result.isError ? .red.opacity(AppTheme.Opacity.prominent) : AppTheme.Text.tertiaryColor
+        // Orange, not red: a failed probe is routine for the agent (it reads the error and
+        // adjusts) — alarm color belongs to failures the USER must act on.
+        return result.isError ? .orange.opacity(AppTheme.Opacity.prominent) : AppTheme.Text.tertiaryColor
     }
 
     var body: some View {
@@ -150,8 +152,8 @@ private struct ToolRunRow: View {
                             .font(.system(size: AppTheme.FontSize.xs))
                             .foregroundStyle(statusTint)
                     }
-                    Text(name)
-                        .font(.system(size: AppTheme.FontSize.sm, weight: .medium, design: .monospaced))
+                    Text(ToolRunPresentation.label(for: name))
+                        .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
                         .foregroundStyle(AppTheme.Text.tertiaryColor)
                         .opacity(isRunning ? 0.7 : 1.0)
                     Image(systemName: "chevron.right")
@@ -165,6 +167,9 @@ private struct ToolRunRow: View {
 
             if expanded {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                    Text(name)
+                        .font(.system(size: AppTheme.FontSize.xxs, design: .monospaced))
+                        .foregroundStyle(AppTheme.Text.mutedColor)
                     argsSection
                     if let result { resultSection(result) }
                 }

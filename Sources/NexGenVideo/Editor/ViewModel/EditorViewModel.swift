@@ -270,7 +270,8 @@ final class EditorViewModel {
             // Genuine dialogue handoff — the pipeline is up; open the brief conversation with a question.
             self.agentService.send(
                 text: "The production pipeline is initialized. Walk me through drafting the brief — "
-                    + "ask me about the video's direction first.",
+                    + "ask me about the video's direction first. "
+                    + AgentPresentationRules.text,
                 mentions: []
             )
         }
