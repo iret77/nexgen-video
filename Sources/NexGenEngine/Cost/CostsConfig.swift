@@ -124,10 +124,9 @@ public struct CostsConfig: Sendable, Equatable {
     /// across the provider branch, so a fal shot with
     /// `model_suggestion=SEEDANCE_2_0` was assigned `"seedance2"` (the Runway
     /// legacy price 0.10 EUR/s) even though the dispatcher actually renders via
-    /// the fal endpoint (0.24–1.56 EUR/s across the Fast 720p … Pro 4K tiers) —
-    /// the estimate came out several-x too low. New logic: for a FAL shot take
-    /// `defaults[phase]` when it is a fal model, else fall back to
-    /// `fal:bytedance/seedance-2.0/fast` (a real, priced 2.0 endpoint), ignoring
+    /// the fal endpoint (0.25–0.68 EUR/s) — the estimate came out 2.5–6x too
+    /// low. New logic: for a FAL shot take `defaults[phase]` when it is a fal
+    /// model, else fall back to `fal:bytedance/seedance-2.0/fast`, ignoring
     /// `model_suggestion` entirely (model_map only knows Runway models). For a
     /// RUNWAY (legacy) shot the old path stands: `model_suggestion → model_map`,
     /// else `defaults[phase]`.

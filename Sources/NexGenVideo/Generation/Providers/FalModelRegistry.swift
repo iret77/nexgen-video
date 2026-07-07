@@ -130,7 +130,7 @@ enum FalModelRegistry {
         // Seedance 2.0 — ByteDance's namespace on fal (no `fal-ai/` prefix; the
         // queue path IS the id, verified against the official examples + fal.run
         // cURL). Native audio (`generate_audio`, default true), up to 15s. GA
-        // endpoints cap at 720p; 4K is the separate early-access endpoint below.
+        // endpoints cap at 720p.
         video("bytedance/seedance-2.0/text-to-video", "Seedance 2.0",
               durations: [5, 10, 15], aspects: seedance2Aspects,
               resolutions: ["480p", "720p"], sendsResolution: true, generatesAudio: true),
@@ -140,13 +140,6 @@ enum FalModelRegistry {
         videoRef("bytedance/seedance-2.0/reference-to-video", "Seedance 2.0 (reference)",
                  durations: [5, 10, 15], aspects: seedance2Aspects, resolutions: ["480p", "720p"],
                  maxImages: 9, maxVideos: 3, maxAudios: 3, maxTotal: 12),
-        // Seedance 2.0 4K — dedicated 2160p early-access endpoint (B2B, non-US),
-        // a distinct model, NOT a `resolution` value on the endpoints above. It is
-        // inherently 4K, so we advertise 2160p but send no `resolution` param (its
-        // accepted values aren't published yet). See PR notes.
-        video("bytedance/seedance-2.0-4k/text-to-video", "Seedance 2.0 4K",
-              durations: [5, 10, 15], aspects: seedance2Aspects,
-              resolutions: ["2160p"], sendsResolution: false, generatesAudio: true),
         video("fal-ai/veo3", "Veo 3",
               durations: [4, 6, 8], aspects: ["16:9", "9:16"], resolutions: ["720p", "1080p"],
               duration: .secondsSuffix, sendsResolution: true, generatesAudio: true),

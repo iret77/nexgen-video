@@ -355,8 +355,7 @@ duration is the main problem (long, CU, performance) → `reference`.
 
 > On **Seedance 2.0** the `reference` strategy runs through the
 > `reference-to-video` endpoint (up to 9 image refs, plus optional video/audio
-> refs, native synchronized audio, clips up to 15s). For 4K delivery, set
-> `brief.final_resolution=2160p` (Seedance 2.0's dedicated 4K endpoint).
+> refs, native synchronized audio, clips up to 15s).
 
 Sanity check `REFERENCE_MODE_REQUIRES_FAL` (error) blocks reference mode
 on a keyframe-only provider pre-render. `REFERENCE_MODE_NEEDS_REFS`

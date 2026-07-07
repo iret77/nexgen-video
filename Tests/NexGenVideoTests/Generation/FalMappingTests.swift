@@ -134,16 +134,6 @@ struct FalVideoInputTests {
         #expect(input["aspect_ratio"] as? String == "16:9")
         #expect(input["generate_audio"] as? Bool == true)
     }
-
-    @Test func seedance2FourKOmitsResolutionButKeepsAudio() throws {
-        let m = try #require(FalModelRegistry.model(for: "bytedance/seedance-2.0-4k/text-to-video"))
-        let p = VideoGenerationParams(prompt: "p", duration: 10, aspectRatio: "16:9", resolution: "2160p")
-        let input = FalInputBuilder.videoInput(p, model: m)
-        // The dedicated 4K endpoint is inherently 2160p; we don't send a `resolution` param.
-        #expect(input["resolution"] == nil)
-        #expect(input["aspect_ratio"] as? String == "16:9")
-        #expect(input["generate_audio"] as? Bool == true)
-    }
 }
 
 @Suite("FalInputBuilder — audio / upscale")
@@ -242,11 +232,5 @@ struct FalRegistryTests {
         #expect(refCaps.maxReferenceVideos == 3)
         #expect(refCaps.maxReferenceAudios == 3)
         #expect(refCaps.maxTotalReferences == 12)
-
-        let fourK = try #require(FalModelRegistry.model(for: "bytedance/seedance-2.0-4k/text-to-video"))
-        #expect(fourK.videoSendsResolution == false)   // inherently 4K, no `resolution` param
-        #expect(fourK.videoGeneratesAudio == true)
-        guard case .video(let fourKCaps) = fourK.entry.uiCapabilities else { return #expect(Bool(false)) }
-        #expect(fourKCaps.resolutions == ["2160p"])
     }
 }

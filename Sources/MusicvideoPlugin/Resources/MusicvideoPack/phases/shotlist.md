@@ -452,8 +452,7 @@ prompt contains only the **action**.
 > **Seedance 2.0** is the current reference-capable target: its
 > `reference-to-video` endpoint takes up to 9 image references (bible sheets)
 > plus optional video/audio refs, emits native synchronized audio, and does
-> clips up to 15s. 4K delivery uses the separate Seedance 2.0 4K endpoint
-> (`brief.final_resolution=2160p`).
+> clips up to 15s.
 
 > **NOT like this:** "AI Cat, an upright humanoid grey cat with pointed
 > ears, yellow eyes, a wide-brimmed purple hat, a long black coat, and a

@@ -74,12 +74,6 @@ extension CostsConfig {
     /// EUR per the costs.yaml header convention. `defaults`/`model_map`/overlap/
     /// polling/cost_guard mirror the shapes the unit tests and dispatcher use.
     ///
-    /// The Pro `2160p` (4K) tier (1.5552 EUR/s) is an ESTIMATE: fal's dedicated
-    /// early-access `bytedance/seedance-2.0-4k/*` endpoint publishes no per-second
-    /// price, so it is derived from fal's documented 4K token rate ($0.008 / 1000
-    /// tokens) at UHD 3840×2160×24fps = (3840·2160·24/1024)/1000·0.008. Conservative
-    /// placeholder; replace with the GA number once fal publishes it.
-    ///
     /// `loadCosts(from:)` loads an override to replace this at runtime.
     public static let bundledDefault = CostsConfig(
         pricing: [
@@ -89,7 +83,7 @@ extension CostsConfig {
             "fal:bytedance/seedance-2.0/pro": ModelPricing(
                 eurPerSecond: 0.682, maxDurationS: 10.0, defaultRatio: "16:9",
                 minDurationS: 5.0,
-                eurPerSecondByResolution: ["720p": 0.3024, "1080p": 0.682, "2160p": 1.5552]
+                eurPerSecondByResolution: ["720p": 0.3024, "1080p": 0.682]
             ),
             "fal:bytedance/seedance-2.0/fast": ModelPricing(
                 eurPerSecond: 0.2419, maxDurationS: 10.0, defaultRatio: "16:9",
@@ -126,7 +120,6 @@ extension CostsConfig {
             eur_per_second_by_resolution:
               720p: 0.3024
               1080p: 0.682
-              2160p: 1.5552
           "fal:bytedance/seedance-2.0/fast":
             eur_per_second: 0.2419
             max_duration_s: 10.0

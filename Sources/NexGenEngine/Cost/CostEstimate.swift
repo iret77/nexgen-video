@@ -66,7 +66,7 @@ func stitchedSegments(totalS: Double, modelLimitS: Double) -> Int {
 /// `render/costs.py::_resolution_for_phase`.
 ///
 /// Final: use `finalResolution` from the brief; if the model can't do it (Fast
-/// tops out at 720p) fall back to the model max (720p). Preview: smallest available
+/// has no 1080p) fall back to the model max (720p). Preview: smallest available
 /// (720p — 480p isn't priced on fal). Runway models have no semantic resolution
 /// concept (ratios carry it) → nil → `eurPerSecond` fallback.
 func resolutionForPhase(
@@ -75,8 +75,8 @@ func resolutionForPhase(
     guard modelId.hasPrefix("fal:") else { return nil }
     let isFast = modelId.contains("/fast")
     if phase == .final {
-        // Fast tops out at 720p — clamp any higher final (1080p, 2160p/4K) down.
-        if isFast && finalResolution != "480p" && finalResolution != "720p" {
+        // Brief default 1080p, but Fast has no 1080p.
+        if isFast && finalResolution == "1080p" {
             return "720p"  // Fast max
         }
         return finalResolution
@@ -124,7 +124,7 @@ public func estimate(
         var padded = false
         let billableS: Double
         let eur: Double
-        var note: String
+        let note: String
 
         if shotlist.mode == .beat || shotlist.mode == .phrase {
             if rawDuration > pricing.maxDurationS {
@@ -160,13 +160,6 @@ public func estimate(
                 stitchNote = stitchNote.isEmpty ? "@\(resolution)" : "\(stitchNote); @\(resolution)"
             }
             note = stitchNote
-        }
-
-        // 4K (2160p) has NO official fal per-second rate — the 2160p tier is a provisional
-        // estimate (see LoadCosts). Flag it on the shot so the cost-guard confirmation never
-        // presents the number as authoritative. Golden-safe: the fixture estimates at 1080p.
-        if resolution == "2160p" {
-            note += note.isEmpty ? "4K price estimated (no official rate)" : "; 4K price estimated (no official rate)"
         }
 
         estimates.append(

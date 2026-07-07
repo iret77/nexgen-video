@@ -102,8 +102,7 @@ Per shot, also evaluate `Shot.seedance_input_mode`:
 > **Seedance 2.0** serves reference mode via its `reference-to-video` endpoint:
 > up to 9 image references (the bible sheets) plus optional video/audio refs,
 > native synchronized audio (`generate_audio`, on by default), and clips up to
-> 15s. It is the default reference-capable target. 4K delivery is available via
-> the separate **Seedance 2.0 4K** endpoint — set `brief.final_resolution=2160p`.
+> 15s. It is the default reference-capable target.
 
 Reference-mode shots without bible refs are blocked pre-render by sanity
 (`REFERENCE_MODE_NEEDS_REFS`). Confirm reference support against
