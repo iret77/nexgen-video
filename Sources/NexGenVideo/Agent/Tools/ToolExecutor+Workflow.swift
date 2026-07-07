@@ -424,7 +424,7 @@ extension ToolExecutor {
     /// never "first json in the folder", which could be a stale sibling). Falls back to a minimal
     /// shape if it can't be parsed (the write still succeeded).
     private func analysisSummary(dataRoot: URL, phase: String) -> [String: Any] {
-        guard let artifact = try? MusicvideoAnalysisRunner.expectedArtifactURL(dataRoot: dataRoot),
+        guard let artifact = AudioProjectLayout.expectedAnalysisArtifactURL(dataRoot: dataRoot),
             let data = try? Data(contentsOf: artifact),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
@@ -479,8 +479,8 @@ extension ToolExecutor {
         }
 
         let ext = sourceURL.pathExtension.lowercased()
-        guard MusicvideoAnalysisRunner.audioExtensions.contains(ext) else {
-            let accepted = MusicvideoAnalysisRunner.audioExtensions.sorted().map { ".\($0)" }.joined(separator: "/")
+        guard AudioProjectLayout.audioExtensions.contains(ext) else {
+            let accepted = AudioProjectLayout.audioExtensions.sorted().map { ".\($0)" }.joined(separator: "/")
             throw ToolError("'\(sourceURL.lastPathComponent)' isn't an audio type the analysis runner accepts (\(accepted)).")
         }
 
@@ -548,7 +548,7 @@ extension ToolExecutor {
         )) ?? []
         return entries.filter {
             let isFile = (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile ?? false
-            return isFile && MusicvideoAnalysisRunner.audioExtensions.contains($0.pathExtension.lowercased())
+            return isFile && AudioProjectLayout.audioExtensions.contains($0.pathExtension.lowercased())
         }
     }
 }

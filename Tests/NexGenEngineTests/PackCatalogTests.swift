@@ -1,14 +1,18 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
-/// The native pack registry that the app-side wiring (run_sanity, get_ui_contract,
-/// init_project) resolves the active pack through.
+/// The runtime pack registry that the app-side wiring (run_sanity, get_ui_contract,
+/// init_project) resolves the active pack through. Packs are no longer compiled in,
+/// so each test registers the loadable pack first — the same thing the host's
+/// `PluginLoader` does at launch. Registration is idempotent by name.
 @Suite("PackCatalog")
 struct PackCatalogTests {
 
-    @Test("musicvideo is a listed first-party pack")
+    @Test("a registered pack is listed and resolvable")
     func musicvideoListed() {
+        PackCatalog.register(MusicvideoPack())
         #expect(PackCatalog.all.contains { $0.name == "musicvideo" })
         #expect(PackCatalog.pack(named: "musicvideo") != nil)
         #expect(PackCatalog.pack(named: nil) == nil)
@@ -25,6 +29,7 @@ struct PackCatalogTests {
 
     @Test("active musicvideo folds in its checks, contract, and project dirs")
     func musicvideoActiveFoldsIn() {
+        PackCatalog.register(MusicvideoPack())
         let registry = PackCatalog.registry(activePack: "musicvideo")
         #expect(registry.sanityChecks["coverage"] != nil)   // core still present
         #expect(registry.sanityChecks["tempo"] != nil)      // pack check added

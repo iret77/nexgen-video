@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
 /// Coverage derived from `nexgen_pack_musicvideo/analysis/structure/consolidator.py`'s
 /// logic (no dedicated Python test file exists for this module — the task's

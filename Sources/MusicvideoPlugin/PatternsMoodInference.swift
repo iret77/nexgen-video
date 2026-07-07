@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Mood inference for pattern suggestions (v0.13.0). Port of
 /// `nexgen_pack_musicvideo/patterns_mood_inference.py`.

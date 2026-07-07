@@ -1,28 +1,45 @@
 import Foundation
+import NexGenEngine
 
-/// Accessor over the musicvideo pack's bundled knowledge — the 23 pattern
-/// YAMLs (`Resources/MusicvideoPack/library/`) and the 12 neutralized phase
-/// docs (`Resources/MusicvideoPack/phases/`). Both ship as `Bundle.module`
-/// resources (see the `NexGenEngine` target's `resources:` rule in
-/// `Package.swift`).
+/// Accessor over the musicvideo pack's bundled knowledge — the pattern YAMLs
+/// (`Resources/MusicvideoPack/library/`) and the neutralized phase docs
+/// (`Resources/MusicvideoPack/phases/`).
+///
+/// The pack ships these as `MusicvideoPlugin` target resources. At runtime they
+/// resolve either from SwiftPM's generated `NexGenVideo_MusicvideoPlugin.bundle`
+/// (dev/test/CI), or from the installed `.ngvpack` this dylib was loaded out of —
+/// where assembly copies that same generated bundle into `Contents/Resources/`.
+/// Both are found below; nothing is read from an absolute disk path.
 public enum PackKnowledge {
     private final class BundleFinder {}
 
-    /// SwiftPM's generated `Bundle.module` accessor fatalErrors when the
-    /// resource bundle isn't where it expects (some test-runner layouts) —
-    /// a hard SIGTRAP that kills the whole test process. This resolver
-    /// searches the known locations and returns nil instead of trapping.
+    /// A bundle actually contains the pack's resources iff `MusicvideoPack/` sits
+    /// under its resource dir.
+    private static func carriesPack(_ bundle: Bundle) -> Bool {
+        guard let root = bundle.resourceURL else { return false }
+        return FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("MusicvideoPack").path)
+    }
+
+    /// SwiftPM's generated `Bundle.module` accessor fatalErrors when the resource
+    /// bundle isn't where it expects — a hard SIGTRAP. This resolver searches the
+    /// known locations and returns nil instead of trapping.
     static let resourceBundle: Bundle? = {
-        let name = "NexGenVideo_NexGenEngine"
-        var candidates = [
+        let name = "NexGenVideo_MusicvideoPlugin"
+        let selfBundle = Bundle(for: BundleFinder.self)
+        // The plugin bundle itself, when its resources are flattened in place
+        // (a `.ngvpack` whose Contents/Resources holds MusicvideoPack/ directly).
+        if carriesPack(selfBundle) { return selfBundle }
+        // Otherwise the generated resource bundle sits next to the dylib / test
+        // bundle (SwiftPM) or inside the `.ngvpack`'s Contents/Resources.
+        let bases: [URL?] = [
+            selfBundle.resourceURL,
+            selfBundle.bundleURL.deletingLastPathComponent(),
             Bundle.main.resourceURL,
-            Bundle(for: BundleFinder.self).resourceURL,
             Bundle.main.bundleURL,
         ]
-        // xctest layouts place library resource bundles next to the test bundle.
-        candidates.append(Bundle(for: BundleFinder.self).bundleURL.deletingLastPathComponent())
-        for candidate in candidates {
-            guard let url = candidate?.appendingPathComponent("\(name).bundle"),
+        for base in bases {
+            guard let url = base?.appendingPathComponent("\(name).bundle"),
                   let bundle = Bundle(url: url) else { continue }
             return bundle
         }

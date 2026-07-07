@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import NexGenEngine
+import MusicvideoPlugin
 
 @testable import NexGenVideo
 
@@ -7,6 +9,9 @@ import Testing
 struct InstalledPackTests {
 
     @Test func musicvideoPackIsListed() {
+        // Packs are loaded at runtime now (empty compiled-in list); register the
+        // loadable pack the way the host's PluginLoader does before asserting.
+        PackCatalog.register(MusicvideoPack())
         let pack = InstalledPack.named("musicvideo")
         #expect(pack != nil)
         // Mirrors the retired plugins/musicvideo/ngv-plugin.json values.

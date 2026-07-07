@@ -1,17 +1,13 @@
 import Foundation
 
 /// Native audio-analysis output structs, mirroring the field names of the
-/// Python Analysis v2 schema (`plugins/musicvideo/.../analysis_schema.py`).
+/// Python Analysis v2 schema.
 ///
-/// MERGE NOTE: a sibling package is porting the full schema as
-/// `AnalysisSchema.swift`. When it lands, delete `AudioSection`,
-/// `EnergyPoint`, `TempoPoint`, and `AudioAnalysis` from this file and have the
-/// pipeline emit the canonical `Section` / `Analysis` types instead — the field
-/// names here are chosen to match 1:1 (`index/start/end/cluster/label/source/
-/// confidence`; `t/rms`; `t/bpm`; `bpm/beats/downbeats/downbeat_source/
-/// sections/energy_curve/tempo_curve/sample_rate/duration_s`). Only the
-/// container names differ. `AudioAnalysisPipeline` is the DSP producer and is
-/// schema-agnostic; the merge is a rename at the boundary.
+/// `EnergyPoint`/`TempoPoint` are generic time-series primitives the DSP layer
+/// (`Energy.swift`) produces and `AudioAnalysis` carries, so they live in the
+/// engine — the `musicvideo` pack's canonical `Analysis` schema reuses them via
+/// `import NexGenEngine`. `AudioAnalysisPipeline` is the DSP producer and is
+/// schema-agnostic; a pack maps this DSP-producible subset onto its full schema.
 
 /// Port of `analysis_schema.py::Section`. `cluster` is the section-type id;
 /// `label` (narrative) and the schema's v2-only fields are left to downstream.
@@ -43,10 +39,33 @@ public struct AudioSection: Codable, Sendable, Equatable {
     }
 }
 
-/// The DSP-producible subset of `analysis_schema.py::Analysis` — the fields the
+/// A single point on the loudness (RMS energy) curve. Seconds → normalized 0..1.
+public struct EnergyPoint: Codable, Sendable, Equatable {
+    /// Seconds.
+    public var t: Double
+    /// Normalized 0..1.
+    public var rms: Double
+
+    public init(t: Double, rms: Double) {
+        self.t = t
+        self.rms = rms
+    }
+}
+
+/// A single point on the instantaneous-tempo curve. Seconds → BPM.
+public struct TempoPoint: Codable, Sendable, Equatable {
+    public var t: Double
+    public var bpm: Double
+
+    public init(t: Double, bpm: Double) {
+        self.t = t
+        self.bpm = bpm
+    }
+}
+
+/// The DSP-producible subset of the canonical `Analysis` schema — the fields the
 /// native engine computes in v1 scope. Stems/alignment/key/chords/interpretation
 /// stay out (deferred; those schema fields remain optional in the canonical type).
-// EnergyPoint/TempoPoint come from Packs/Musicvideo/AnalysisSchema.swift (canonical).
 public struct AudioAnalysis: Codable, Sendable, Equatable {
     public var sampleRate: Int
     public var durationS: Double

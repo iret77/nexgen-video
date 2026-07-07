@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// The real `analysis` phase runner (M8c). Locates the song in the project's
 /// `audio/` dir, decodes it via the host-injected `AudioPCMDecoding`, runs the
@@ -11,9 +12,10 @@ import Foundation
 /// audio lives at `<dataRoot>/audio/`, the artifact lands at
 /// `<dataRoot>/analysis/<stem>.json`.
 public enum MusicvideoAnalysisRunner {
-    /// Audio extensions this analysis runner accepts — the single source of truth reused by the
-    /// host's `attach_song` tool so what it lets in is exactly what `run_phase("analysis")` decodes.
-    public static let audioExtensions: Set<String> = ["wav", "mp3", "flac", "m4a", "aiff", "aac"]
+    /// Audio extensions this analysis runner accepts — the engine's shared
+    /// `AudioProjectLayout.audioExtensions`, so what the host's `attach_song`
+    /// accepts is exactly what `run_phase("analysis")` decodes.
+    public static var audioExtensions: Set<String> { AudioProjectLayout.audioExtensions }
 
     public enum RunError: Swift.Error, Sendable, Equatable, CustomStringConvertible {
         case noDecoder
@@ -60,15 +62,6 @@ public enum MusicvideoAnalysisRunner {
         case 1: return songs[0]
         default: throw RunError.multipleSongs(audioDir: audioDir.path, files: songs.map(\.lastPathComponent))
         }
-    }
-
-    /// Where a run for the project at `dataRoot` writes its artifact — derived from the same
-    /// single-song discovery the runner uses, so callers can read back EXACTLY the artifact a
-    /// just-finished run produced (never "some analysis json", which could be stale).
-    public static func expectedArtifactURL(dataRoot: URL) throws -> URL {
-        let song = try locateSong(dataRoot: dataRoot)
-        return dataRoot.appendingPathComponent("analysis")
-            .appendingPathComponent("\(song.deletingPathExtension().lastPathComponent).json")
     }
 
     /// Run the analysis phase for the project at `dataRoot`, decoding via

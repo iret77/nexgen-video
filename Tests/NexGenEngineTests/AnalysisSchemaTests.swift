@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
 /// Port of `plugins/musicvideo/tests/test_analysis_schema.py`, plus targeted
 /// coverage for `Analysis.perceivedBpm` and validation.

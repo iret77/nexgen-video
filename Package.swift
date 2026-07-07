@@ -7,6 +7,14 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .executable(name: "NexGenVideo", targets: ["NexGenVideo"]),
+        // Shared across the app AND every loadable format pack: one dynamic
+        // library so host and plugin link ONE copy of the `Pack`/`PackEntry`
+        // protocol metadata (bundle.sh embeds it in Contents/Frameworks).
+        .library(name: "NexGenEngine", type: .dynamic, targets: ["NexGenEngine"]),
+        // The first loadable pack — built as a dynamic library, then assembled +
+        // signed into `musicvideo.ngvpack` by the release workflow. NOT a
+        // dependency of the app: it ships OUTSIDE the DMG and loads at runtime.
+        .library(name: "MusicvideoPlugin", type: .dynamic, targets: ["MusicvideoPlugin"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dmrschmidt/DSWaveformImage", from: "14.2.2"),
@@ -49,19 +57,30 @@ let package = Package(
             dependencies: [
                 .product(name: "Yams", package: "Yams"),
             ],
-            path: "Sources/NexGenEngine",
+            path: "Sources/NexGenEngine"
+        ),
+        // The musicvideo format pack. Links NexGenEngine (the shared dynamic
+        // library) so its `Pack`/`PackEntry` metadata is identical to the host's.
+        // Its knowledge (pattern library, phase docs, badge) ships as target
+        // resources, assembled into the `.ngvpack` alongside the signed dylib.
+        .target(
+            name: "MusicvideoPlugin",
+            dependencies: ["NexGenEngine"],
+            path: "Sources/MusicvideoPlugin",
             resources: [
                 .copy("Resources/MusicvideoPack"),
             ]
         ),
         .testTarget(
             name: "NexGenVideoTests",
-            dependencies: ["NexGenVideo", "NexGenEngine"],
+            dependencies: ["NexGenVideo", "NexGenEngine", "MusicvideoPlugin"],
             path: "Tests/NexGenVideoTests"
         ),
+        // Depends on MusicvideoPlugin too: the pack is no longer compiled into the
+        // engine, so the pack-specific tests link it and register it explicitly.
         .testTarget(
             name: "NexGenEngineTests",
-            dependencies: ["NexGenEngine"],
+            dependencies: ["NexGenEngine", "MusicvideoPlugin"],
             path: "Tests/NexGenEngineTests",
             resources: [
                 .copy("Fixtures"),

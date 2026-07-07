@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Consolidator: multiple structure-candidate lists + optional alignment ->
 /// one final `sections` list with prioritized confidence. Port of

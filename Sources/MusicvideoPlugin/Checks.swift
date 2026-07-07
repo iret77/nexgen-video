@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Mirrors Python's `str(float)` (e.g. `2.0`, not `2`) for band values
 /// embedded in a finding message, so `ASL 2.0-4.0s` matches the Python

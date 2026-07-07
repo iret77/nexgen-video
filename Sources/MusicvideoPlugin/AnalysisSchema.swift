@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Analysis schema v2 (backward-compatible with v1). Port of
 /// `nexgen_pack_musicvideo/analysis_schema.py`.
@@ -125,29 +126,8 @@ public struct StructureCandidate: Codable, Sendable, Equatable {
     }
 }
 
-/// Port of `analysis_schema.py::EnergyPoint`.
-public struct EnergyPoint: Codable, Sendable, Equatable {
-    /// Seconds.
-    public var t: Double
-    /// Normalized 0..1.
-    public var rms: Double
-
-    public init(t: Double, rms: Double) {
-        self.t = t
-        self.rms = rms
-    }
-}
-
-/// Port of `analysis_schema.py::TempoPoint`.
-public struct TempoPoint: Codable, Sendable, Equatable {
-    public var t: Double
-    public var bpm: Double
-
-    public init(t: Double, bpm: Double) {
-        self.t = t
-        self.bpm = bpm
-    }
-}
+/// `EnergyPoint`/`TempoPoint` now live in NexGenEngine (`Audio/AudioAnalysis.swift`)
+/// — generic DSP time-series primitives shared by the engine and this pack.
 
 /// Port of `analysis_schema.py::Stems`.
 public struct Stems: Codable, Sendable, Equatable {
