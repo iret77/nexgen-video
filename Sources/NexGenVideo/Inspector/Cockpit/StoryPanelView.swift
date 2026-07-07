@@ -33,14 +33,27 @@ struct StoryPanelView: View {
     private static let projectModeOptions = ["beat", "phrase", "section", "multicam"]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
-                briefSection
-                treatmentSection
+        Group {
+            if editor.projectState == nil {
+                // No pipeline yet → ONE coherent state with the entry point, instead of the
+                // brief/treatment fragments each reporting their own flavor of "nothing here".
+                CockpitStateView.error(
+                    .notInitialized, title: "Story", subject: "the story",
+                    startProduction: { editor.startProduction() },
+                    isStarting: editor.productionStarting,
+                    retry: { Task { await editor.refreshEngineState() } }
+                )
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
+                        briefSection
+                        treatmentSection
+                    }
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+                    .padding(.vertical, AppTheme.Spacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: editor.projectURL) { await loadTreatment() }
         .onChange(of: editor.engineStateRevision) { _, _ in

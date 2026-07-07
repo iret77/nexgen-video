@@ -269,6 +269,9 @@ enum AppTheme {
         static let pluginBadgeAspect: CGFloat = 498.0 / 257.0
         static let pluginPickerWidth: CGFloat = 480
         static let pluginPickerHeight: CGFloat = 420
+        static let agentComposerMinHeight: CGFloat = 64
+        static let agentComposerMaxHeight: CGFloat = 280
+        static let agentComposerGrabHeight: CGFloat = 10
     }
 
     enum Window {

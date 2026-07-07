@@ -444,9 +444,11 @@ final class EditorViewModel {
         case .success(let value):
             brief = value
             briefUnreadable = false
-        case .failure:
+        case .failure(let error):
             brief = nil
-            briefUnreadable = true
+            // "No pipeline yet" / "no project open" are bootstrap states, not a broken brief —
+            // only a real read/decode failure means an EXISTING brief we can't parse.
+            briefUnreadable = !(error == .notInitialized || error == .noProject)
         }
         uiContract = (try? ct.get()) ?? nil
         engineStateRevision += 1

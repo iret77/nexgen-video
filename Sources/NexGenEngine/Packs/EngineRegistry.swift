@@ -83,19 +83,20 @@ public final class EngineRegistry: @unchecked Sendable {
 }
 
 /// A pack's presentation identity for the app's gallery/chip — the native
-/// replacement for the disk `ngv-plugin.json` (displayName/tagline/headerImage).
-/// `headerImageName` is a bundled app-resource base name, not a file path.
+/// replacement for the disk `ngv-plugin.json` (displayName/tagline/badge).
+/// `badgeURL` points into the pack's OWN resource bundle, so a pack ships
+/// self-contained with its badge art; nil → the gallery paints a fallback.
 public struct PackManifest: Sendable, Equatable {
     public let id: String
     public let displayName: String
     public let tagline: String
-    public let headerImageName: String?
+    public let badgeURL: URL?
 
-    public init(id: String, displayName: String, tagline: String, headerImageName: String? = nil) {
+    public init(id: String, displayName: String, tagline: String, badgeURL: URL? = nil) {
         self.id = id
         self.displayName = displayName
         self.tagline = tagline
-        self.headerImageName = headerImageName
+        self.badgeURL = badgeURL
     }
 }
 

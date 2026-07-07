@@ -52,6 +52,11 @@ public enum PackKnowledge {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    /// The pack's badge art (`MusicvideoPack/badge.png`) — the self-contained gallery visual.
+    public static func badgeURL() -> URL? {
+        Self.resourceBundle?.url(forResource: "badge", withExtension: "png", subdirectory: "MusicvideoPack")
+    }
+
     /// Base names of every bundled phase doc, sorted.
     public static func phaseDocNames() -> [String] {
         guard let dir = Self.resourceBundle?.resourceURL?.appendingPathComponent("MusicvideoPack/phases") else { return [] }

@@ -39,6 +39,15 @@ struct AgentInputBox<LeadingTools: View>: View {
     @State private var textEditorID = UUID()
     @Namespace private var sendStopNamespace
 
+    /// User-set input height (drag the top edge), persisted across sessions.
+    @AppStorage("agentComposerHeight") private var composerHeight: Double = Double(AppTheme.ComponentSize.agentComposerMinHeight)
+    @State private var resizeStartHeight: Double?
+
+    private var clampedComposerHeight: CGFloat {
+        CGFloat(min(Double(AppTheme.ComponentSize.agentComposerMaxHeight),
+                    max(Double(AppTheme.ComponentSize.agentComposerMinHeight), composerHeight)))
+    }
+
     private var showMentionPicker: Bool { mentionQuery != nil }
 
     private var mentionCandidates: [MediaAsset] {
@@ -79,12 +88,37 @@ struct AgentInputBox<LeadingTools: View>: View {
                 )
                 .allowsHitTesting(false)
         }
+        .overlay(alignment: .top) { resizeHandle }
         .animation(.easeOut(duration: 0.15), value: focused)
         .animation(.easeOut(duration: 0.15), value: isDropTargeted)
         .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: handleDrop)
         .onChange(of: editor.agentService.focusInputRequestTick) { _, _ in
             Task { @MainActor in focused = true }
         }
+    }
+
+    /// Invisible grab strip on the box's top edge: drag up to grow, down to shrink,
+    /// clamped to the min/max. The resize cursor is the affordance.
+    private var resizeHandle: some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: AppTheme.ComponentSize.agentComposerGrabHeight)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let base = resizeStartHeight ?? Double(clampedComposerHeight)
+                        if resizeStartHeight == nil { resizeStartHeight = base }
+                        composerHeight = min(Double(AppTheme.ComponentSize.agentComposerMaxHeight),
+                                             max(Double(AppTheme.ComponentSize.agentComposerMinHeight),
+                                                 base - value.translation.height))
+                    }
+                    .onEnded { _ in resizeStartHeight = nil }
+            )
+            .help("Drag to resize")
     }
 
     private var textField: some View {
@@ -98,7 +132,7 @@ struct AgentInputBox<LeadingTools: View>: View {
                 .padding(.top, AppTheme.Spacing.smMd)
                 .padding(.bottom, AppTheme.Spacing.xs)
                 .focused($focused)
-                .frame(minHeight: 64, maxHeight: 140)
+                .frame(height: clampedComposerHeight)
                 .onChange(of: draft) { old, new in
                     updateMentionQuery(from: new)
                     if !old.isEmpty && new.isEmpty {

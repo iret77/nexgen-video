@@ -43,14 +43,14 @@ public struct MusicvideoPack: Pack {
     public let name = "musicvideo"
     public let version = "0.0.1"
 
-    /// Values mirror the retired `plugins/musicvideo/ngv-plugin.json`. The badge ships as an app
-    /// resource (`Resources/Images/musicvideo-badge`, cut from the owner's plugin-badge masters
-    /// in `docs/design/plugin-badges/` — one per planned pack, uniform style).
+    /// Values mirror the retired `plugins/musicvideo/ngv-plugin.json`. The badge ships INSIDE the
+    /// pack's resources (self-contained — cut from the owner's badge masters in
+    /// `docs/design/plugin-badges/`, one per planned pack, uniform style).
     public let manifest = PackManifest(
         id: "musicvideo",
         displayName: "Music Video Studio",
         tagline: "Structured AI music-video production — analysis → treatment → storyboard → shotlist → render, with engine-enforced consistency.",
-        headerImageName: "musicvideo-badge"
+        badgeURL: PackKnowledge.badgeURL()
     )
 
     /// One honest starter: kick off the production pipeline via the same direct

@@ -48,12 +48,14 @@ struct MusicvideoPackTests {
     }
 
     @Test("pack exposes gallery manifest and a starter")
-    func packExposesManifestAndStarters() {
+    func packExposesManifestAndStarters() throws {
         let pack: Pack = MusicvideoPack()
         // Mirrors the retired plugins/musicvideo/ngv-plugin.json.
         #expect(pack.manifest.displayName == "Music Video Studio")
         #expect(pack.manifest.tagline.isEmpty == false)
-        #expect(pack.manifest.headerImageName == "musicvideo-badge")
+        // Badge ships inside the pack's own resource bundle (self-contained).
+        let badge = try #require(pack.manifest.badgeURL)
+        #expect(FileManager.default.fileExists(atPath: badge.path))
         #expect(pack.starters.isEmpty == false)
     }
 

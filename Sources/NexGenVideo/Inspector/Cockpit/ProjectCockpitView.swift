@@ -151,9 +151,13 @@ struct ProjectSettingsView: View {
                 Spacer(minLength: 0)
                 HStack(spacing: AppTheme.Spacing.sm) {
                     if initialized {
-                        Button("Open Pipeline") { editor.revealCockpit(.pipeline) }
-                            .buttonStyle(.capsule(.prominent, size: .regular))
-                            .controlSize(.small)
+                        // Working the pipeline is Produce's job — land there, not in a sidebar tab.
+                        Button("Open Pipeline") {
+                            editor.cockpitTab = .pipeline
+                            editor.setWorkspaceFocus(.produce)
+                        }
+                        .buttonStyle(.capsule(.prominent, size: .regular))
+                        .controlSize(.small)
                     } else if editor.productionStarting {
                         ProgressView().controlSize(.small)
                         Text("Starting…")
