@@ -20,6 +20,15 @@ struct WorkflowToolsTests {
         return (ToolHarness(), dataRoot, tmp)
     }
 
+    /// Mark the given data root's project package (parent of `_studio`) active with `pack` by writing
+    /// its `ngv.json` — the same file `ProjectPluginSettings` reads. Proves the pack resolves from the
+    /// project HOME, not the data root.
+    private func activatePack(_ pack: String, dataRoot: URL) throws {
+        let home = FrameInventory.projectHome(of: dataRoot)
+        let data = try JSONSerialization.data(withJSONObject: ["activePlugin": pack], options: [])
+        try data.write(to: home.appendingPathComponent("ngv.json"))
+    }
+
     private func minimalShotlist(project: String = "demo") throws -> Shotlist {
         let shot = try Shot(
             id: "s001", section: "verse", timeStart: 0.0, timeEnd: 4.0, durationS: 4.0,
@@ -80,6 +89,32 @@ struct WorkflowToolsTests {
         #expect(phases?.first as? String == "project_init")
         #expect(phases?.last as? String == "render")
         #expect(phases?.count == coreGatePhases.count)
+    }
+
+    @Test("list_phases folds in the active pack's phases, appended after core")
+    func listPhasesWithPack() async throws {
+        let (h, dataRoot, cleanup) = try scaffold()
+        defer { try? FileManager.default.removeItem(at: cleanup) }
+        try activatePack("musicvideo", dataRoot: dataRoot)
+
+        let phases = try await h.runOK("list_phases", args: ["project_dir": dataRoot.path]) as? [String]
+        #expect(phases?.first == "project_init")
+        #expect(phases?.contains("analysis") == true)  // the pack gate is present…
+        #expect(phases?.last == "analysis")             // …appended after the core order
+        #expect(phases?.count == coreGatePhases.count + 1)
+    }
+
+    @Test("get_project_state includes the active pack's analysis gate")
+    func stateWithPack() async throws {
+        let (h, dataRoot, cleanup) = try scaffold()
+        defer { try? FileManager.default.removeItem(at: cleanup) }
+        try activatePack("musicvideo", dataRoot: dataRoot)
+
+        let state = try await h.runOK("get_project_state", args: ["project_dir": dataRoot.path]) as? [String: Any]
+        let phases = try #require(state?["phases"] as? [[String: Any]])
+        let names = phases.compactMap { $0["phase"] as? String }
+        #expect(names.contains("analysis"))
+        #expect(names.last == "analysis")  // appended, not inserted mid-list
     }
 
     @Test("get_ui_contract exposes surfaces and a per-phase entry")
@@ -347,6 +382,21 @@ struct WorkflowToolsTests {
         #expect(result?["phase"] as? String == "brief")
         #expect(result?["runner"] is NSNull)
         #expect((result?["note"] as? String)?.contains("agent-driven") == true)
+    }
+
+    @Test("run_phase reaches the active pack's analysis runner (resolved from the project home)")
+    func runPhaseReachesPackRunner() async throws {
+        let (h, dataRoot, cleanup) = try scaffold()
+        defer { try? FileManager.default.removeItem(at: cleanup) }
+        try activatePack("musicvideo", dataRoot: dataRoot)
+
+        // With the pack active but no song in audio/, the runner IS reached and returns its actionable
+        // blocker — NOT the "no code runner" shape (which is what the pre-fix nil-pack resolution gave).
+        let result = try #require(try await h.runOK("run_phase", args: ["project_dir": dataRoot.path, "phase": "analysis"]) as? [String: Any])
+        #expect(result["phase"] as? String == "analysis")
+        #expect(result["note"] == nil)  // the no-runner branch never fired
+        #expect(result["error"] as? String == "phase_failed")
+        #expect((result["detail"] as? String)?.contains("audio/") == true)
     }
 
     @Test("show_artifact yields a markdown envelope; nothing-yet for a fresh brief")

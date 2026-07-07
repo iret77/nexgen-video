@@ -9,8 +9,9 @@ public enum GateState: String, Codable, Sendable, CaseIterable {
     case needsRevision = "needs_revision"
 }
 
-/// The generic core production pipeline, in order. A pack inserts/extends it
-/// (music adds "analysis" after project_init). Port of `gates.py::CORE_PHASES`.
+/// The generic core production pipeline, in order. A pack's own gate phases are
+/// appended after these, sorted (music adds "analysis") — mirroring the retired
+/// Python `mcp_server.phases()` merge. Port of `gates.py::CORE_PHASES`.
 public let coreGatePhases: [String] = [
     "project_init",
     "brief",

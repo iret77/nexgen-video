@@ -32,10 +32,19 @@ enum NativeCockpitReader {
 
     // MARK: - Projectless kinds
 
-    /// `read.py` "phases": the ordered core pipeline (JSON array of strings). Pack phases would append
-    /// here; the current packs contribute no gate phases, so it's the core order regardless.
+    /// `read.py` "phases": the ordered pipeline (JSON array of strings) — the core order plus the
+    /// active pack's registered gate phases (e.g. musicvideo's `analysis`), appended sorted. Mirrors
+    /// the retired Python `mcp_server.phases()` (`list(CORE_PHASES) + sorted(pack phases)`).
     static func phasesJSON(activePack: String? = nil) throws -> Data {
-        try serialize(coreGatePhases)
+        try serialize(coreGatePhases + packPhases(activePack: activePack))
+    }
+
+    /// The active pack's gate phases not already in the core set, sorted — the append the Python
+    /// `phases()` gather did (`sorted(p for p in ...phases if p not in CORE_PHASES)`).
+    static func packPhases(activePack: String?) -> [String] {
+        PackCatalog.registry(activePack: activePack).phases.keys
+            .filter { !coreGatePhases.contains($0) }
+            .sorted()
     }
 
     /// `read.py` "contract": `{surfaces:[...], phases:{phase:{surface, task_class}}}`.
@@ -62,11 +71,14 @@ enum NativeCockpitReader {
     // MARK: - Project kinds
 
     /// `read.py` "state": `mcp_server.project_state()` → `ProjectState.model_dump()` (snake_case, no
-    /// aliasing). Phase order is the core order; pack phases would extend it.
-    static func stateJSON(dataRoot: URL) throws -> Data {
+    /// aliasing). Phase order is the core order plus the active pack's phases, appended sorted —
+    /// mirroring the Python `project_state` which built its snapshot over the merged `phases()`.
+    static func stateJSON(dataRoot: URL, activePack: String? = nil) throws -> Data {
         let snapshot: ProjectStateBuilder.ProjectState
         do {
-            snapshot = try ProjectStateBuilder.buildSnapshot(dataRoot: dataRoot)
+            snapshot = try ProjectStateBuilder.buildSnapshot(
+                dataRoot: dataRoot, packPhases: packPhases(activePack: activePack)
+            )
         } catch {
             throw NativeError.notInitialized
         }
@@ -210,15 +222,19 @@ enum NativeCockpitReader {
     /// `read.py` "cost": `mcp_server.estimate_cost` → the spent/remaining budget picture (NOT the
     /// forward per-shot estimate). `{project, budget_eur, spent_eur, remaining_eur, over_budget,
     /// next_phase}`.
-    static func costJSON(dataRoot: URL) throws -> Data {
-        return try serialize(costDictionary(dataRoot: dataRoot))
+    static func costJSON(dataRoot: URL, activePack: String? = nil) throws -> Data {
+        return try serialize(costDictionary(dataRoot: dataRoot, activePack: activePack))
     }
 
     /// The `estimate_cost` return dict — shared by the cost read kind and the `estimate_cost` tool.
-    static func costDictionary(dataRoot: URL) throws -> [String: Any] {
+    /// `next_phase` walks the merged phase order (core + pack), so a musicvideo project's open
+    /// `analysis` gate is honored rather than hidden.
+    static func costDictionary(dataRoot: URL, activePack: String? = nil) throws -> [String: Any] {
         let snapshot: ProjectStateBuilder.ProjectState
         do {
-            snapshot = try ProjectStateBuilder.buildSnapshot(dataRoot: dataRoot)
+            snapshot = try ProjectStateBuilder.buildSnapshot(
+                dataRoot: dataRoot, packPhases: packPhases(activePack: activePack)
+            )
         } catch {
             throw NativeError.notInitialized
         }

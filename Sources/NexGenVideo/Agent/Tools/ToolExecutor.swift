@@ -115,7 +115,7 @@ final class ToolExecutor {
         case .deleteFolder:  return try deleteFolder(editor, args)
         case .sendFeedback:  return try await sendFeedback(editor, args)
         case .getProjectState:      return try getProjectState(editor, args)
-        case .listPhases:           return try listPhasesTool(args)
+        case .listPhases:           return try listPhasesTool(editor, args)
         case .getBible:             return try getBible(editor, args)
         case .runSanity:            return try runSanityTool(editor, args)
         case .initProject:          return try initProjectTool(editor, args)
