@@ -124,7 +124,7 @@ public func estimate(
         var padded = false
         let billableS: Double
         let eur: Double
-        let note: String
+        var note: String
 
         if shotlist.mode == .beat || shotlist.mode == .phrase {
             if rawDuration > pricing.maxDurationS {
@@ -160,6 +160,13 @@ public func estimate(
                 stitchNote = stitchNote.isEmpty ? "@\(resolution)" : "\(stitchNote); @\(resolution)"
             }
             note = stitchNote
+        }
+
+        // 4K (2160p) has NO official fal per-second rate — the 2160p tier is a provisional
+        // estimate (see LoadCosts). Flag it on the shot so the cost-guard confirmation never
+        // presents the number as authoritative. Golden-safe: the fixture estimates at 1080p.
+        if resolution == "2160p" {
+            note += note.isEmpty ? "4K price estimated (no official rate)" : "; 4K price estimated (no official rate)"
         }
 
         estimates.append(
