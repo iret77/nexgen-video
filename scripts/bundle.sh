@@ -108,8 +108,18 @@ if ! ls "$RES_BUNDLE"/*.metallib >/dev/null 2>&1; then
 fi
 cp "$RES_BUNDLE"/*.metallib "$APP/Contents/Resources/"
 
-# The production engine + format packs are native Swift (linked into the binary) as of M9 — no
-# Python source, no bundled uv, no first-run venv. Nothing extra to copy here.
+# The production engine is a SHARED dynamic library (libNexGenEngine.dylib), linked by BOTH the app
+# and every loadable format pack so they share one copy of the Pack/PackEntry metadata. Embed it in
+# Frameworks; the main binary already carries the @executable_path/../Frameworks rpath (added below),
+# and a plugin dylib's @rpath/libNexGenEngine.dylib dependency dyld-dedups onto this same image.
+# Format packs themselves ship OUTSIDE the app (signed .ngvpack, fetched on demand) — nothing to copy.
+ENGINE_DYLIB="$(dirname "$BIN")/libNexGenEngine.dylib"
+if [ -f "$ENGINE_DYLIB" ]; then
+  cp "$ENGINE_DYLIB" "$APP/Contents/Frameworks/libNexGenEngine.dylib"
+else
+  echo "!! missing libNexGenEngine.dylib at $ENGINE_DYLIB — the app links it dynamically and won't launch" >&2
+  exit 1
+fi
 
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/NexGenVideo"
 touch "$APP"
@@ -165,6 +175,11 @@ echo "==> Codesigning Sparkle framework"
 codesign --force --options runtime --timestamp \
   --sign "$SIGN_IDENTITY" \
   "$APP/Contents/Frameworks/Sparkle.framework"
+
+echo "==> Codesigning embedded engine dylib"
+codesign --force --options runtime --timestamp \
+  --sign "$SIGN_IDENTITY" \
+  "$APP/Contents/Frameworks/libNexGenEngine.dylib"
 
 echo "==> Codesigning main app"
 codesign --force --options runtime --timestamp \
