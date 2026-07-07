@@ -183,7 +183,7 @@ enum CockpitDataService {
                     return .failure(.notInitialized)
                 }
                 switch kind {
-                case "state": return .success(try NativeCockpitReader.stateJSON(dataRoot: root))
+                case "state": return .success(try NativeCockpitReader.stateJSON(dataRoot: root, activePack: activePack))
                 case "brief": return .success(try NativeCockpitReader.briefJSON(dataRoot: root))
                 case "treatment": return .success(try NativeCockpitReader.treatmentJSON(dataRoot: root))
                 case "bible": return .success(try NativeCockpitReader.bibleJSON(dataRoot: root))
@@ -191,7 +191,7 @@ enum CockpitDataService {
                 case "sanity": return .success(try NativeCockpitReader.sanityJSON(dataRoot: root, activePack: activePack))
                 case "frames": return .success(try NativeCockpitReader.framesJSON(dataRoot: root))
                 case "ledger": return .success(try NativeCockpitReader.ledgerJSON(dataRoot: root))
-                case "cost": return .success(try NativeCockpitReader.costJSON(dataRoot: root))
+                case "cost": return .success(try NativeCockpitReader.costJSON(dataRoot: root, activePack: activePack))
                 default: return .failure(.process("Unsupported native kind \(kind)."))
                 }
             }

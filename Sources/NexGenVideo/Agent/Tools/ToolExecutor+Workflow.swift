@@ -30,6 +30,22 @@ extension ToolExecutor {
         return root
     }
 
+    /// The active format pack for a project given its DATA ROOT. `ngv.json` lives in the project
+    /// PACKAGE (parent of `_studio`), so the data root must be lifted to its home before the lookup —
+    /// reading `activePlugin(projectURL: dataRoot)` directly always resolves nil in the v2 layout.
+    private func activePluginFor(dataRoot: URL) -> String? {
+        ProjectPluginSettings.activePlugin(projectURL: FrameInventory.projectHome(of: dataRoot))
+    }
+
+    /// The active pack's registered gate phases (e.g. musicvideo's `analysis`), sorted — the set the
+    /// pipeline plan must include alongside the core phases. Mirrors the retired Python
+    /// `mcp_server.phases()` gather (`sorted(pack phases not in CORE_PHASES)`).
+    private func packPhasesFor(dataRoot: URL) -> [String] {
+        PackCatalog.registry(activePack: activePluginFor(dataRoot: dataRoot)).phases.keys
+            .filter { !coreGatePhases.contains($0) }
+            .sorted()
+    }
+
     /// JSON `.ok` result from a Foundation object graph.
     private func jsonResult(_ object: Any) throws -> ToolResult {
         let data = try NativeCockpitReader.serialize(object)
@@ -40,12 +56,14 @@ extension ToolExecutor {
 
     func getProjectState(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
         let root = try resolveDataRoot(args, editor: editor)
-        let data = try NativeCockpitReader.stateJSON(dataRoot: root)
+        let data = try NativeCockpitReader.stateJSON(dataRoot: root, activePack: activePluginFor(dataRoot: root))
         return .ok(String(decoding: data, as: UTF8.self))
     }
 
-    func listPhasesTool(_ args: [String: Any]) throws -> ToolResult {
-        try jsonResult(coreGatePhases)
+    func listPhasesTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
+        // Projectless when no project_dir/open project — then the core order alone (no pack context).
+        let packPhases = (try? resolveDataRoot(args, editor: editor)).map { packPhasesFor(dataRoot: $0) } ?? []
+        return try jsonResult(coreGatePhases + packPhases)
     }
 
     func getBible(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
@@ -62,7 +80,7 @@ extension ToolExecutor {
 
     func estimateCostTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
         let root = try resolveDataRoot(args, editor: editor)
-        return try jsonResult(NativeCockpitReader.costDictionary(dataRoot: root))
+        return try jsonResult(NativeCockpitReader.costDictionary(dataRoot: root, activePack: activePluginFor(dataRoot: root)))
     }
 
     func getLedgerTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
@@ -150,8 +168,11 @@ extension ToolExecutor {
     func rewindTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
         let root = try resolveDataRoot(args, editor: editor)
         let target = try args.requireString("target_phase")
+        // Rewind over the merged order (core + pack) so a pack phase like `analysis` is a valid
+        // target and resets its correct downstream span.
+        let order = coreGatePhases + packPhasesFor(dataRoot: root)
         var reset: [String] = []
-        _ = try mutateGates(dataRoot: root) { reset = try GatesOperations.rewindTo(&$0, target: target) }
+        _ = try mutateGates(dataRoot: root) { reset = try GatesOperations.rewindTo(&$0, target: target, order: order) }
         return try jsonResult(["target": target, "reset_phases": reset])
     }
 
@@ -362,8 +383,9 @@ extension ToolExecutor {
         let root = try resolveDataRoot(args, editor: editor)
 
         // The pack follows the TARGET project (an explicit project_dir may point elsewhere);
-        // ngv.json is the write-through source the editor property mirrors anyway.
-        let registry = PackCatalog.registry(activePack: ProjectPluginSettings.activePlugin(projectURL: root))
+        // ngv.json is the write-through source the editor property mirrors anyway. It lives in the
+        // project PACKAGE (parent of `_studio`), not the data root — resolve the home first.
+        let registry = PackCatalog.registry(activePack: activePluginFor(dataRoot: root))
         registry.registerAudioDecoder(AVFoundationAudioDecoder())
         guard let runner = registry.phases[phase] else {
             return try jsonResult([

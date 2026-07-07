@@ -895,8 +895,8 @@ enum ToolDefinitions {
         ),
         AgentTool(
             name: .listPhases,
-            description: "The production pipeline phases, in order (engine core + active pack).",
-            inputSchema: objectSchema()
+            description: "The production pipeline phases, in order (engine core + active pack). `project_dir` is the `_studio/` data root; omit to use the open project (its pack phases fold in when known).",
+            inputSchema: projectDirSchema()
         ),
         AgentTool(
             name: .getBible,

@@ -80,6 +80,34 @@ struct ProjectStateTests {
         #expect(snap.phases.contains { $0.phase == "bible" })
     }
 
+    // MARK: - pack phases append after core (mirrors Python mcp_server.phases())
+
+    @Test("pack phases append after the core order, deduped and in order given")
+    func packPhasesAppendAfterCore() throws {
+        let dataRoot = try scaffold(mode: .beat)
+        defer { cleanup(dataRoot) }
+        let snap = try ProjectStateBuilder.buildSnapshot(dataRoot: dataRoot, packPhases: ["analysis"])
+        let order = snap.phases.map(\.phase)
+        #expect(order == coreGatePhases + ["analysis"])  // appended, not inserted mid-list
+        #expect(order.last == "analysis")
+        // A pack phase equal to a core name is not duplicated.
+        let deduped = try ProjectStateBuilder.buildSnapshot(dataRoot: dataRoot, packPhases: ["render"])
+        #expect(deduped.phases.map(\.phase) == coreGatePhases)
+    }
+
+    @Test("an unapproved pack phase is the next_phase only once every core gate is approved")
+    func packPhaseIsNextAfterCoreApproved() throws {
+        let dataRoot = try scaffold(mode: .beat)
+        defer { cleanup(dataRoot) }
+        let store = YAMLArtifactStore(dataRoot: dataRoot)
+        var gates = try store.load(Gates.self, at: StudioLayout.gatesFile)
+        for phase in coreGatePhases { GatesOperations.approve(&gates, phase: phase) }
+        try store.save(gates, to: StudioLayout.gatesFile)
+
+        let snap = try ProjectStateBuilder.buildSnapshot(dataRoot: dataRoot, packPhases: ["analysis"])
+        #expect(snap.nextPhase == "analysis")  // the appended gate is honored, not hidden
+    }
+
     // MARK: - golden parity: native `state` JSON == committed state.json oracle
 
     /// Reproduces `NativeCockpitReader.stateDictionary` (which lives in the app target) so the
