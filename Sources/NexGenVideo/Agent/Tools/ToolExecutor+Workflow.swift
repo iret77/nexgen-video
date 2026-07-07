@@ -521,12 +521,17 @@ extension ToolExecutor {
             if !replace, FileManager.default.fileExists(atPath: destURL.path) {
                 throw ToolError("audio/ already holds \(destURL.lastPathComponent). Pass replace: true to overwrite it — the analysis runner keeps exactly one song.")
             }
-            // Stage next to the destination, then atomically swap — a failed copy never
-            // destroys an existing same-named song.
+            // Stage next to the destination, then swap in — a failed copy never destroys an
+            // existing same-named song. replaceItemAt requires an existing destination, so the
+            // first attach into an empty audio/ is a plain move.
             let staging = audioDir.appendingPathComponent(".attach-\(UUID().uuidString).\(sourceURL.pathExtension)")
             do {
                 try FileManager.default.copyItem(at: sourceURL, to: staging)
-                _ = try FileManager.default.replaceItemAt(destURL, withItemAt: staging)
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    _ = try FileManager.default.replaceItemAt(destURL, withItemAt: staging)
+                } else {
+                    try FileManager.default.moveItem(at: staging, to: destURL)
+                }
             } catch {
                 try? FileManager.default.removeItem(at: staging)
                 throw ToolError("Couldn't copy the song into audio/: \(error.localizedDescription)")
