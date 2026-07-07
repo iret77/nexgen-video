@@ -108,9 +108,12 @@ public enum VisualMedium: String, Codable, Sendable, CaseIterable {
 }
 
 /// Final render-pass resolution. Port of `brief/schema.py::VideoResolution`.
+/// `2160p` (4K) targets Seedance 2.0's dedicated early-access 4K endpoint; the
+/// default stays 1080p. Priced via the Pro `2160p` cost tier.
 public enum VideoResolution: String, Codable, Sendable, CaseIterable {
     case res720p = "720p"
     case res1080p = "1080p"
+    case res2160p = "2160p"
 }
 
 /// Preview render-pass strategy. Port of `brief/schema.py::PreviewMode`.

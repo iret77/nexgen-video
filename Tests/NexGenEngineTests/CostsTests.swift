@@ -277,11 +277,47 @@ struct CostsTests {
             resolutionForPhase(
                 modelId: "fal:bytedance/seedance-2.0/pro", phase: .final, finalResolution: "1080p"
             ) == "1080p")
+        // Pro final honors 4K; Fast (720p max) clamps 4K down to 720p.
+        #expect(
+            resolutionForPhase(
+                modelId: "fal:bytedance/seedance-2.0/pro", phase: .final, finalResolution: "2160p"
+            ) == "2160p")
+        #expect(
+            resolutionForPhase(
+                modelId: "fal:bytedance/seedance-2.0/fast", phase: .final, finalResolution: "2160p"
+            ) == "720p")
         // Preview → smallest available (720p) for any fal model.
         #expect(
             resolutionForPhase(modelId: "fal:bytedance/seedance-2.0/pro", phase: .preview) == "720p")
         #expect(
             resolutionForPhase(modelId: "fal:bytedance/seedance-2.0/fast", phase: .preview) == "720p")
+    }
+
+    /// The Seedance 2.0 4K tier: the bundled Pro entry prices 2160p, and an
+    /// estimate at `finalResolution="2160p"` bills a Pro-final shot at 1.5552/s
+    /// (fal 4K token-rate estimate). Additive — no existing golden shot uses 4K.
+    @Test("Seedance 2.0 4K — Pro 2160p tier prices at 1.5552/s end-to-end")
+    func seedance2FourKTier() throws {
+        let cfg = CostsConfig.bundledDefault
+        let pro = try #require(cfg.pricing["fal:bytedance/seedance-2.0/pro"])
+        #expect(pro.eurPerSecond(for: "2160p") == 1.5552)
+        #expect(pro.eurPerSecond(for: "1080p") == 0.682)   // unchanged
+
+        // A section-mode 4K final shot bills full duration at the 4K rate.
+        let song = try Song(
+            title: "s", audioPath: "a.wav", analysisPath: "an.json", bpm: 120.0, durationS: 60.0
+        )
+        let shot = try makeShot(
+            id: "s001", provider: .fal, suggestion: nil, section: "verse",
+            timeStart: 0.0, timeEnd: 8.0
+        )
+        let shotlist = try Shotlist(
+            schema_: "shotlist/v3", mode: .section, project: "p", song: song,
+            generated: "2026-01-01", generator: "test", shots: [shot]
+        )
+        let est = estimate(shotlist: shotlist, costs: cfg, phase: .final, finalResolution: "2160p")
+        #expect(est.shotEstimates[0].eur == pyRound(8.0 * 1.5552, 3))
+        #expect(est.shotEstimates[0].notes == "@2160p")
     }
 
     /// `stitchedSegments` — `max(1, ceil(total/limit))`.

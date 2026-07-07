@@ -66,7 +66,7 @@ func stitchedSegments(totalS: Double, modelLimitS: Double) -> Int {
 /// `render/costs.py::_resolution_for_phase`.
 ///
 /// Final: use `finalResolution` from the brief; if the model can't do it (Fast
-/// has no 1080p) fall back to the model max (720p). Preview: smallest available
+/// tops out at 720p) fall back to the model max (720p). Preview: smallest available
 /// (720p — 480p isn't priced on fal). Runway models have no semantic resolution
 /// concept (ratios carry it) → nil → `eurPerSecond` fallback.
 func resolutionForPhase(
@@ -75,8 +75,8 @@ func resolutionForPhase(
     guard modelId.hasPrefix("fal:") else { return nil }
     let isFast = modelId.contains("/fast")
     if phase == .final {
-        // Brief default 1080p, but Fast has no 1080p.
-        if isFast && finalResolution == "1080p" {
+        // Fast tops out at 720p — clamp any higher final (1080p, 2160p/4K) down.
+        if isFast && finalResolution != "480p" && finalResolution != "720p" {
             return "720p"  // Fast max
         }
         return finalResolution
