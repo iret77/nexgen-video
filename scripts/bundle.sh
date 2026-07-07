@@ -108,8 +108,17 @@ if ! ls "$RES_BUNDLE"/*.metallib >/dev/null 2>&1; then
 fi
 cp "$RES_BUNDLE"/*.metallib "$APP/Contents/Resources/"
 
-# The production engine + format packs are native Swift (linked into the binary) as of M9 — no
-# Python source, no bundled uv, no first-run venv. Nothing extra to copy here.
+# The production engine + format packs are native Swift (linked into the binary) as of M9 — but
+# the ENGINE's resource bundle (pack badge, pattern library, phase docs) ships as data files.
+# It stays a .bundle: PackKnowledge resolves "NexGenVideo_NexGenEngine.bundle" by name next to
+# the app resources.
+ENGINE_BUNDLE="$(dirname "$BIN")/NexGenVideo_NexGenEngine.bundle"
+if [ -d "$ENGINE_BUNDLE" ]; then
+  cp -R "$ENGINE_BUNDLE" "$APP/Contents/Resources/"
+else
+  echo "!! missing NexGenVideo_NexGenEngine.bundle at $ENGINE_BUNDLE — pack badge/patterns/phase docs would be missing" >&2
+  exit 1
+fi
 
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/NexGenVideo"
 touch "$APP"
