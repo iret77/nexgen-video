@@ -94,8 +94,8 @@ public struct AudioAnalysis: Codable, Sendable, Equatable {
 }
 
 /// Raw PCM input the engine analyzes. File decoding lives behind
-/// `PCMAudioSource` so the engine stays pure (no AVFoundation/AudioToolbox) and
-/// fully testable with synthesized signals. The APP implements a decoder later.
+/// `AudioPCMDecoding` so the engine stays pure (no AVFoundation/AudioToolbox)
+/// and fully testable with synthesized signals; the app implements the decoder.
 public struct PCMBuffer: Sendable, Equatable {
     /// Mono float samples in [-1, 1]. Multi-channel input is downmixed by the
     /// caller before construction (the app's decoder averages channels, matching
@@ -113,10 +113,18 @@ public struct PCMBuffer: Sendable, Equatable {
     }
 }
 
-/// The seam the app fills with a real decoder (ExtAudioFile/AVFoundation), kept
-/// out of the engine target. Not used by the DSP itself — the pipeline takes a
-/// `PCMBuffer` directly — but declared here so the app has one protocol to
-/// implement, mirroring `audio.py::load` returning mono PCM at 22050 Hz.
-public protocol PCMAudioSource: Sendable {
-    func loadPCM(sampleRate: Double) throws -> PCMBuffer
+/// Decodes an audio file at a URL into a mono `PCMBuffer`, resampled to
+/// `librosa.load` defaults (mono downmix by channel average, 22050 Hz). The
+/// engine stays pure (no AVFoundation/AudioToolbox); the app provides the
+/// concrete decoder and injects it into the `EngineRegistry` so the pack's
+/// analysis phase runner can reach it. Dependency inversion: the pure DSP
+/// library declares the seam, the host fills it.
+public protocol AudioPCMDecoding: Sendable {
+    /// Decode `url` into mono float PCM at `analysisSampleRate`. Throws on an
+    /// unreadable file or a file with zero audio frames.
+    func decode(_ url: URL) throws -> PCMBuffer
 }
+
+/// The sample rate the analysis pipeline runs at — `librosa.load`'s default
+/// (22050 Hz). Decoders resample to this; the pipeline assumes it.
+public let analysisSampleRate: Double = 22050

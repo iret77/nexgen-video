@@ -350,16 +350,68 @@ extension ToolExecutor {
         ])
     }
 
-    // MARK: - Phase runner (analysis lands with M8)
+    // MARK: - Phase runner
 
-    func runPhaseTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
+    /// Dispatch a pack-registered phase runner for the active pack. Planning phases have no code
+    /// runner (agent-driven) → the verbatim "no code runner" shape. When a runner exists (e.g.
+    /// musicvideo's `analysis`), it runs OFF the main actor — decode + DSP of a full song takes
+    /// seconds and ToolExecutor is @MainActor — then the persisted artifact is re-read into a
+    /// summary (bpm, beats, sections, duration, path) for the agent.
+    func runPhaseTool(_ editor: EditorViewModel, _ args: [String: Any]) async throws -> ToolResult {
         let phase = try args.requireString("phase")
-        // No pack phase runners are registered natively yet — mirror the Python "no code runner"
-        // shape (planning phases are agent-driven). Pack analysis runners land with M8.
-        return try jsonResult([
-            "phase": phase,
-            "runner": NSNull(),
-            "note": "no code runner registered; this phase is agent-driven",
-        ])
+        let root = try resolveDataRoot(args, editor: editor)
+
+        let registry = PackCatalog.registry(activePack: editor.activePluginName)
+        registry.registerAudioDecoder(AVFoundationAudioDecoder())
+        guard let runner = registry.phases[phase] else {
+            return try jsonResult([
+                "phase": phase,
+                "runner": NSNull(),
+                "note": "no code runner registered; this phase is agent-driven",
+            ])
+        }
+
+        // Run the heavy decode+DSP off the main actor. Keep `registry` alive across the await so
+        // the runner's weak decoder reference stays valid for the whole run. The error is
+        // stringified inside the task so nothing non-Sendable crosses the actor boundary.
+        let failure: String? = await Task.detached(priority: .userInitiated) {
+            do {
+                try runner(root)
+                return nil
+            } catch {
+                return String(describing: error)
+            }
+        }.value
+        withExtendedLifetime(registry) {}
+
+        if let failure {
+            return try jsonResult(["phase": phase, "error": "phase_failed", "detail": failure])
+        }
+        return try jsonResult(["phase": phase, "ok": true, "result": analysisSummary(dataRoot: root, phase: phase)])
+    }
+
+    /// Read back the persisted `analysis/<song>.json` into a compact summary for the agent. Falls
+    /// back to a minimal shape if the artifact can't be parsed (the write still succeeded).
+    private func analysisSummary(dataRoot: URL, phase: String) -> [String: Any] {
+        let anaDir = dataRoot.appendingPathComponent("analysis")
+        let entries = (try? FileManager.default.contentsOfDirectory(at: anaDir, includingPropertiesForKeys: nil)) ?? []
+        guard let artifact = entries
+            .filter({ $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix("_") })
+            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+            .first,
+            let data = try? Data(contentsOf: artifact),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return ["phase": phase, "artifact": NSNull()]
+        }
+        var summary: [String: Any] = ["artifact": artifact.path]
+        if let bpm = obj["bpm"] as? Double { summary["bpm"] = bpm }
+        if let duration = obj["duration_s"] as? Double { summary["duration_s"] = duration }
+        summary["beats"] = (obj["beats"] as? [Any])?.count ?? 0
+        summary["downbeats"] = (obj["downbeats"] as? [Any])?.count ?? 0
+        summary["sections"] = (obj["sections"] as? [Any])?.count ?? 0
+        if let source = obj["downbeat_source"] as? String { summary["downbeat_source"] = source }
+        if let project = obj["project"] as? String { summary["project"] = project }
+        return summary
     }
 }

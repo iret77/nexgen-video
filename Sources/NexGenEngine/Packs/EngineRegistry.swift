@@ -36,6 +36,12 @@ public final class EngineRegistry: @unchecked Sendable {
     public private(set) var projectDirs: [String] = []
     public private(set) var uiContracts: [String: UIContract.Entry] = [:]
 
+    /// The host's audio decoder, injected so a pack's phase runner can turn an
+    /// audio file into a `PCMBuffer` without the pure engine linking
+    /// AVFoundation. Nil until the app registers one — the analysis runner then
+    /// returns an actionable error instead of crashing.
+    public private(set) var audioDecoder: (any AudioPCMDecoding)?
+
     /// A phase runner is an opaque callable the engine invokes to run a named
     /// pipeline phase (e.g. `"analysis"`). Precise signatures firm up as more
     /// phases land; kept minimal here for the one phase M8 registers. Port of
@@ -65,6 +71,12 @@ public final class EngineRegistry: @unchecked Sendable {
 
     public func registerDurationPolicy(_ policy: DurationPolicy) {
         durationPolicy = policy
+    }
+
+    /// Inject the host's audio decoder (the app's AVFoundation implementation).
+    /// A pack's analysis phase runner resolves it from the registry at run time.
+    public func registerAudioDecoder(_ decoder: any AudioPCMDecoding) {
+        audioDecoder = decoder
     }
 
     /// Domain reference data (e.g. music genre/mood pattern library).
