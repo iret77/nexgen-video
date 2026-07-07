@@ -29,6 +29,11 @@ struct HomeView: View {
         .focusEffectDisabled()
         .task { await VisualModelLoader.shared.prepare() }
         .onAppear { changelog.checkForWhatsNew() }
+        .overlay(alignment: .bottomTrailing) {
+            VersionTag()
+                .padding(.trailing, AppTheme.Spacing.md)
+                .padding(.bottom, AppTheme.Spacing.smMd)
+        }
         .overlay {
             if !hasSeenWelcome {
                 WelcomeOverlay { withAnimation { hasSeenWelcome = true } }
@@ -140,6 +145,22 @@ private struct NewProjectCard: View {
         .padding(AppTheme.Spacing.xs)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         .onHover { isHovered = $0 }
+    }
+}
+
+/// Discreet corner version on the Home window. Hidden in bare `swift run` builds
+/// (no Info.plist version); the packaged app always carries one.
+private struct VersionTag: View {
+    private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    private static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+    var body: some View {
+        if let version = Self.version {
+            Text("Version \(version)")
+                .font(.system(size: AppTheme.FontSize.xxs))
+                .foregroundStyle(AppTheme.Text.mutedColor)
+                .help(Self.build.map { "Version \(version) (\($0))" } ?? "Version \(version)")
+        }
     }
 }
 
