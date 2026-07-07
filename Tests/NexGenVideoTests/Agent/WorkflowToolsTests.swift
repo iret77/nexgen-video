@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import NexGenVideo
 import NexGenEngine
+import MusicvideoPlugin
 
 /// M7: the production-pipeline (engine) tools driven through ToolExecutor against a temp scaffolded
 /// project. Each tool is passed an explicit `project_dir` (the harness editor has no open project),
@@ -24,6 +25,9 @@ struct WorkflowToolsTests {
     /// its `ngv.json` — the same file `ProjectPluginSettings` reads. Proves the pack resolves from the
     /// project HOME, not the data root.
     private func activatePack(_ pack: String, dataRoot: URL) throws {
+        // Packs load at runtime — register the loadable musicvideo pack (idempotent)
+        // the way the host's PluginLoader does, so the workflow tools resolve it.
+        PackCatalog.register(MusicvideoPack())
         let home = FrameInventory.projectHome(of: dataRoot)
         let data = try JSONSerialization.data(withJSONObject: ["activePlugin": pack], options: [])
         try data.write(to: home.appendingPathComponent("ngv.json"))

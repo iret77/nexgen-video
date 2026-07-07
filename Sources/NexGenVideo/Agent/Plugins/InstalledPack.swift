@@ -10,6 +10,8 @@ struct InstalledPack: Identifiable, Equatable {
     let name: String
     let displayName: String
     let tagline: String?
+    /// Minimum app version the pack declares (satisfied — it's loaded).
+    let minAppVersion: String
     /// Badge art inside the pack's own resource bundle (nil → gradient fallback).
     let badgeURL: URL?
 
@@ -19,6 +21,7 @@ struct InstalledPack: Identifiable, Equatable {
         self.name = pack.name
         self.displayName = pack.manifest.displayName
         self.tagline = pack.manifest.tagline.isEmpty ? nil : pack.manifest.tagline
+        self.minAppVersion = pack.manifest.minAppVersion
         self.badgeURL = pack.manifest.badgeURL
     }
 

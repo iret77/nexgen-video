@@ -1,4 +1,11 @@
 import Foundation
+import NexGenEngine
+
+/// The minimum NexGenVideo marketing version this pack build needs. This manifest
+/// (id/version/minAppVersion/displayName/tagline) mirrors `plugins/musicvideo.json`,
+/// which the release assembles into the `.ngvpack`'s Info.plist `NGVMinAppVersion` —
+/// the value the load gate checks BEFORE loading this code. Keep the two in lockstep.
+let musicvideoMinAppVersion = "0.1.0"
 
 /// The musicvideo pack — registers music-specific behavior into the generic
 /// engine. Port of `nexgen_pack_musicvideo/pack.py`.
@@ -42,6 +49,7 @@ public struct MusicvideoPack: Pack {
         id: "musicvideo",
         displayName: "Music Video Studio",
         tagline: "Structured AI music-video production — analysis → treatment → storyboard → shotlist → render, with engine-enforced consistency.",
+        minAppVersion: musicvideoMinAppVersion,
         badgeURL: PackKnowledge.badgeURL()
     )
 
@@ -79,4 +87,11 @@ public struct MusicvideoPack: Pack {
         }
         try? registry.registerUIContract(phase: "analysis", surface: "choice", taskClass: "classification")
     }
+}
+
+/// The `.ngvpack` entry point. `Info.plist` `NSPrincipalClass` = `MusicvideoPackEntry`;
+/// the host instantiates this after the load gate and calls `makePack()`.
+@objc(MusicvideoPackEntry)
+public final class MusicvideoPackEntry: PackEntry {
+    public override func makePack() -> PackBox { PackBox(MusicvideoPack()) }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Tempo-dependent shot-pacing guidance. Port of `nexgen_pack_musicvideo/tempo.py`.
 ///

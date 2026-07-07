@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
 /// M8c: the analysis phase runner plumbing — song discovery, decoder injection,
 /// DSP run, and canonical `analysis/<song>.json` persistence.
@@ -38,6 +39,9 @@ struct AnalysisRunnerPlumbingTests {
     }
 
     static func makeProject(name: String = "Runner Test") throws -> URL {
+        // Packs load at runtime now — register the loadable pack (idempotent) the
+        // way the host's PluginLoader does, so `PackCatalog` resolves "musicvideo".
+        PackCatalog.register(MusicvideoPack())
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("m8c-\(UUID().uuidString)")
         let dataRoot = try ProjectScaffold.initProject(
             home: home, name: name, mode: .beat,

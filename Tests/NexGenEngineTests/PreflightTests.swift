@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
 /// Port of `plugins/musicvideo/tests/`'s (absent) preflight coverage, derived
 /// directly from `nexgen_pack_musicvideo/analysis/preflight.py`'s rules:

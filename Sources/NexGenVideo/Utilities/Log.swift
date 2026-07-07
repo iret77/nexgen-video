@@ -17,6 +17,7 @@ enum Log {
     static let account    = CategoryLog("account")
     static let generation = CategoryLog("generation")
     static let project    = CategoryLog("project")
+    static let plugins    = CategoryLog("plugins")
     static let transcription = CategoryLog("transcription")
     static let search     = CategoryLog("search")
 

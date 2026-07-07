@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Director-Pattern schema (v0.12.0+). Port of
 /// `nexgen_pack_musicvideo/patterns_schema.py`.

@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Pre-analysis check: verifies, BEFORE the expensive (multi-minute) analysis
 /// run, that all input artifacts are present. Port of

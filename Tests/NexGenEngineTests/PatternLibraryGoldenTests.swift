@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
 /// Proves the 23 pattern YAMLs bundled under `Resources/MusicvideoPack/library/`
 /// (copied verbatim from `plugins/musicvideo/nexgen_pack_musicvideo/library/`)

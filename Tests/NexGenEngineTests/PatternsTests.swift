@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
 /// Port of `plugins/musicvideo/tests/test_patterns.py`, plus targeted
 /// coverage for `PatternsSimilarity` and `PatternsMoodInference` (ported

@@ -158,12 +158,24 @@ public struct PackManifest: Sendable, Equatable {
     public let id: String
     public let displayName: String
     public let tagline: String
+    /// Minimum NexGenVideo marketing version (`CFBundleShortVersionString`) this
+    /// pack needs. The loadable-pack gate compares the `.ngvpack`'s
+    /// `NGVMinAppVersion` against the running app BEFORE loading any code; this
+    /// mirror on the in-code manifest lets the picker show the requirement.
+    public let minAppVersion: String
     public let badgeURL: URL?
 
-    public init(id: String, displayName: String, tagline: String, badgeURL: URL? = nil) {
+    public init(
+        id: String,
+        displayName: String,
+        tagline: String,
+        minAppVersion: String = "0.0.0",
+        badgeURL: URL? = nil
+    ) {
         self.id = id
         self.displayName = displayName
         self.tagline = tagline
+        self.minAppVersion = minAppVersion
         self.badgeURL = badgeURL
     }
 }

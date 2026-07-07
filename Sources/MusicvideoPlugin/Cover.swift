@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Cover manifest per format (`cover/<format>.yaml`). Port of
 /// `nexgen_pack_musicvideo/cover.py`.

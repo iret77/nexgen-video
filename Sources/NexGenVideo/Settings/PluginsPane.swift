@@ -15,7 +15,7 @@ struct PluginsPane: View {
                 Text("Format Packs")
                     .font(.system(size: AppTheme.FontSize.md, weight: .medium))
                     .foregroundStyle(AppTheme.Text.primaryColor)
-                Text("Built-in format packs. Activate one per project in Project settings.")
+                Text("Installed format packs. Browse and install more from a project's Format Plugin picker; activate one per project in Project settings.")
                     .font(.system(size: AppTheme.FontSize.sm))
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
                     .fixedSize(horizontal: false, vertical: true)
@@ -23,7 +23,7 @@ struct PluginsPane: View {
 
             if packs.isEmpty {
                 row {
-                    Text("No format packs available")
+                    Text("No format packs installed yet")
                         .font(.system(size: AppTheme.FontSize.sm))
                         .foregroundStyle(AppTheme.Text.mutedColor)
                     Spacer()

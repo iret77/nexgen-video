@@ -103,8 +103,9 @@ public enum FrameInventory {
     }
 
     /// Port of `paths.project_name`: the `project` field from `project.yaml`,
-    /// or nil if unreadable.
-    static func projectName(of dataRoot: URL) -> String? {
+    /// or nil if unreadable. Public so an out-of-module format pack can name the
+    /// project for its artifacts.
+    public static func projectName(of dataRoot: URL) -> String? {
         let marker = dataRoot.appendingPathComponent(DataRootResolver.projectMarker)
         guard let text = try? String(contentsOf: marker, encoding: .utf8),
               let node = try? Yams.compose(yaml: text),
@@ -118,7 +119,8 @@ public enum FrameInventory {
     }
 
     /// `url.relative_to(home)` equivalent for paths known to be inside `home`.
-    static func relativePath(of url: URL, to home: URL) -> String {
+    /// Public so an out-of-module format pack can record project-relative paths.
+    public static func relativePath(of url: URL, to home: URL) -> String {
         let homePath = home.standardizedFileURL.path
         let fullPath = url.standardizedFileURL.path
         if fullPath.hasPrefix(homePath) {

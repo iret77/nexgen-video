@@ -36,6 +36,9 @@ on:
       - "scripts/bundle.sh"
       - "scripts/NexGenVideo.entitlements"
       - "scripts/update_appcast.py"
+      - "scripts/assemble_ngvpack.sh"
+      - "scripts/gen_plugins_json.py"
+      - "plugins/**"
       - ".github/workflows/release.yml"
       - "Sources/NexGenVideo/Resources/Info.plist"
 
@@ -133,9 +136,18 @@ jobs:
         run: |
           set -euo pipefail
           codesign --verify --strict --verbose=2 .build/NexGenVideo.app
+          codesign --verify --strict --verbose=2 .build/NexGenVideo.app/Contents/Frameworks/libNexGenEngine.dylib
           xcrun stapler validate .build/NexGenVideo.app
           xcrun stapler validate .build/NexGenVideo.dmg
           spctl -a -vvv -t install .build/NexGenVideo.dmg || true
+
+      - name: Assemble format packs (.ngvpack + catalog entry)
+        run: |
+          set -euo pipefail
+          # Developer ID when the signing identity is present (it is on same-repo
+          # runs); the assemble script falls back to ad-hoc otherwise.
+          scripts/assemble_ngvpack.sh plugins/musicvideo.json release .build/plugins "${SIGN_IDENTITY:-}"
+          ls -la .build/plugins
 
       - name: EdDSA-sign DMG for Sparkle
         if: ${{ env.SPARKLE_PRIV_DER != '' }}
@@ -154,11 +166,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          BASE="${{ github.server_url }}/${{ github.repository }}/releases/download/dev-latest"
+          python3 scripts/gen_plugins_json.py .build/plugins "$BASE" .build/plugins/plugins.json
           gh release delete dev-latest --cleanup-tag --yes 2>/dev/null || true
-          gh release create dev-latest .build/NexGenVideo.dmg \
+          gh release create dev-latest \
+            .build/NexGenVideo.dmg \
+            .build/plugins/*.ngvpack.zip \
+            .build/plugins/plugins.json \
             --prerelease \
             --title "NexGenVideo — latest dev build" \
-            --notes "Signed with our Developer ID (high5 ventures GmbH) and notarized by Apple — open the DMG and drag NexGenVideo to Applications. No Gatekeeper workaround needed. Auto-built from \`${{ github.sha }}\`."
+            --notes "Signed with our Developer ID (high5 ventures GmbH) and notarized by Apple — open the DMG and drag NexGenVideo to Applications. No Gatekeeper workaround needed. Format packs (.ngvpack) and their plugins.json catalog are attached — the app fetches them on demand. Auto-built from \`${{ github.sha }}\`."
 
       - name: Publish GitHub release + appcast
         if: ${{ env.REL_DRY == 'false' }}
@@ -177,7 +194,12 @@ jobs:
             git commit -m "release: appcast for $TAG"
           fi
           git push origin "HEAD:${{ github.ref_name }}"
-          gh release create "$TAG" .build/NexGenVideo.dmg \
+          BASE="${{ github.server_url }}/${{ github.repository }}/releases/download/$TAG"
+          python3 scripts/gen_plugins_json.py .build/plugins "$BASE" .build/plugins/plugins.json
+          gh release create "$TAG" \
+            .build/NexGenVideo.dmg \
+            .build/plugins/*.ngvpack.zip \
+            .build/plugins/plugins.json \
             --title "NexGenVideo $TAG" \
             --notes "NexGenVideo $REL_VERSION (build ${BUILD_NUMBER})." \
             --target "$(git rev-parse HEAD)"

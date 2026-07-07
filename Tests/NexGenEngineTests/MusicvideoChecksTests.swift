@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NexGenEngine
+@testable import MusicvideoPlugin
 
 /// Port of `plugins/musicvideo/tests/test_checks.py`.
 @Suite("Musicvideo Checks", .serialized)

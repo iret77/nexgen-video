@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Pattern-similarity matrix (v0.13.0). Port of
 /// `nexgen_pack_musicvideo/patterns_similarity.py`.

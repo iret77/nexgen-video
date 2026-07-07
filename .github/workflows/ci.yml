@@ -84,6 +84,15 @@ jobs:
       - name: Bundle (debug, ad-hoc signed)
         run: scripts/bundle.sh debug
 
+      - name: Assemble format pack (.ngvpack, ad-hoc) + catalog
+        run: |
+          set -euo pipefail
+          # Secret-free validation of the whole pack pipeline: assemble the
+          # ad-hoc-signed .ngvpack, then generate the plugins.json the app decodes.
+          scripts/assemble_ngvpack.sh plugins/musicvideo.json debug .build/plugins
+          python3 scripts/gen_plugins_json.py .build/plugins "https://example.com/dev-latest" .build/plugins/plugins.json
+          cat .build/plugins/plugins.json
+
       - name: Zip .app
         run: ditto -c -k --keepParent .build/NexGenVideo.app .build/NexGenVideo.zip
 
