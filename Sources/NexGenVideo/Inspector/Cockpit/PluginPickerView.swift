@@ -1,82 +1,178 @@
 import SwiftUI
 
-/// The format-plugin gallery, presented as its own sheet — the ONLY browse/activate surface.
-/// The Project pane shows just the project's state (active pack or "choose"); this window shows
-/// what's installed. Only packs that actually exist appear here — planned packs stay invisible
-/// until they ship (their badge masters wait in `docs/design/plugin-badges/`).
+/// The format-plugin gallery — the browse/install/activate surface. Packs ship
+/// as signed `.ngvpack` bundles OUTSIDE the app: this view fetches the catalog,
+/// offers Install/Update, and activates installed packs. Three states per pack —
+/// available (Install), installed (Activate/Active, Update when newer), and
+/// incompatible (a calm reason line). A catalog fetch failure is offline, not an
+/// error: installed packs still show and stay usable.
 struct PluginPickerView: View {
     let editor: EditorViewModel
     @Environment(\.dismiss) private var dismiss
-
-    private let packs = InstalledPack.all
+    @State private var manager = PluginManager()
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            HStack {
-                Text("Format Plugins")
-                    .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
-                    .foregroundStyle(AppTheme.Text.primaryColor)
-                Spacer()
-                Button("Close") { dismiss() }
-                    .buttonStyle(.capsule(.secondary, size: .regular))
-                    .controlSize(.small)
-                    .keyboardShortcut(.cancelAction)
+            header
+            subtitle
+            if let error = manager.lastError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: AppTheme.FontSize.xs))
+                    .foregroundStyle(AppTheme.Status.errorColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text("One plugin per project — it drives the production workflow. Activating installs nothing and can be undone any time.")
-                .font(.system(size: AppTheme.FontSize.xs))
-                .foregroundStyle(AppTheme.Text.tertiaryColor)
-                .fixedSize(horizontal: false, vertical: true)
-            ScrollView {
-                VStack(spacing: AppTheme.Spacing.lg) {
-                    ForEach(packs) { pack in
-                        packRow(pack)
-                    }
-                }
-                .padding(.bottom, AppTheme.Spacing.md)
-            }
+            content
         }
         .padding(AppTheme.Spacing.lg)
         .frame(width: AppTheme.ComponentSize.pluginPickerWidth,
                height: AppTheme.ComponentSize.pluginPickerHeight)
+        .task { await manager.refresh() }
     }
 
-    private func packRow(_ pack: InstalledPack) -> some View {
-        let isActive = editor.activePluginName == pack.name
-        return VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-            PluginBadgeView(plugin: pack)
+    private var header: some View {
+        HStack {
+            Text("Format Plugins")
+                .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                .foregroundStyle(AppTheme.Text.primaryColor)
+            if manager.catalogState == .loading {
+                ProgressView().controlSize(.small).padding(.leading, AppTheme.Spacing.xs)
+            }
+            Spacer()
+            Button("Close") { dismiss() }
+                .buttonStyle(.capsule(.secondary, size: .regular))
+                .controlSize(.small)
+                .keyboardShortcut(.cancelAction)
+        }
+    }
+
+    @ViewBuilder private var subtitle: some View {
+        let offline = manager.catalogState == .offline
+        Text(offline
+             ? "Offline — showing installed packs. One plugin per project; activating binds the workflow and can be undone any time."
+             : "One plugin per project — it drives the production workflow. Installing downloads the pack; activating binds it and can be undone any time.")
+            .font(.system(size: AppTheme.FontSize.xs))
+            .foregroundStyle(AppTheme.Text.tertiaryColor)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder private var content: some View {
+        let rows = manager.rows(activePluginName: editor.activePluginName)
+        if rows.isEmpty {
+            VStack(spacing: AppTheme.Spacing.sm) {
+                Spacer()
+                Text(manager.catalogState == .loading ? "Loading the plugin library…" : "No plugins available yet.")
+                    .font(.system(size: AppTheme.FontSize.sm))
+                    .foregroundStyle(AppTheme.Text.mutedColor)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        } else {
+            ScrollView {
+                VStack(spacing: AppTheme.Spacing.lg) {
+                    ForEach(rows) { row in packRow(row) }
+                }
+                .padding(.bottom, AppTheme.Spacing.md)
+            }
+        }
+    }
+
+    private func packRow(_ row: PluginRow) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            PluginBadgeView(displayName: row.displayName, badgeURL: row.badgeURL)
             HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                if let tagline = pack.tagline {
-                    Text(tagline)
-                        .font(.system(size: AppTheme.FontSize.xs))
-                        .foregroundStyle(AppTheme.Text.tertiaryColor)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+                    if let tagline = row.tagline {
+                        Text(tagline)
+                            .font(.system(size: AppTheme.FontSize.xs))
+                            .foregroundStyle(AppTheme.Text.tertiaryColor)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    reasonLine(row.status)
                 }
                 Spacer(minLength: AppTheme.Spacing.sm)
-                if isActive {
-                    Label("Active", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
-                        .foregroundStyle(AppTheme.Accent.primary)
-                } else {
-                    Button("Activate") {
-                        withAnimation { editor.setActivePlugin(pack.name) }
-                        dismiss()
-                    }
+                actions(row)
+            }
+        }
+    }
+
+    @ViewBuilder private func reasonLine(_ status: PluginRow.Status) -> some View {
+        switch status {
+        case .incompatible(let reason, _), .unavailable(let reason):
+            Label(reason, systemImage: "exclamationmark.triangle")
+                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .foregroundStyle(AppTheme.Status.warningColor)
+                .fixedSize(horizontal: false, vertical: true)
+        default:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private func actions(_ row: PluginRow) -> some View {
+        if manager.isBusy(row.id) {
+            ProgressView().controlSize(.small)
+        } else {
+            switch row.status {
+            case .available(let entry):
+                Button("Install") { Task { await manager.install(entry) } }
                     .buttonStyle(.capsule(.prominent, size: .regular))
                     .controlSize(.small)
+
+            case .installed(let active, let update):
+                VStack(alignment: .trailing, spacing: AppTheme.Spacing.xs) {
+                    if active {
+                        Label("Active", systemImage: "checkmark.circle.fill")
+                            .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                            .foregroundStyle(AppTheme.Accent.primary)
+                    } else {
+                        Button("Activate") {
+                            withAnimation { editor.setActivePlugin(row.id) }
+                            dismiss()
+                        }
+                        .buttonStyle(.capsule(.prominent, size: .regular))
+                        .controlSize(.small)
+                    }
+                    if let update {
+                        Button("Update") { Task { await manager.install(update) } }
+                            .buttonStyle(.capsule(.secondary, size: .regular))
+                            .controlSize(.small)
+                    }
                 }
+
+            case .incompatible(_, let reinstall):
+                if let reinstall {
+                    Button("Update") { Task { await manager.install(reinstall) } }
+                        .buttonStyle(.capsule(.secondary, size: .regular))
+                        .controlSize(.small)
+                }
+
+            case .unavailable:
+                EmptyView()
             }
         }
     }
 }
 
-/// A pack's badge at its native aspect — the owner's uniform badge art when bundled, otherwise a
-/// gradient carrying the display name so packs without art still render a proper card.
+/// A pack's badge at its native aspect — the owner's uniform badge art when
+/// available, otherwise a gradient carrying the display name so packs without
+/// loaded art still render a proper card.
 struct PluginBadgeView: View {
-    let plugin: InstalledPack
+    let displayName: String
+    let badgeURL: URL?
+
+    /// Convenience for an installed/loaded pack.
+    init(plugin: InstalledPack) {
+        self.displayName = plugin.displayName
+        self.badgeURL = plugin.badgeURL
+    }
+
+    init(displayName: String, badgeURL: URL?) {
+        self.displayName = displayName
+        self.badgeURL = badgeURL
+    }
 
     var body: some View {
         Group {
-            if let image = plugin.headerImage() {
+            if let url = badgeURL, let image = NSImage(contentsOf: url) {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -84,7 +180,7 @@ struct PluginBadgeView: View {
                 AppTheme.aiGradient
                     .aspectRatio(AppTheme.ComponentSize.pluginBadgeAspect, contentMode: .fit)
                     .overlay(alignment: .bottomLeading) {
-                        Text(plugin.displayName)
+                        Text(displayName)
                             .font(.system(size: AppTheme.FontSize.smMd, weight: .semibold))
                             .foregroundStyle(.white)
                             .padding(AppTheme.Spacing.md)

@@ -113,12 +113,38 @@ struct ProjectSettingsView: View {
                 .foregroundStyle(AppTheme.Text.mutedColor)
             if let active = InstalledPack.named(editor.activePluginName) {
                 activePluginCard(active)
+            } else if let missing = editor.activePluginName {
+                missingPluginRow(name: missing)
             } else {
                 noPluginRow
             }
         }
         .sheet(isPresented: $showsPluginPicker) {
             PluginPickerView(editor: editor)
+        }
+    }
+
+    /// The project names a format plugin that isn't installed (or failed the load
+    /// gate) — don't pretend it's active; point at the library to install it.
+    private func missingPluginRow(name: String) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+            Label("The \"\(name)\" plugin isn't installed", systemImage: "exclamationmark.triangle")
+                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .foregroundStyle(AppTheme.Status.warningColor)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("This project was built with it. Install it to run the specialized workflow, or remove it to continue generically.")
+                .font(.system(size: AppTheme.FontSize.xs))
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .fixedSize(horizontal: false, vertical: true)
+            WrapLayout(spacing: AppTheme.Spacing.sm) {
+                Button("Open Plugins…") { showsPluginPicker = true }
+                    .buttonStyle(.capsule(.prominent, size: .regular))
+                    .controlSize(.small)
+                Button("Remove") { withAnimation { editor.setActivePlugin(nil) } }
+                    .buttonStyle(.capsule(.secondary, size: .regular))
+                    .controlSize(.small)
+                    .help("Back to the generic workflow — pipeline data stays in the project.")
+            }
         }
     }
 

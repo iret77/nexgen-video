@@ -84,8 +84,14 @@ enum PluginGate {
         guard !info.principalClass.isEmpty else {
             return .malformedMetadata("no entry point declared")
         }
-        guard let minVersion = SemanticVersion(info.minAppVersion) else {
-            return .malformedMetadata("invalid minimum app version \"\(info.minAppVersion)\"")
+        return versionCheck(minAppVersion: info.minAppVersion, appVersion: appVersion)
+    }
+
+    /// The version axis alone — reused by the picker to decide whether a catalog
+    /// entry (which carries no principal class yet) is installable on this build.
+    static func versionCheck(minAppVersion: String, appVersion: String?) -> PluginIncompatibility? {
+        guard let minVersion = SemanticVersion(minAppVersion) else {
+            return .malformedMetadata("invalid minimum app version \"\(minAppVersion)\"")
         }
         // Dev / CI builds without a marketing version are always compatible
         // (logged by the caller) — a bare `swift run` still loads local packs.
@@ -93,7 +99,7 @@ enum PluginGate {
             return nil
         }
         guard app >= minVersion else {
-            return .requiresAppVersion(info.minAppVersion)
+            return .requiresAppVersion(minAppVersion)
         }
         return nil
     }
