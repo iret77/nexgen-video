@@ -60,9 +60,9 @@ actor MCPProviderClient {
     /// Call a provider tool with a pre-compiled argument set and return its textual contents
     /// (result URLs / payload the host then imports onto the timeline). Arguments are already
     /// gate-compiled by the caller.
-    func callTool(name: String, arguments: [String: Value]) async throws -> [String] {
+    func callTool(name: String, arguments: [String: String]) async throws -> [String] {
         let client = try await connectedClient()
-        let result = try await client.callTool(name: name, arguments: arguments)
+        let result = try await client.callTool(name: name, arguments: arguments.mapValues { Value.string($0) })
         if result.isError == true {
             throw ClientError.toolFailed(Self.joinedText(result.content))
         }

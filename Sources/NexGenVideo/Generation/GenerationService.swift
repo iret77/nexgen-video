@@ -309,51 +309,60 @@ final class GenerationService {
 
         let endpoint = genInput.model
 
-        if MarbleModelRegistry.isMarbleModel(endpoint) {
+        // LLM → NGV → Provider: the resolver decides which provider + transport runs this model
+        // (activated ∩ offers ∩ cheapest). Dispatch follows the resolved BINDING, not the model id —
+        // so a provider reachable only via its MCP subscription actually runs over MCP (not a keyless
+        // REST call), and the usable-only contract (`canRun`) matches what executes. When nothing is
+        // activated we fall back to the nominal provider over `.api`, so the existing "add a key"
+        // errors still fire.
+        let binding = ProviderResolver.resolve(
+            bindings: ProviderManifest.bindings(forModelId: endpoint),
+            activation: .current(),
+            effectiveCost: ProviderManifest.effectiveCost)
+        let provider = binding?.provider ?? ProviderManifest.nominalProvider(forModelId: endpoint)
+
+        if binding?.transport == .mcp {
+            await runMCPJob(
+                provider: provider, params: params,
+                placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure)
+            return
+        }
+
+        switch provider {
+        case .marble:
             guard case .image(let p) = params, let marbleModel = MarbleModelRegistry.model(for: endpoint) else {
                 return failJob(placeholders, "Unsupported Marble request for model: \(endpoint)", onFailure)
             }
             await runMarbleJob(
-                model: marbleModel,
-                prompt: p.prompt,
-                referencePath: p.imageURLs.first,
-                name: genInput.prompt,
-                placeholders: placeholders,
-                editor: editor,
-                onComplete: onComplete,
-                onFailure: onFailure
-            )
+                model: marbleModel, prompt: p.prompt, referencePath: p.imageURLs.first,
+                name: genInput.prompt, placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure)
             return
-        }
-
-        if HiggsfieldModelRegistry.isHiggsfieldModel(endpoint) {
+        case .higgsfield:
             await runHiggsfieldJob(
                 endpoint: endpoint, params: params,
                 placeholders: placeholders, editor: editor,
-                onComplete: onComplete, onFailure: onFailure
-            )
+                onComplete: onComplete, onFailure: onFailure)
             return
-        }
-
-        if RunwayModelRegistry.isRunwayModel(endpoint) {
+        case .runway:
             await runRunwayJob(
                 endpoint: endpoint, params: params,
                 placeholders: placeholders, editor: editor,
-                onComplete: onComplete, onFailure: onFailure
-            )
+                onComplete: onComplete, onFailure: onFailure)
             return
-        }
-
-        // ElevenLabs-family models run directly against the user's ElevenLabs key when present
-        // (their account, no fal middleman); without one they fall through to fal's hosted endpoints.
-        if endpoint.hasPrefix("fal-ai/elevenlabs"), ProviderKeychain.load(.elevenlabs) != nil,
-           case .audio(let audioParams) = params {
-            await runElevenLabsJob(
-                endpoint: endpoint, params: audioParams,
-                placeholders: placeholders, editor: editor,
-                onComplete: onComplete, onFailure: onFailure
-            )
-            return
+        case .elevenlabs:
+            // Direct to the user's ElevenLabs key (their account, no fal middleman); a non-audio
+            // request falls through to fal's hosted endpoints below.
+            if case .audio(let audioParams) = params {
+                await runElevenLabsJob(
+                    endpoint: endpoint, params: audioParams,
+                    placeholders: placeholders, editor: editor,
+                    onComplete: onComplete, onFailure: onFailure)
+                return
+            }
+        case .fal:
+            break
         }
 
         let falModel = FalModelRegistry.model(for: endpoint)
@@ -440,6 +449,85 @@ final class GenerationService {
         } catch {
             failJob(placeholders, error.localizedDescription, onFailure)
         }
+    }
+
+    /// Run a generation over a provider's MCP transport — NGV as MCP client, behind the gate. It
+    /// discovers the provider's tools (`tools/list`), matches one to the request's modality, calls it
+    /// with the gate-compiled prompt, and imports the returned media URL(s) through the same finalize
+    /// path as the REST providers. Tool match + argument shape are discovery-driven/best-effort; a
+    /// provider whose MCP exposes no matching tool fails with guidance, not a keyless REST attempt.
+    private func runMCPJob(
+        provider: GenerationProvider,
+        params: BackendGenerationParams,
+        placeholders: [MediaAsset],
+        editor: EditorViewModel,
+        onComplete: (@MainActor (MediaAsset) -> Void)?,
+        onFailure: (@MainActor () -> Void)?
+    ) async {
+        guard let client = ProviderMCP.client(for: provider) else {
+            return failJob(placeholders, "No MCP endpoint configured for \(provider.displayName).", onFailure)
+        }
+        do {
+            let tools = try await client.discoverTools()
+            guard let tool = Self.matchMCPTool(tools, for: params) else {
+                await client.disconnect()
+                return failJob(placeholders,
+                               "\(provider.displayName)'s MCP exposes no tool for this request — check the provider's MCP or add its API key.",
+                               onFailure)
+            }
+            let texts = try await client.callTool(name: tool.name, arguments: Self.mcpArguments(for: params))
+            await client.disconnect()
+            let urls = texts.flatMap(Self.extractURLs)
+            guard !urls.isEmpty else {
+                return failJob(placeholders, "\(provider.displayName)'s MCP returned no media URL.", onFailure)
+            }
+            let job = BackendGenerationJob(
+                _id: UUID().uuidString, status: .succeeded, resultUrls: urls,
+                errorMessage: nil, costCredits: nil, completedAt: nil)
+            await finalizeSuccess(
+                job: job, placeholders: placeholders, editor: editor,
+                onComplete: onComplete, onFailure: onFailure)
+        } catch {
+            await client.disconnect()
+            failJob(placeholders, "MCP call to \(provider.displayName) failed: \(error.localizedDescription)", onFailure)
+        }
+    }
+
+    /// Best-effort match of a discovered MCP tool to the request modality by name/description keywords
+    /// — discovery-driven, no hardcoded per-provider table. A single-tool server uses that one tool.
+    private static func matchMCPTool(
+        _ tools: [MCPProviderClient.DiscoveredTool], for params: BackendGenerationParams
+    ) -> MCPProviderClient.DiscoveredTool? {
+        let wanted: [String]
+        switch params {
+        case .video: wanted = ["video", "animate", "motion", "i2v", "t2v"]
+        case .image: wanted = ["image", "picture", "txt2img", "img"]
+        case .audio: wanted = ["audio", "music", "sound", "speech", "voice", "tts"]
+        case .upscale: wanted = ["upscale", "enhance", "super"]
+        }
+        if let hit = tools.first(where: { t in
+            let hay = (t.name + " " + (t.description ?? "")).lowercased()
+            return wanted.contains { hay.contains($0) }
+        }) { return hit }
+        return tools.count == 1 ? tools.first : nil
+    }
+
+    /// Arguments for the MCP tool call. The prompt is already gate-compiled upstream; pass it as the
+    /// common `prompt` field most generation MCPs accept. Provider-specific fields are field-tuned.
+    private static func mcpArguments(for params: BackendGenerationParams) -> [String: String] {
+        switch params {
+        case .video(let p): return ["prompt": p.prompt]
+        case .image(let p): return ["prompt": p.prompt]
+        case .audio(let p): return ["prompt": p.prompt]
+        case .upscale: return [:]
+        }
+    }
+
+    /// Pull http(s) URLs out of an MCP tool's text/JSON result content.
+    private static func extractURLs(_ text: String) -> [String] {
+        guard let re = try? NSRegularExpression(pattern: "https?://[^\\s\"'\\\\)]+") else { return [] }
+        let ns = text as NSString
+        return re.matches(in: text, range: NSRange(location: 0, length: ns.length)).map { ns.substring(with: $0.range) }
     }
 
     private func runHiggsfieldJob(
