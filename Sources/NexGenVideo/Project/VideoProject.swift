@@ -256,13 +256,6 @@ final class VideoProject: NSDocument {
         set { super.displayName = newValue }
     }
 
-    /// The visible titlebar is hidden (custom chrome), but the OS window title still feeds the window
-    /// switcher, Mission Control, and screenshots — brand it. AppKit refreshes this whenever the
-    /// document name changes. The em dash is fine in the OS title string (not visible-row copy).
-    override func windowTitle(forDocumentDisplayName displayName: String) -> String {
-        "NexGenVideo — \(displayName)"
-    }
-
     override var fileURL: URL? {
         get { super.fileURL }
         set {
