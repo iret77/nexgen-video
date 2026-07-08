@@ -17,6 +17,9 @@ struct PluginRow: Identifiable {
         /// Installed and loaded → Activate/Active; `update` set when the catalog
         /// offers a newer, installable version.
         case installed(active: Bool, update: PluginCatalog.Entry?)
+        /// A newer build was installed to disk, but the previously-loaded code is
+        /// still live this session → the pack needs a relaunch to take effect.
+        case updatePendingRestart
         /// Installed but blocked by the gate → show `reason`; `reinstall` set when
         /// the catalog offers a build that would clear the gate.
         case incompatible(reason: String, reinstall: PluginCatalog.Entry?)
@@ -70,6 +73,15 @@ final class PluginManager {
         }
     }
 
+    /// A catalog-supplied badge is REMOTE data — only honor it over https, never a `file://`
+    /// (which would turn a compromised catalog into a local file read in the picker). An
+    /// installed pack's OWN badge art is a separate, trusted local file and is not routed here.
+    /// Pure + testable.
+    nonisolated static func catalogBadge(_ url: URL?) -> URL? {
+        guard let url, PluginInstaller.isHTTPS(url) else { return nil }
+        return url
+    }
+
     /// The merged, sorted rows the picker renders.
     func rows(activePluginName: String?) -> [PluginRow] {
         let catalogByID = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -79,13 +91,20 @@ final class PluginManager {
         for record in installed {
             seen.insert(record.id)
             let entry = catalogByID[record.id]
-            let badge = InstalledPack.named(record.id)?.badgeURL
+            // Loaded packs carry their local badge; fall back to the catalog badge (https-only)
+            // so a not-yet-loaded (incompatible) row still shows real art.
+            let badge = InstalledPack.named(record.id)?.badgeURL ?? Self.catalogBadge(entry?.badge)
             if let reason = record.incompatibility {
                 let reinstall = entry.flatMap { installableEntry($0) }
                 rows.append(PluginRow(
                     id: record.id, displayName: record.displayName,
                     tagline: record.tagline.isEmpty ? nil : record.tagline, badgeURL: badge,
                     status: .incompatible(reason: reason.reason, reinstall: reinstall)))
+            } else if record.isUpdatePendingRestart {
+                rows.append(PluginRow(
+                    id: record.id, displayName: record.displayName,
+                    tagline: record.tagline.isEmpty ? nil : record.tagline, badgeURL: badge,
+                    status: .updatePendingRestart))
             } else {
                 let update = entry.flatMap { newer($0, thanInstalled: record.version) }
                 rows.append(PluginRow(
@@ -99,12 +118,12 @@ final class PluginManager {
             if let blocked = PluginGate.versionCheck(minAppVersion: entry.minAppVersion, appVersion: appVersion) {
                 rows.append(PluginRow(
                     id: entry.id, displayName: entry.displayName,
-                    tagline: entry.tagline.isEmpty ? nil : entry.tagline, badgeURL: nil,
+                    tagline: entry.tagline.isEmpty ? nil : entry.tagline, badgeURL: Self.catalogBadge(entry.badge),
                     status: .unavailable(reason: blocked.reason)))
             } else {
                 rows.append(PluginRow(
                     id: entry.id, displayName: entry.displayName,
-                    tagline: entry.tagline.isEmpty ? nil : entry.tagline, badgeURL: nil,
+                    tagline: entry.tagline.isEmpty ? nil : entry.tagline, badgeURL: Self.catalogBadge(entry.badge),
                     status: .available(entry)))
             }
         }
