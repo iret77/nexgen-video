@@ -6,6 +6,7 @@ struct ProvidersPane: View {
     @State private var maskedKey: [String: String] = [:]
     @State private var draft: [String: String] = [:]
     @State private var mcpDraft: [String: String] = [:]
+    @State private var mcpTokenDraft: [String: String] = [:]
     @FocusState private var focusedProvider: String?
 
     @AppStorage(PromptCompiler.rawPromptsDefaultsKey) private var allowRawPrompts = false
@@ -67,27 +68,39 @@ struct ProvidersPane: View {
     /// server (subscription/OAuth) instead of the pay-per-call API. A provider may have both — NGV
     /// picks the cheaper per call. The agent never calls it raw; NGV drives it behind the gate.
     private func mcpField(_ provider: GenerationProvider) -> some View {
-        HStack(spacing: AppTheme.Spacing.sm) {
-            TextField("MCP server URL (optional — use the provider's subscription instead of the API)",
-                      text: mcpBinding(provider))
-                .textFieldStyle(.plain)
-                .font(.system(size: AppTheme.FontSize.sm, design: .monospaced))
-                .foregroundStyle(AppTheme.Text.primaryColor)
-                .onSubmit { saveMCP(provider) }
-                .padding(.horizontal, AppTheme.Spacing.md)
-                .padding(.vertical, AppTheme.Spacing.smMd)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                        .fill(Color.black.opacity(AppTheme.Opacity.muted))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                        .strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.thin)
-                )
-            if !(mcpDraft[provider.id] ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
-                Button("Save") { saveMCP(provider) }
-                    .buttonStyle(.capsule(.secondary, size: .regular))
-                    .controlSize(.large)
+        let hasEndpoint = !(mcpDraft[provider.id] ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+        return VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                TextField("MCP server URL (optional — use the provider's subscription instead of the API)",
+                          text: mcpBinding(provider))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: AppTheme.FontSize.sm, design: .monospaced))
+                    .foregroundStyle(AppTheme.Text.primaryColor)
+                    .onSubmit { saveMCP(provider) }
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.vertical, AppTheme.Spacing.smMd)
+                    .background(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).fill(Color.black.opacity(AppTheme.Opacity.muted)))
+                    .overlay(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.thin))
+                if hasEndpoint || !(mcpTokenDraft[provider.id] ?? "").isEmpty {
+                    Button("Save") { saveMCP(provider) }
+                        .buttonStyle(.capsule(.secondary, size: .regular))
+                        .controlSize(.large)
+                }
+            }
+            // The subscription/OAuth bearer token NGV sends when driving this provider's MCP —
+            // this is what makes MCP a real activated transport (not just an endpoint). Kept in the
+            // Keychain; only shown once an endpoint is set.
+            if hasEndpoint {
+                SecureField(ProviderMCP.token(provider) != nil ? "Bearer token set — paste to replace" : "MCP bearer token / OAuth (optional)",
+                            text: mcpTokenBinding(provider))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: AppTheme.FontSize.sm, design: .monospaced))
+                    .foregroundStyle(AppTheme.Text.primaryColor)
+                    .onSubmit { saveMCP(provider) }
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.vertical, AppTheme.Spacing.smMd)
+                    .background(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).fill(Color.black.opacity(AppTheme.Opacity.muted)))
+                    .overlay(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.thin))
             }
         }
     }
@@ -96,8 +109,18 @@ struct ProvidersPane: View {
         Binding(get: { mcpDraft[provider.id] ?? "" }, set: { mcpDraft[provider.id] = $0 })
     }
 
+    private func mcpTokenBinding(_ provider: GenerationProvider) -> Binding<String> {
+        Binding(get: { mcpTokenDraft[provider.id] ?? "" }, set: { mcpTokenDraft[provider.id] = $0 })
+    }
+
     private func saveMCP(_ provider: GenerationProvider) {
         ProviderMCP.setEndpoint(mcpDraft[provider.id], for: provider)
+        // Only overwrite the stored token when the user typed a new one (endpoint-only saves keep it).
+        let token = (mcpTokenDraft[provider.id] ?? "").trimmingCharacters(in: .whitespaces)
+        if !token.isEmpty {
+            ProviderMCP.setToken(token, for: provider)
+            mcpTokenDraft[provider.id] = ""
+        }
         refresh()
     }
 
