@@ -441,7 +441,7 @@ extension ToolExecutor {
         let prefs = ModelPreferences.shared
         out = out.filter { info in
             guard let id = info["id"] as? String else { return false }
-            return prefs.isEnabled(id) && GenerationProvider.servicing(modelId: id).hasKey
+            return prefs.isEnabled(id) && GenerationProvider.canRun(modelId: id)
         }
         // Attach each model's curated card (strengths/weaknesses/best-for/rank) so the agent
         // recommends from the CURRENT truth NGV feeds it, not stale training knowledge. Cards are

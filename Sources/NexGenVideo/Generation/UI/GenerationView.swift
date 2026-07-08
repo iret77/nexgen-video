@@ -144,34 +144,27 @@ struct GenerationView: View {
         return models[safeIndex]
     }
 
-    /// Providers with a configured BYO key — computed once per list build so the model
-    /// filter and the default selection agree on what the user can actually run.
-    private var providersWithKeys: Set<GenerationProvider> {
-        Set(GenerationProvider.allCases.filter(\.hasKey))
-    }
-
-    /// A model the user can run right now: it isn't disabled and its provider has a key.
-    private func isUsable(_ id: String, keyed: Set<GenerationProvider>) -> Bool {
-        ModelPreferences.shared.isEnabled(id)
-            && keyed.contains(GenerationProvider.servicing(modelId: id))
+    /// A model the user can run right now: not disabled, and some activated provider+transport
+    /// (an API key, a configured MCP, or the ElevenLabs fal-hosted fallback) services it —
+    /// see GenerationProvider.canRun. NOT `servicing(_).hasKey`: the resolver can pick a keyless
+    /// provider (e.g. MCP), which would wrongly hide a model runnable via another binding.
+    private func isUsable(_ id: String) -> Bool {
+        ModelPreferences.shared.isEnabled(id) && GenerationProvider.canRun(modelId: id)
     }
 
     private var usableVideoModels: [(index: Int, model: VideoModelConfig)] {
-        let keyed = providersWithKeys
         return videoModels.enumerated()
-            .filter { isUsable($0.element.id, keyed: keyed) }
+            .filter { isUsable($0.element.id) }
             .map { (index: $0.offset, model: $0.element) }
     }
     private var usableImageModels: [(index: Int, model: ImageModelConfig)] {
-        let keyed = providersWithKeys
         return imageModels.enumerated()
-            .filter { isUsable($0.element.id, keyed: keyed) }
+            .filter { isUsable($0.element.id) }
             .map { (index: $0.offset, model: $0.element) }
     }
     private var usableAudioModels: [(index: Int, model: AudioModelConfig)] {
-        let keyed = providersWithKeys
         return audioModels.enumerated()
-            .filter { isUsable($0.element.id, keyed: keyed) }
+            .filter { isUsable($0.element.id) }
             .map { (index: $0.offset, model: $0.element) }
     }
     private var usableAudioModelsByCategory: [AudioModelConfig.Category: [(index: Int, model: AudioModelConfig)]] {
@@ -194,9 +187,8 @@ struct GenerationView: View {
     /// Preselects a runnable default: keeps the current pick when it's still usable,
     /// else the first usable model, then falls back to any enabled model / a safe clamp.
     private func enabledIndex(_ current: Int, in ids: [String]) -> Int {
-        let keyed = providersWithKeys
-        if ids.indices.contains(current), isUsable(ids[current], keyed: keyed) { return current }
-        if let firstUsable = ids.firstIndex(where: { isUsable($0, keyed: keyed) }) { return firstUsable }
+        if ids.indices.contains(current), isUsable(ids[current]) { return current }
+        if let firstUsable = ids.firstIndex(where: { isUsable($0) }) { return firstUsable }
         let prefs = ModelPreferences.shared
         if ids.indices.contains(current), prefs.isEnabled(ids[current]) { return current }
         return ids.firstIndex { prefs.isEnabled($0) } ?? (ids.indices.contains(current) ? current : 0)

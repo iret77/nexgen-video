@@ -78,4 +78,16 @@ extension GenerationProvider {
     /// Whether a BYO API key is configured for this provider. A model whose provider has no key
     /// is accepted by the generate tools but fails at request time — gate on this first.
     var hasKey: Bool { ProviderKeychain.load(self) != nil }
+
+    /// Whether the user can actually run this model NOW — i.e. SOME activated provider+transport
+    /// services it (an API key, a configured MCP, or the ElevenLabs fal-hosted fallback). This is
+    /// the availability signal for the catalog/UI. `servicing` only says WHICH provider wins; it can
+    /// resolve to a keyless provider (e.g. MCP), so `servicing(_).hasKey` is NOT a valid availability
+    /// check — a model runnable via another activated binding would be wrongly hidden.
+    static func canRun(modelId: String) -> Bool {
+        ProviderResolver.resolve(
+            bindings: ProviderManifest.bindings(forModelId: modelId),
+            activation: .current(),
+            effectiveCost: ProviderManifest.effectiveCost) != nil
+    }
 }

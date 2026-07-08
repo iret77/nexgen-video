@@ -106,7 +106,7 @@ struct ModelsPane: View {
 
     private func modelRow(_ row: Row) -> some View {
         let provider = GenerationProvider.servicing(modelId: row.id)
-        let available = provider.hasKey
+        let available = GenerationProvider.canRun(modelId: row.id)
         return HStack(spacing: AppTheme.Spacing.md) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text(row.displayName)
