@@ -15,6 +15,13 @@ final class EditorWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    /// The visible titlebar is hidden (custom chrome), but the OS window title still feeds the window
+    /// switcher, Mission Control, and screenshots — brand it. AppKit refreshes this whenever the
+    /// document name changes. The em dash is fine in the OS title string (not visible-row copy).
+    override func windowTitle(forDocumentDisplayName displayName: String) -> String {
+        "NexGenVideo — \(displayName)"
+    }
+
     deinit {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
@@ -122,9 +129,13 @@ final class EditorWindowController: NSWindowController {
             editorViewModel.trimEndToPlayhead()
             return true
 
-        case 50: // ` (backtick) — toggle panel maximize
+        case 50: // ` backtick — maximize focused panel; ⇧` — toggle theater (full-window player)
             if mods.intersection([.command, .option, .control, .shift]).isEmpty {
                 toggleMaximizePanelAction()
+                return true
+            }
+            if shift, mods.intersection([.command, .option, .control]).isEmpty {
+                editorViewModel.toggleTheater()
                 return true
             }
             return false
@@ -143,6 +154,10 @@ final class EditorWindowController: NSWindowController {
             return false
 
         case 53: // Escape
+            if editorViewModel.theaterActive {
+                editorViewModel.theaterActive = false
+                return true
+            }
             if editorViewModel.pendingSwapClipId != nil {
                 editorViewModel.cancelMediaSwap()
                 return true
@@ -262,6 +277,8 @@ extension EditorWindowController: EditorActions {
     @objc func setLayoutVertical(_ sender: Any?) { editorViewModel.layoutPreset = .vertical }
     @objc func setFocusEdit(_ sender: Any?) { editorViewModel.setWorkspaceFocus(.edit) }
     @objc func setFocusProduce(_ sender: Any?) { editorViewModel.setWorkspaceFocus(.produce) }
+    @objc func setFocusFinish(_ sender: Any?) { editorViewModel.setWorkspaceFocus(.finish) }
+    @objc func toggleTheater(_ sender: Any?) { editorViewModel.toggleTheater() }
 
     private func toggleMaximizePanelAction() {
         if editorViewModel.maximizedPanel != nil {
@@ -299,6 +316,12 @@ extension EditorWindowController: EditorActions {
             return true
         case #selector(setFocusProduce(_:)):
             menuItem.state = editorViewModel.workspaceFocus == .produce ? .on : .off
+            return true
+        case #selector(setFocusFinish(_:)):
+            menuItem.state = editorViewModel.workspaceFocus == .finish ? .on : .off
+            return true
+        case #selector(toggleTheater(_:)):
+            menuItem.state = editorViewModel.theaterActive ? .on : .off
             return true
         case #selector(trimStartToPlayhead(_:)), #selector(trimEndToPlayhead(_:)):
             return editorViewModel.allowsTimelineEditChrome
