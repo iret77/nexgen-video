@@ -8,5 +8,13 @@
         <!-- No releases published yet. Items are intentionally empty so Sparkle offers no update —
              and never the upstream palmier-io builds. Add <item> entries here once the fork has its
              own signed releases and its own SUPublicEDKey in Info.plist. -->
+        <item>
+            <title>Version 0.7.5</title>
+            <pubDate>Wed, 08 Jul 2026 14:22:09 -0000</pubDate>
+            <sparkle:version>57</sparkle:version>
+            <sparkle:shortVersionString>0.7.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/iret77/nexgen-video/releases/download/v0.7.5/NexGenVideo.dmg" length="26429983" type="application/octet-stream" sparkle:edSignature="AG1pAf6w6ri/y3BTVXQPl19pjE6Bq4x5FE+bIUtcJQ2cM8l8AD1LHM/fxJqKkIYgMhHCMAiM36GJI/y7ecKfBw=="/>
+        </item>
     </channel>
 </rss>
