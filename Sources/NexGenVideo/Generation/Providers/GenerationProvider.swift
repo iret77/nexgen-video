@@ -63,17 +63,17 @@ enum ProviderKeychain {
 }
 
 extension GenerationProvider {
-    /// The provider that actually services a generation model id. Marble models go to Marble;
-    /// ElevenLabs-family models go DIRECTLY to ElevenLabs when the user's key is present (their
-    /// account, no fal middleman) and fall back to fal's hosted endpoints otherwise; the rest is fal.
+    /// The provider that actually services a generation model id — resolved by NGV over the
+    /// manifest's bindings and the user's activation (LLM → NGV → Provider). Single-source
+    /// models (marble/runway/higgsfield/fal) return their one provider directly. The one
+    /// multi-source case, the ElevenLabs family, is now general resolution: direct-to-ElevenLabs
+    /// when its key is present (their account, no fal middleman), fal-hosted otherwise.
     static func servicing(modelId: String) -> GenerationProvider {
-        if MarbleModelRegistry.isMarbleModel(modelId) { return .marble }
-        if RunwayModelRegistry.isRunwayModel(modelId) { return .runway }
-        if HiggsfieldModelRegistry.isHiggsfieldModel(modelId) { return .higgsfield }
-        if modelId.hasPrefix("fal-ai/elevenlabs"), GenerationProvider.elevenlabs.hasKey {
-            return .elevenlabs
-        }
-        return .fal
+        let bindings = ProviderManifest.bindings(forModelId: modelId)
+        if bindings.count == 1 { return bindings[0].provider }
+        let picked = ProviderResolver.resolve(
+            bindings: bindings, activation: .current(), effectiveCost: ProviderManifest.effectiveCost)
+        return picked?.provider ?? bindings.last?.provider ?? .fal
     }
     /// Whether a BYO API key is configured for this provider. A model whose provider has no key
     /// is accepted by the generate tools but fails at request time — gate on this first.
