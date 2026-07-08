@@ -33,7 +33,16 @@ actor MCPProviderClient {
     private func connectedClient() async throws -> Client {
         if let client { return client }
         let client = Client(name: "nexgen", version: "1.0.0")
-        let transport = HTTPClientTransport(endpoint: config.endpoint)
+        let transport: HTTPClientTransport
+        if let token = config.bearerToken, !token.isEmpty {
+            transport = HTTPClientTransport(endpoint: config.endpoint, requestModifier: { request in
+                var request = request
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                return request
+            })
+        } else {
+            transport = HTTPClientTransport(endpoint: config.endpoint)
+        }
         try await client.connect(transport: transport)
         self.client = client
         return client
@@ -58,7 +67,7 @@ actor MCPProviderClient {
 
     private static func textContents(_ content: [Tool.Content]) -> [String] {
         content.compactMap { part in
-            if case let .text(text) = part { return text }
+            if case let .text(text, _, _) = part { return text }
             return nil
         }
     }
