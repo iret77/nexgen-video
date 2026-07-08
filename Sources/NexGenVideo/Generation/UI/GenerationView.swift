@@ -56,6 +56,10 @@ struct GenerationView: View {
     @State private var isPopulatingPanel = false
     @State private var editFolderId: String?
 
+    /// Bumped on `.providerKeysChanged` to re-evaluate the usable-model list and default
+    /// selection; keychain-backed `hasKey` reads aren't observable on their own.
+    @State private var providerKeyRevision = 0
+
     // Prompt @-autocomplete for reference tags (Seedance/Kling/Grok reference mode)
     @State private var refMentionQuery: String? = nil
     @State private var highlightedMentionIndex: Int = 0
@@ -140,25 +144,40 @@ struct GenerationView: View {
         return models[safeIndex]
     }
 
-    private var enabledVideoModels: [(index: Int, model: VideoModelConfig)] {
-        videoModels.enumerated()
-            .filter { ModelPreferences.shared.isEnabled($0.element.id) }
+    /// Providers with a configured BYO key — computed once per list build so the model
+    /// filter and the default selection agree on what the user can actually run.
+    private var providersWithKeys: Set<GenerationProvider> {
+        Set(GenerationProvider.allCases.filter(\.hasKey))
+    }
+
+    /// A model the user can run right now: it isn't disabled and its provider has a key.
+    private func isUsable(_ id: String, keyed: Set<GenerationProvider>) -> Bool {
+        ModelPreferences.shared.isEnabled(id)
+            && keyed.contains(GenerationProvider.servicing(modelId: id))
+    }
+
+    private var usableVideoModels: [(index: Int, model: VideoModelConfig)] {
+        let keyed = providersWithKeys
+        return videoModels.enumerated()
+            .filter { isUsable($0.element.id, keyed: keyed) }
             .map { (index: $0.offset, model: $0.element) }
     }
-    private var enabledImageModels: [(index: Int, model: ImageModelConfig)] {
-        imageModels.enumerated()
-            .filter { ModelPreferences.shared.isEnabled($0.element.id) }
+    private var usableImageModels: [(index: Int, model: ImageModelConfig)] {
+        let keyed = providersWithKeys
+        return imageModels.enumerated()
+            .filter { isUsable($0.element.id, keyed: keyed) }
             .map { (index: $0.offset, model: $0.element) }
     }
-    private var enabledAudioModels: [(index: Int, model: AudioModelConfig)] {
-        audioModels.enumerated()
-            .filter { ModelPreferences.shared.isEnabled($0.element.id) }
+    private var usableAudioModels: [(index: Int, model: AudioModelConfig)] {
+        let keyed = providersWithKeys
+        return audioModels.enumerated()
+            .filter { isUsable($0.element.id, keyed: keyed) }
             .map { (index: $0.offset, model: $0.element) }
     }
-    private var enabledAudioModelsByCategory: [AudioModelConfig.Category: [(index: Int, model: AudioModelConfig)]] {
+    private var usableAudioModelsByCategory: [AudioModelConfig.Category: [(index: Int, model: AudioModelConfig)]] {
         var grouped: [AudioModelConfig.Category: [(index: Int, model: AudioModelConfig)]] = [:]
         grouped.reserveCapacity(AudioModelConfig.Category.allCases.count)
-        for item in enabledAudioModels {
+        for item in usableAudioModels {
             grouped[item.model.category, default: []].append(item)
         }
         return grouped
@@ -172,8 +191,12 @@ struct GenerationView: View {
         }
     }
 
-    /// Keeps an enabled selection untouched
+    /// Preselects a runnable default: keeps the current pick when it's still usable,
+    /// else the first usable model, then falls back to any enabled model / a safe clamp.
     private func enabledIndex(_ current: Int, in ids: [String]) -> Int {
+        let keyed = providersWithKeys
+        if ids.indices.contains(current), isUsable(ids[current], keyed: keyed) { return current }
+        if let firstUsable = ids.firstIndex(where: { isUsable($0, keyed: keyed) }) { return firstUsable }
         let prefs = ModelPreferences.shared
         if ids.indices.contains(current), prefs.isEnabled(ids[current]) { return current }
         return ids.firstIndex { prefs.isEnabled($0) } ?? (ids.indices.contains(current) ? current : 0)
@@ -290,6 +313,38 @@ struct GenerationView: View {
 
     private var effectiveGenerateAudio: Bool {
         supportsAudioToggle ? generateAudio : true
+    }
+
+    /// Duration the cost estimate charges on for audio — video span for scoring
+    /// models, the chosen length for timed models, otherwise per-character pricing.
+    private var costAudioDuration: Int? {
+        guard selectedType == .audio else { return nil }
+        if audioModel.inputs.contains(.video) { return effectiveAudioVideoSeconds }
+        return audioModel.durations != nil ? selectedAudioDuration : nil
+    }
+
+    /// Credit estimate for the render as currently configured. Tracks the picked
+    /// model and its settings so the confirm surface always shows what a submit spends.
+    private var estimatedCost: Int? {
+        switch selectedType {
+        case .video:
+            return CostEstimator.videoCost(
+                model: videoModel,
+                durationSeconds: effectiveVideoSeconds,
+                resolution: effectiveResolution,
+                generateAudio: effectiveGenerateAudio)
+        case .image:
+            return CostEstimator.imageCost(
+                model: imageModel,
+                resolution: effectiveResolution,
+                quality: imageModel.qualities != nil ? selectedQuality : nil,
+                numImages: currentImageCount)
+        case .audio:
+            return CostEstimator.audioCost(
+                model: audioModel,
+                prompt: trimmedPrompt,
+                durationSeconds: costAudioDuration)
+        }
     }
 
     private var promptPlaceholder: String {
@@ -557,6 +612,11 @@ struct GenerationView: View {
             guard !isPopulatingPanel else { return }
             normalizeModelSelection()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .providerKeysChanged)) { _ in
+            providerKeyRevision += 1
+            guard !isPopulatingPanel else { return }
+            normalizeModelSelection()
+        }
         .onChange(of: selectedType) { _, newValue in
             guard !isPopulatingPanel else { return }
             normalizeModelSelection()
@@ -814,11 +874,26 @@ struct GenerationView: View {
 
                 Spacer(minLength: AppTheme.Spacing.xs)
 
+                costEstimate
                 submitButton
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, AppTheme.Spacing.md)
             .padding(.vertical, AppTheme.Spacing.sm)
+        }
+    }
+
+    @ViewBuilder
+    private var costEstimate: some View {
+        if let cost = estimatedCost, cost > 0 {
+            Text(CostEstimator.format(cost))
+                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .lineLimit(1)
+                .fixedSize()
+                .help("Estimated cost for this render.")
+                .accessibilityLabel("Estimated cost \(CostEstimator.format(cost)).")
         }
     }
 
@@ -1327,16 +1402,16 @@ struct GenerationView: View {
         Menu {
             switch selectedType {
             case .video:
-                ForEach(enabledVideoModels, id: \.index) { item in
+                ForEach(usableVideoModels, id: \.index) { item in
                     Button(item.model.displayName) { selectedVideoModelIndex = item.index }
                 }
             case .image:
-                ForEach(enabledImageModels, id: \.index) { item in
+                ForEach(usableImageModels, id: \.index) { item in
                     Button(item.model.displayName) { selectedImageModelIndex = item.index }
                 }
             case .audio:
                 ForEach(AudioModelConfig.Category.allCases, id: \.self) { category in
-                    if let items = enabledAudioModelsByCategory[category], !items.isEmpty {
+                    if let items = usableAudioModelsByCategory[category], !items.isEmpty {
                         Section(category.label) {
                             ForEach(items, id: \.index) { item in
                                 Button(item.model.displayName) { selectedAudioModelIndex = item.index }
@@ -1368,6 +1443,8 @@ struct GenerationView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .hoverHighlight()
+        .help("Model — you decide. Changing it changes what this render costs and runs on.")
+        .accessibilityLabel("Model, you decide. Currently \(currentModelName).")
     }
 
     // MARK: - Settings
