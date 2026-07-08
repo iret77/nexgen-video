@@ -6,8 +6,9 @@ import Testing
 struct ProviderResolverTests {
 
     private func binding(_ p: GenerationProvider, _ t: ProviderTransport, _ ref: String,
-                         _ billing: BillingMode) -> ProviderBinding {
-        ProviderBinding(provider: p, transport: t, providerModelRef: ref, billing: billing)
+                         _ billing: BillingMode,
+                         _ kind: ProviderCapabilityKind = .generation) -> ProviderBinding {
+        ProviderBinding(provider: p, transport: t, kind: kind, providerRef: ref, billing: billing)
     }
 
     @Test func cheapestActivatedBindingWins() {
@@ -51,6 +52,22 @@ struct ProviderResolverTests {
         let cost: (ProviderBinding) -> Double = { $0.billing == .subscription ? 0.0 : 3.0 }
         let picked = ProviderResolver.resolve(bindings: [apiCall, mcpSub], activation: activation, effectiveCost: cost)
         #expect(picked == mcpSub)
+    }
+
+    @Test func resolvesWorkflowToolCallsNotJustModels() {
+        // A provider capability can be a workflow TOOL (e.g. background removal), not only a
+        // model render — resolved the same way: cheapest activated provider offering the tool.
+        // OpenArt/Runway expose MCP tool-calls; here Runway-via-MCP (subscription) beats fal-API.
+        let runwayTool = binding(.runway, .mcp, "remove_background", .subscription, .tool)
+        let falTool = binding(.fal, .api, "bg-removal", .perCall, .tool)
+        let activation = ProviderActivation(active: [
+            .init(provider: .runway, transport: .mcp),
+            .init(provider: .fal, transport: .api),
+        ])
+        let cost: (ProviderBinding) -> Double = { $0.billing == .subscription ? 0.0 : 2.0 }
+        let picked = ProviderResolver.resolve(bindings: [falTool, runwayTool], activation: activation, effectiveCost: cost)
+        #expect(picked?.kind == .tool)
+        #expect(picked == runwayTool)
     }
 
     @Test func perTransportActivationIsRespected() {
