@@ -283,6 +283,27 @@ final class VideoProject: NSDocument {
 
     // MARK: - Window setup
 
+    /// First-launch default: a fraction of the VISIBLE screen (menu bar + Dock excluded), capped at
+    /// `projectDefault` on big displays and floored at `projectMin`, ~16:10 — enough height for the
+    /// timeline + panels while always fitting the desktop.
+    nonisolated static func defaultProjectContentSize(visible: NSRect) -> NSSize {
+        let cap = AppTheme.Window.projectDefault
+        let floor = AppTheme.Window.projectMin
+        let w = min(max(visible.width * 0.88, floor.width), cap.width)
+        let h = min(max(visible.height * 0.90, floor.height), cap.height)
+        return NSSize(width: w, height: h)
+    }
+
+    /// Shrink + nudge a window frame so it never exceeds or falls off the visible screen.
+    nonisolated static func clampToScreen(_ frame: NSRect, visible: NSRect) -> NSRect {
+        var f = frame
+        f.size.width = min(f.size.width, visible.width)
+        f.size.height = min(f.size.height, visible.height)
+        f.origin.x = min(max(f.origin.x, visible.minX), visible.maxX - f.size.width)
+        f.origin.y = min(max(f.origin.y, visible.minY), visible.maxY - f.size.height)
+        return f
+    }
+
     override func makeWindowControllers() {
         if let loaded = loadedTimeline {
             editorViewModel.timeline = loaded
@@ -321,9 +342,19 @@ final class VideoProject: NSDocument {
         hostingController.safeAreaRegions = []
 
         let window = NSWindow(contentViewController: hostingController)
-        window.setContentSize(AppTheme.Window.projectDefault)
         window.minSize = AppTheme.Window.projectMin
-        window.setFrameAutosaveName("NexGenVideoWindow")
+        // Autosave "-v2": bumping the key resets stale frames saved before screen-aware sizing.
+        let restored = window.setFrameUsingName("NexGenVideoWindow-v2")
+        window.setFrameAutosaveName("NexGenVideoWindow-v2")
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        if restored {
+            // A frame from a since-changed (larger) display must never exceed this desktop.
+            window.setFrame(Self.clampToScreen(window.frame, visible: visible), display: false)
+        } else {
+            window.setContentSize(Self.defaultProjectContentSize(visible: visible))
+            window.center()
+        }
         window.appearance = NSAppearance(named: .darkAqua)
         // FCP-style chrome: hide the system title, extend content beneath the transparent titlebar —
         // TitleBarView owns that row (name · Edit|Produce · pipeline health).
@@ -334,7 +365,6 @@ final class VideoProject: NSDocument {
         // moved at once). The window still drags by its transparent titlebar row.
         window.isMovableByWindowBackground = false
         window.backgroundColor = NSColor(AppTheme.Background.surfaceColor)
-        window.center()
 
         let controller = EditorWindowController(editorViewModel: editorViewModel, window: window)
         controller.shouldCascadeWindows = true
