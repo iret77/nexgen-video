@@ -81,7 +81,7 @@ struct PluginPickerModelTests {
         let rows = PluginManager.buildRows(
             installed: [], catalog: [entry()], activePluginName: nil, appVersion: Self.app)
         guard case .available = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .available")
+            Issue.record("expected .available"); return
         }
     }
 
@@ -90,7 +90,7 @@ struct PluginPickerModelTests {
         let rows = PluginManager.buildRows(
             installed: [], catalog: [entry(minApp: "9.9.9")], activePluginName: nil, appVersion: Self.app)
         guard case .unavailable(let reason) = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .unavailable")
+            Issue.record("expected .unavailable"); return
         }
         #expect(reason == "Requires NexGenVideo 9.9.9 or newer.")
     }
@@ -100,7 +100,7 @@ struct PluginPickerModelTests {
         let rows = PluginManager.buildRows(
             installed: [record()], catalog: [], activePluginName: nil, appVersion: Self.app)
         guard case .installed(let active, let update) = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .installed")
+            Issue.record("expected .installed"); return
         }
         #expect(active == false)
         #expect(update == nil)
@@ -111,7 +111,7 @@ struct PluginPickerModelTests {
         let rows = PluginManager.buildRows(
             installed: [record()], catalog: [], activePluginName: "musicvideo", appVersion: Self.app)
         guard case .installed(let active, _) = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .installed")
+            Issue.record("expected .installed"); return
         }
         #expect(active == true)
     }
@@ -122,7 +122,7 @@ struct PluginPickerModelTests {
             installed: [record(version: "0.0.1")], catalog: [entry(version: "0.0.2")],
             activePluginName: "musicvideo", appVersion: Self.app)
         guard case .installed(_, let update) = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .installed")
+            Issue.record("expected .installed"); return
         }
         #expect(update?.version == "0.0.2")
     }
@@ -133,7 +133,7 @@ struct PluginPickerModelTests {
             installed: [record(version: "0.0.2")], catalog: [entry(version: "0.0.2")],
             activePluginName: nil, appVersion: Self.app)
         guard case .installed(_, let update) = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .installed")
+            Issue.record("expected .installed"); return
         }
         #expect(update == nil)
     }
@@ -144,7 +144,7 @@ struct PluginPickerModelTests {
         let rows = PluginManager.buildRows(
             installed: [rec], catalog: [], activePluginName: nil, appVersion: Self.app)
         guard case .incompatible(let reason, _) = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .incompatible")
+            Issue.record("expected .incompatible"); return
         }
         #expect(reason == "Requires NexGenVideo 9.9.9 or newer.")
     }
@@ -155,7 +155,7 @@ struct PluginPickerModelTests {
             installed: [record(state: .updatePendingRestart)], catalog: [],
             activePluginName: nil, appVersion: Self.app)
         guard case .updatePendingRestart = status(of: rows, id: "musicvideo") else {
-            return Issue.record("expected .updatePendingRestart")
+            Issue.record("expected .updatePendingRestart"); return
         }
     }
 
