@@ -328,14 +328,17 @@ final class VideoProject: NSDocument {
         hostingController.safeAreaRegions = []
 
         let window = NSWindow(contentViewController: hostingController)
+        // Autosave "-v2": bumping the key resets stale frames saved before screen-aware sizing.
+        let restored = window.setFrameUsingName("NexGenVideoWindow-v2")
+        window.setFrameAutosaveName("NexGenVideoWindow-v2")
+        // Compute the visible frame AFTER restore so a frame saved on a different or
+        // since-changed display clamps against the screen it actually lands on, not the
+        // window's initial screen.
         let visible = (window.screen ?? NSScreen.main)?.visibleFrame
             ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         // Screen-aware minimum: never force the window larger than the desktop it opens on.
         window.minSize = NSSize(width: min(AppTheme.Window.projectMin.width, visible.width),
                                 height: min(AppTheme.Window.projectMin.height, visible.height))
-        // Autosave "-v2": bumping the key resets stale frames saved before screen-aware sizing.
-        let restored = window.setFrameUsingName("NexGenVideoWindow-v2")
-        window.setFrameAutosaveName("NexGenVideoWindow-v2")
         if restored {
             // A frame from a since-changed (larger) display must never exceed this desktop.
             window.setFrame(Self.clampToScreen(window.frame, visible: visible), display: false)
