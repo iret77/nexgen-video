@@ -5,6 +5,9 @@ Telemetry.start()
 BundledFonts.register()
 ModelCatalog.shared.configure()
 ModelCatalog.shared.load(entries: FalModelRegistry.entries + MarbleModelRegistry.entries + RunwayModelRegistry.entries + HiggsfieldModelRegistry.entries)
+// Then refresh from the hosted catalog (models + ranking cards without an app release); the
+// registries above are the offline fallback and first-run seed.
+Task { @MainActor in await RemoteCatalog.refresh() }
 
 // Load installed format packs before any UI reads the catalog. Packs ship as
 // signed `.ngvpack` bundles outside the DMG; incompatible/unsigned ones surface

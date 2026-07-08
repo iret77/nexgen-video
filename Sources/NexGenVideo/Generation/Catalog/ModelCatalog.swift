@@ -7,6 +7,19 @@ enum ModelKind: Sendable {
     case upscale(UpscaleModelConfig)
 }
 
+/// The "education" a model carries for the LLM: what it is good/bad at, what it is best for, and
+/// how it ranks right now. Curated knowledge — hosted remotely and refreshed WITHOUT an app release
+/// (the model landscape moves weekly), so the agent recommends from this current truth, never from
+/// stale training knowledge. All fields optional so a bare catalog entry still decodes.
+struct ModelCard: Codable, Sendable, Hashable {
+    let strengths: [String]?
+    let weaknesses: [String]?
+    let bestFor: String?
+    /// Lower is better within a modality (1 = current top pick). Drives the agent's default recommendation.
+    let rank: Int?
+    let tags: [String]?
+}
+
 enum ModelRegistry {
     @MainActor static var byId: [String: ModelKind] { ModelCatalog.shared.byId }
 
@@ -34,6 +47,7 @@ final class ModelCatalog {
     private(set) var audio: [AudioModelConfig] = []
     private(set) var upscale: [UpscaleModelConfig] = []
     private(set) var byId: [String: ModelKind] = [:]
+    private(set) var cardsById: [String: ModelCard] = [:]
     private(set) var isLoaded: Bool = false
     private(set) var lastError: String?
 
@@ -58,6 +72,7 @@ final class ModelCatalog {
         var newAudio: [AudioModelConfig] = []
         var newUpscale: [UpscaleModelConfig] = []
         var newById: [String: ModelKind] = [:]
+        var newCardsById: [String: ModelCard] = [:]
         newVideo.reserveCapacity(entries.count)
         newImage.reserveCapacity(entries.count)
         newAudio.reserveCapacity(entries.count)
@@ -65,6 +80,7 @@ final class ModelCatalog {
         newById.reserveCapacity(entries.count)
 
         for entry in entries {
+            if let card = entry.card { newCardsById[entry.id] = card }
             switch entry.uiCapabilities {
             case .video(let caps):
                 let m = VideoModelConfig(entry: entry, caps: caps)
@@ -90,6 +106,7 @@ final class ModelCatalog {
         self.audio = newAudio
         self.upscale = newUpscale
         self.byId = newById
+        self.cardsById = newCardsById
         self.isLoaded = true
         self.lastError = nil
     }
@@ -108,6 +125,7 @@ struct CatalogEntry: Decodable, Sendable {
     let qualities: [String]?
     let audioPricing: AudioPricing?
     let creditsPerSecondUpscale: Double?
+    let card: ModelCard?
 
     enum Kind: String, Decodable, Sendable { case video, image, audio, upscale }
     enum ResponseShape: String, Decodable, Sendable {
@@ -149,7 +167,7 @@ struct CatalogEntry: Decodable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, kind, displayName, allowedEndpoints, responseShape, uiCapabilities
         case creditsPerSecond, audioDiscountRate, creditsPerImage, qualities
-        case audioPricing, creditsPerSecondUpscale
+        case audioPricing, creditsPerSecondUpscale, card
     }
 
     init(
@@ -164,7 +182,8 @@ struct CatalogEntry: Decodable, Sendable {
         creditsPerImage: [String: Double]? = nil,
         qualities: [String]? = nil,
         audioPricing: AudioPricing? = nil,
-        creditsPerSecondUpscale: Double? = nil
+        creditsPerSecondUpscale: Double? = nil,
+        card: ModelCard? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -178,6 +197,7 @@ struct CatalogEntry: Decodable, Sendable {
         self.qualities = qualities
         self.audioPricing = audioPricing
         self.creditsPerSecondUpscale = creditsPerSecondUpscale
+        self.card = card
     }
 
     init(from decoder: Decoder) throws {
@@ -193,6 +213,7 @@ struct CatalogEntry: Decodable, Sendable {
         self.qualities = try c.decodeIfPresent([String].self, forKey: .qualities)
         self.audioPricing = try c.decodeIfPresent(AudioPricing.self, forKey: .audioPricing)
         self.creditsPerSecondUpscale = try c.decodeIfPresent(Double.self, forKey: .creditsPerSecondUpscale)
+        self.card = try c.decodeIfPresent(ModelCard.self, forKey: .card)
         switch self.kind {
         case .video:
             self.uiCapabilities = .video(try c.decode(VideoCaps.self, forKey: .uiCapabilities))

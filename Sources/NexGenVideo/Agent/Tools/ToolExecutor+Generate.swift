@@ -443,6 +443,22 @@ extension ToolExecutor {
             guard let id = info["id"] as? String else { return false }
             return prefs.isEnabled(id) && GenerationProvider.servicing(modelId: id).hasKey
         }
+        // Attach each model's curated card (strengths/weaknesses/best-for/rank) so the agent
+        // recommends from the CURRENT truth NGV feeds it, not stale training knowledge. Cards are
+        // hosted + refreshed without an app release; absent card = no `card` key (still usable).
+        let cards = ModelCatalog.shared.cardsById
+        out = out.map { info in
+            guard let id = info["id"] as? String, let card = cards[id] else { return info }
+            var info = info
+            var c: [String: Any] = [:]
+            if let v = card.strengths { c["strengths"] = v }
+            if let v = card.weaknesses { c["weaknesses"] = v }
+            if let v = card.bestFor { c["bestFor"] = v }
+            if let v = card.rank { c["rank"] = v }
+            if let v = card.tags { c["tags"] = v }
+            if !c.isEmpty { info["card"] = c }
+            return info
+        }
         var body: [String: Any] = [
             "models": out,
             "loaded": ModelCatalog.shared.isLoaded,
