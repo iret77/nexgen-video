@@ -127,13 +127,15 @@ final class EditorSplitViewController: PaddedDividerSplitViewController {
     func applyMaximize(_ panel: EditorViewModel.FocusedPanel?) {
         guard panel != currentMaximized else { return }
         currentMaximized = panel
+        // Restore every item to its normal collapse state first, so switching directly
+        // from one maximized panel to another never leaves the new target collapsed by
+        // the previous maximize (e.g. timeline maximized, then Theater on the preview).
+        walkSplitItems(self) { item in
+            applyCollapsed(item: item, collapsed: self.restoredCollapseState(for: item))
+        }
         if let panel, let leaf = leafItem(for: panel) {
             for sibling in ancestorChainSiblings(of: leaf) {
                 applyCollapsed(item: sibling, collapsed: true)
-            }
-        } else {
-            walkSplitItems(self) { item in
-                applyCollapsed(item: item, collapsed: self.restoredCollapseState(for: item))
             }
         }
     }
