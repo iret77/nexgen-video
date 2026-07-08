@@ -37,12 +37,14 @@ enum ProviderManifest {
 }
 
 extension ProviderActivation {
-    /// Activation from real state: an API key in the Keychain activates a provider's `.api`
-    /// transport. MCP/OAuth activation slots in here when the MCP transport lands.
+    /// Activation from real state, per transport: an API key in the Keychain activates `.api`; a
+    /// configured MCP endpoint activates `.mcp`. A provider may have both — then the resolver weighs
+    /// them by billing (pay-per-call API vs subscription MCP).
     static func current() -> ProviderActivation {
         var keys: Set<Key> = []
-        for provider in GenerationProvider.allCases where provider.hasKey {
-            keys.insert(Key(provider: provider, transport: .api))
+        for provider in GenerationProvider.allCases {
+            if provider.hasKey { keys.insert(Key(provider: provider, transport: .api)) }
+            if ProviderMCP.hasConfig(provider) { keys.insert(Key(provider: provider, transport: .mcp)) }
         }
         return ProviderActivation(active: keys)
     }
