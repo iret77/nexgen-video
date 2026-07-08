@@ -95,37 +95,51 @@ struct TitleBarView: View {
 
     // MARK: - Pipeline health capsule (absent when the project has no pipeline)
 
-    @ViewBuilder
-    /// The loaded-instrument slot (Epic #98 / #95 C4): shows the project's ACTIVE format plugin —
-    /// always visible so it's never ambiguous which plugin (or the generic workflow) drives this
-    /// project. Click → the gallery in Project settings, the one activation surface.
+    /// The Format-plugin control — the editor's one entry into the pack gallery AND the workspace's
+    /// active-format identity (Epic #98 / #95 C4). Format packs are the core feature, so this reads
+    /// as a labelled, tappable control rather than a bare name: "Format" names the field, the value
+    /// is the active pack (or "Generic"). When a pack is bound the pill takes an accent tint and
+    /// border — active presence, so the chrome visibly reflects the running format.
     private var pluginChip: some View {
-        Button {
+        let active = editor.activePluginName != nil
+        return Button {
             showsPluginPicker = true
         } label: {
             HStack(spacing: AppTheme.Spacing.xs) {
-                Image(systemName: "puzzlepiece.extension")
-                    .font(.system(size: AppTheme.FontSize.xs))
-                Text(activePluginLabel)
+                Image(systemName: "puzzlepiece.extension.fill")
+                    .font(.system(size: AppTheme.FontSize.sm))
+                    .foregroundStyle(active ? AppTheme.Accent.primary : AppTheme.Text.tertiaryColor)
+                Text("Format")
                     .font(.system(size: AppTheme.FontSize.xxs, weight: .medium))
+                    .foregroundStyle(AppTheme.Text.mutedColor)
+                    .fixedSize()
+                Text(activePluginLabel)
+                    .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
+                    .foregroundStyle(active ? AppTheme.Accent.primary : AppTheme.Text.secondaryColor)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.system(size: AppTheme.FontSize.micro, weight: .semibold))
                     .foregroundStyle(AppTheme.Text.mutedColor)
             }
-            .foregroundStyle(editor.activePluginName == nil
-                             ? AppTheme.Text.tertiaryColor : AppTheme.Accent.primary)
-            .padding(.horizontal, AppTheme.Spacing.sm)
+            .padding(.horizontal, AppTheme.Spacing.smMd)
             .padding(.vertical, AppTheme.Spacing.xxs)
             .background(
-                Capsule().fill(Color.white.opacity(AppTheme.Opacity.subtle))
+                Capsule().fill(active
+                               ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.faint)
+                               : Color.white.opacity(AppTheme.Opacity.subtle))
+            )
+            .overlay(
+                Capsule().strokeBorder(active
+                                       ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.moderate)
+                                       : Color.white.opacity(AppTheme.Opacity.faint),
+                                       lineWidth: AppTheme.BorderWidth.hairline)
             )
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(editor.activePluginName == nil
-              ? "Generic production workflow. Click to choose a format plugin."
-              : "Active format plugin. Click to manage.")
+        .help(active
+              ? "Active format plugin. Click to browse or change formats."
+              : "Generic production workflow. Click to browse format plugins.")
     }
 
     private var activePluginLabel: String {
