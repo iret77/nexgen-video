@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import MCP
 
 @testable import NexGenVideo
 
@@ -39,5 +40,22 @@ struct ProviderToolTests {
     @Test func nonObjectArgumentsAreEmpty() {
         #expect(ToolExecutor.stringArguments(nil).isEmpty)
         #expect(ToolExecutor.stringArguments("nope").isEmpty)
+    }
+
+    // Prompt-engine gate: a tool whose schema exposes a creative prompt is generation (refused here);
+    // a prompt-free workflow tool passes. Shapes mirror the real Higgsfield MCP (nested under params).
+    @Test func advertisesPromptDetectsNestedPromptField() throws {
+        let generation = #"{"type":"object","properties":{"params":{"type":"object","properties":{"model":{"type":"string"},"prompt":{"type":"string"}}}}}"#
+        let workflow = #"{"type":"object","properties":{"params":{"type":"object","properties":{"aspect_ratio":{"type":"string"},"media_id":{"type":"string"}}}}}"#
+        let gen = try JSONDecoder().decode(Value.self, from: Data(generation.utf8))
+        let wf = try JSONDecoder().decode(Value.self, from: Data(workflow.utf8))
+        #expect(ToolExecutor.advertisesPrompt(gen))
+        #expect(ToolExecutor.advertisesPrompt(wf) == false)
+    }
+
+    @Test func argumentsCarryingAPromptAreRefused() {
+        #expect(ToolExecutor.argumentsCarryPrompt(["prompt": "a neon city"]))
+        #expect(ToolExecutor.argumentsCarryPrompt(["lyrics": "la la la"]))
+        #expect(ToolExecutor.argumentsCarryPrompt(["aspect_ratio": "16:9", "media_id": "abc"]) == false)
     }
 }

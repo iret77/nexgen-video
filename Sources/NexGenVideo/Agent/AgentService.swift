@@ -410,6 +410,7 @@ final class AgentService {
 
     func newChat() {
         currentTask?.cancel()
+        resolveSpend(.declined)
         syncMessagesIntoCurrentSession()
         if let id = currentSessionId,
            let idx = sessions.firstIndex(where: { $0.id == id }),
@@ -433,6 +434,7 @@ final class AgentService {
     func selectSession(_ id: UUID) {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
         currentTask?.cancel()
+        resolveSpend(.declined)
         syncMessagesIntoCurrentSession()
         if !sessions[idx].isOpen {
             sessions[idx].isOpen = true
@@ -450,6 +452,7 @@ final class AgentService {
             // Closing the active tab mid-stream: stop the stream and keep its partial reply with
             // THIS session — otherwise the still-running task appends into the next tab's messages.
             currentTask?.cancel()
+            resolveSpend(.declined)
             isStreaming = false
             syncMessagesIntoCurrentSession()
             if let next = sessions.first(where: { $0.isOpen }) {

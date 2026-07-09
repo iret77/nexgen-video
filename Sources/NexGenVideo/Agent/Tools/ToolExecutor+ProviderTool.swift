@@ -1,4 +1,5 @@
 import Foundation
+import MCP
 
 extension ToolExecutor {
     /// Run a provider's non-generative WORKFLOW tool over its MCP (M4 — capability tool-calls).
@@ -30,6 +31,15 @@ extension ToolExecutor {
 
             guard let match = tools.first(where: { $0.name.caseInsensitiveCompare(tool) == .orderedSame }) else {
                 await client.disconnect(); continue
+            }
+
+            // Prompt-engine gate: a discovered tool that takes a creative prompt IS generation and must
+            // go through the gated generate_* paths (compile_prompt). The name denylist is a cheap
+            // pre-filter; this schema/argument check is the robust catch — a provider's own generator
+            // (however named) advertises a `prompt`/`lyrics` field, a true workflow tool does not.
+            if Self.advertisesPrompt(match.inputSchema) || Self.argumentsCarryPrompt(arguments) {
+                await client.disconnect()
+                throw ToolError("'\(match.name)' takes a creative prompt \u{2014} that's generation. Route it through generate_video / generate_image / generate_audio so the prompt engine runs. run_provider_tool is for prompt-free workflow tools only.")
             }
 
             // Paid, provider-side action → the user's final word (Cost-Guard), same as any render.
@@ -76,6 +86,34 @@ extension ToolExecutor {
 
     /// Coerce a JSON `arguments` object into the `[String: String]` the MCP client sends. Non-string
     /// scalars are stringified; nested objects/arrays are JSON-encoded so nothing is silently dropped.
+    /// Names that denote a creative prompt to a content model — the prompt-engine gate's concern.
+    nonisolated static let promptFieldNames: Set<String> = ["prompt", "multi_prompt", "negative_prompt", "lyrics"]
+
+    /// True when the tool's input schema advertises a creative-prompt field (⇒ it's generation).
+    /// Walks the JSON schema structurally (Value is Codable → JSON) so nested `params.properties.prompt`
+    /// shapes (as Higgsfield uses) are caught regardless of nesting.
+    nonisolated static func advertisesPrompt(_ schema: Value) -> Bool {
+        guard let data = try? JSONEncoder().encode(schema),
+              let json = try? JSONSerialization.jsonObject(with: data) else { return false }
+        return jsonContainsPromptKey(json)
+    }
+
+    nonisolated static func argumentsCarryPrompt(_ args: [String: String]) -> Bool {
+        args.keys.contains { promptFieldNames.contains($0.lowercased()) }
+    }
+
+    private nonisolated static func jsonContainsPromptKey(_ any: Any) -> Bool {
+        if let dict = any as? [String: Any] {
+            for (key, value) in dict {
+                if promptFieldNames.contains(key.lowercased()) { return true }
+                if jsonContainsPromptKey(value) { return true }
+            }
+            return false
+        }
+        if let array = any as? [Any] { return array.contains { jsonContainsPromptKey($0) } }
+        return false
+    }
+
     nonisolated static func stringArguments(_ raw: Any?) -> [String: String] {
         guard let dict = raw as? [String: Any] else { return [:] }
         var out: [String: String] = [:]

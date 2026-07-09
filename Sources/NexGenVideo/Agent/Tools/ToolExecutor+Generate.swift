@@ -65,6 +65,9 @@ extension ToolExecutor {
             credits: credits, alternatives: alternatives, actionLabel: actionLabel)
         switch await editor.agentService.requestSpendApproval(approval) {
         case .approved(let modelId):
+            // The turn may have been cancelled (tab switch/new chat) while the card was up — never
+            // spend on a cancelled turn even if an approval slipped through.
+            try Task.checkCancellation()
             return modelId
         case .declined:
             throw ToolError("Render declined — the user did not approve the spend. Ask what they'd prefer: a cheaper model, different settings, or skip this render.")
@@ -440,6 +443,13 @@ extension ToolExecutor {
         let folderId = try resolveFolderId(args, editor: editor)
         let (precompiled, raw) = Self.agentPrompt(args, prompt: prompt)
 
+        // Cost-Guard (M7): the user's final word before this paid audio render. No swap — audio models
+        // vary by category/voice/inputs, so an alternative isn't a drop-in; approval only.
+        let audioCredits = CostEstimator.audioCost(model: model, prompt: prompt, durationSeconds: durationSeconds)
+        _ = try await confirmSpend(
+            editor, currentModelId: model.id, currentModelName: model.displayName,
+            credits: audioCredits, actionLabel: "Generate \(model.category.label)", alternatives: [])
+
         // Build the submission from the CONTROLLER-compiled prompt so the audio params + genInput
         // carry the same text the gate validated.
         func makeSubmission(_ compiled: String) -> AudioGenerationSubmission {
@@ -506,6 +516,14 @@ extension ToolExecutor {
         }
 
         let trimmed = try trimmedSource(args, editor: editor, source: asset)
+
+        // Cost-Guard (M7): approval before this paid upscale. Upscalers are type-specific, so no swap.
+        let upSeconds = Int((trimmed?.durationSeconds ?? (asset.duration > 0 ? asset.duration : 1)).rounded())
+        _ = try await confirmSpend(
+            editor, currentModelId: model.id, currentModelName: model.displayName,
+            credits: CostEstimator.upscaleCost(model: model, durationSeconds: upSeconds),
+            actionLabel: "Upscale", alternatives: [])
+
         guard let placeholderId = await EditSubmitter.submitUpscale(
             asset: asset, model: model, editor: editor, trimmedSource: trimmed, origin: .agentTool
         ) else {
