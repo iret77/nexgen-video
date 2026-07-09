@@ -33,6 +33,7 @@ struct SanityPanelView: View {
         case .failed(let error):
             CockpitStateView.error(error, title: "Couldn't run sanity",
                                    subject: "the sanity report",
+                                   activePack: InstalledPack.named(editor.activePluginName),
                                    startProduction: { editor.startProduction() },
                                    isStarting: editor.productionStarting) { Task { await load() } }
         case .loaded(nil):

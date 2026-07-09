@@ -39,6 +39,7 @@ struct StoryPanelView: View {
                 // brief/treatment fragments each reporting their own flavor of "nothing here".
                 CockpitStateView.error(
                     .notInitialized, title: "Story", subject: "the story",
+                    activePack: InstalledPack.named(editor.activePluginName),
                     startProduction: { editor.startProduction() },
                     isStarting: editor.productionStarting,
                     retry: { Task { await editor.refreshEngineState() } }

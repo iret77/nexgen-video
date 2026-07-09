@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // Shared loading / empty / error / engine-not-ready state views for the cockpit panels, factored out
@@ -6,11 +7,14 @@ import SwiftUI
 enum CockpitStateView {
 
     /// Error / not-initialized state. `subject` is retained for call-site symmetry across the panels;
-    /// the copy is driven by `title` and the error case.
+    /// the copy is driven by `title` and the error case. When a format pack is active and the project
+    /// isn't set up yet, `activePack` turns the placeholder into the pack's own hero (badge + pitch) —
+    /// so the workspace shows you're in that studio, not a generic empty state.
     static func error(
         _ error: CockpitError,
         title: String,
         subject: String,
+        activePack: InstalledPack? = nil,
         startProduction: (() -> Void)? = nil,
         isStarting: Bool = false,
         retry: @escaping () -> Void
@@ -33,18 +37,24 @@ enum CockpitStateView {
             headline = title
             detail = error.message
         }
+        // Lead with the pack's own identity when one is active and the project isn't set up yet.
+        let showPackHero = (error == .notInitialized) && activePack != nil
         return VStack(spacing: AppTheme.Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: AppTheme.FontSize.title1))
-                .foregroundStyle(AppTheme.Text.mutedColor)
-            Text(headline)
-                .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
-                .foregroundStyle(AppTheme.Text.secondaryColor)
-            Text(detail)
-                .font(.system(size: AppTheme.FontSize.sm))
-                .foregroundStyle(AppTheme.Text.mutedColor)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            if showPackHero, let pack = activePack {
+                packHero(pack)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: AppTheme.FontSize.title1))
+                    .foregroundStyle(AppTheme.Text.mutedColor)
+                Text(headline)
+                    .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                    .foregroundStyle(AppTheme.Text.secondaryColor)
+                Text(detail)
+                    .font(.system(size: AppTheme.FontSize.sm))
+                    .foregroundStyle(AppTheme.Text.mutedColor)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if error == .notInitialized {
                 // The generic workflow is never plugin-gated: production is one action away.
                 if let startProduction {
@@ -92,5 +102,36 @@ enum CockpitStateView {
         }
         .padding(AppTheme.Spacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The active pack's identity for the not-yet-set-up workspace: its badge art, its bold pitch, and
+    /// the benefit line. Makes the empty Produce area read as "you're in the <pack> studio" rather than
+    /// a generic placeholder. Badge falls back to nothing (the pitch text still carries it).
+    @ViewBuilder
+    private static func packHero(_ pack: InstalledPack) -> some View {
+        if let badge = pack.headerImage() {
+            Image(nsImage: badge)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 340, maxHeight: 150)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg, style: .continuous)
+                        .strokeBorder(AppTheme.Border.subtleColor, lineWidth: AppTheme.BorderWidth.hairline)
+                )
+                .padding(.bottom, AppTheme.Spacing.xs)
+        }
+        Text(pack.headline ?? pack.displayName)
+            .font(.system(size: AppTheme.FontSize.lg, weight: .semibold))
+            .foregroundStyle(AppTheme.Text.primaryColor)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+        if let benefit = pack.benefit {
+            Text(benefit)
+                .font(.system(size: AppTheme.FontSize.sm))
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

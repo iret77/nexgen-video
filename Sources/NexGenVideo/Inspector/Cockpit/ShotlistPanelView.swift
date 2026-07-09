@@ -35,6 +35,7 @@ struct ShotlistPanelView: View {
         case .failed(let error):
             CockpitStateView.error(error, title: "Couldn't load the shotlist",
                                    subject: "the shotlist",
+                                   activePack: InstalledPack.named(editor.activePluginName),
                                    startProduction: { editor.startProduction() },
                                    isStarting: editor.productionStarting) { Task { await load() } }
         case .loaded(nil):

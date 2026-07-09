@@ -37,6 +37,7 @@ struct PipelinePanelView: View {
         case .failed(let error):
             CockpitStateView.error(error, title: "Couldn't load the pipeline",
                                    subject: "the pipeline",
+                                   activePack: InstalledPack.named(editor.activePluginName),
                                    startProduction: { editor.startProduction() },
                                    isStarting: editor.productionStarting) { Task { await load() } }
         case .loaded(nil):

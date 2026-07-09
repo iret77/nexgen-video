@@ -31,13 +31,24 @@ struct TitleBarView: View {
         .background(
             // Double-click the bare titlebar to zoom the window (macOS convention). It's a
             // background layer, so the buttons on top take their clicks first — only empty
-            // titlebar area double-clicks zoom.
-            Rectangle()
-                .fill(AppTheme.Background.raisedColor)
-                .onTapGesture(count: 2) { NSApp.keyWindow?.zoom(nil) }
+            // titlebar area double-clicks zoom. Ambient pack presence: a faint accent wash tints
+            // the chrome when a format pack is active (generic project → neutral).
+            ZStack {
+                Rectangle().fill(AppTheme.Background.raisedColor)
+                if editor.activePluginName != nil {
+                    Rectangle().fill(AppTheme.Accent.primary.opacity(AppTheme.Opacity.subtle))
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { NSApp.keyWindow?.zoom(nil) }
         )
         .overlay(alignment: .bottom) {
-            Rectangle().fill(AppTheme.Border.primaryColor).frame(height: AppTheme.BorderWidth.hairline)
+            // The window's bottom chrome edge becomes an accent line when a pack is active — the
+            // clearest, full-width "you're in this format" signal without recoloring everything.
+            let packActive = editor.activePluginName != nil
+            Rectangle()
+                .fill(packActive ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.strong) : AppTheme.Border.primaryColor)
+                .frame(height: packActive ? AppTheme.BorderWidth.medium : AppTheme.BorderWidth.hairline)
         }
         .task(id: editor.projectURL) { await editor.refreshEngineState() }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
