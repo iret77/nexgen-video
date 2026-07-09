@@ -14,8 +14,8 @@ struct InstalledPackTests {
         PackCatalog.register(MusicvideoPack())
         let pack = InstalledPack.named("musicvideo")
         #expect(pack != nil)
-        // Mirrors the retired plugins/musicvideo/ngv-plugin.json values.
-        #expect(pack?.displayName == "Music Video Studio")
+        // Mirrors plugins/musicvideo.json.
+        #expect(pack?.displayName == "Music Video")
         #expect(pack?.tagline?.isEmpty == false)
         #expect(InstalledPack.all.contains { $0.name == "musicvideo" })
     }
