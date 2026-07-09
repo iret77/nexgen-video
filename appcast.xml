@@ -32,5 +32,13 @@
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/iret77/nexgen-video/releases/download/v0.7.7/NexGenVideo.dmg" length="25525655" type="application/octet-stream" sparkle:edSignature="gt+CQQA0yPhK10Zf/BkLf1bbtZrvR7GUOIBV0/AhAL8LVItMfhTFtAYtioqYUBv5d7W2DjxK0pJ62sZpoDkrBw=="/>
         </item>
+        <item>
+            <title>Version 0.7.8</title>
+            <pubDate>Thu, 09 Jul 2026 22:13:31 -0000</pubDate>
+            <sparkle:version>60</sparkle:version>
+            <sparkle:shortVersionString>0.7.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/iret77/nexgen-video/releases/download/v0.7.8/NexGenVideo.dmg" length="25552109" type="application/octet-stream" sparkle:edSignature="onNZ263uj83mIm2nA8G1mg5JxEaPmCnvvJ1f9UAiY2JndE2Pk4Ya802k4FI0tGFntz5o/thJbJanMLfeyO/qBg=="/>
+        </item>
     </channel>
 </rss>
