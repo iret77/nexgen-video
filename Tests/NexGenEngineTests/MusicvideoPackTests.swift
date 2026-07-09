@@ -45,14 +45,14 @@ struct MusicvideoPackTests {
     func packSatisfiesContract() {
         let pack: Pack = MusicvideoPack()
         #expect(pack.name == "musicvideo")
-        #expect(pack.version == "0.0.1")
+        #expect(pack.version == "0.0.2")
     }
 
     @Test("pack exposes gallery manifest and a starter")
     func packExposesManifestAndStarters() throws {
         let pack: Pack = MusicvideoPack()
-        // Mirrors the retired plugins/musicvideo/ngv-plugin.json.
-        #expect(pack.manifest.displayName == "Music Video Studio")
+        // Mirrors plugins/musicvideo.json.
+        #expect(pack.manifest.displayName == "Music Video")
         #expect(pack.manifest.tagline.isEmpty == false)
         // Badge ships inside the pack's own resource bundle (self-contained).
         let badge = try #require(pack.manifest.badgeURL)

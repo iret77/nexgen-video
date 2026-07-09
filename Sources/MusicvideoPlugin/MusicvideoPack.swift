@@ -40,14 +40,14 @@ public struct MusicDurationPolicy: DurationPolicy {
 /// never a crash.
 public struct MusicvideoPack: Pack {
     public let name = "musicvideo"
-    public let version = "0.0.1"
+    public let version = "0.0.2"
 
     /// Values mirror the retired `plugins/musicvideo/ngv-plugin.json`. The badge ships INSIDE the
     /// pack's resources (self-contained — cut from the owner's badge masters in
     /// `docs/design/plugin-badges/`, one per planned pack, uniform style).
     public let manifest = PackManifest(
         id: "musicvideo",
-        displayName: "Music Video Studio",
+        displayName: "Music Video",
         tagline: "Structured AI music video production with engine-enforced consistency.",
         headline: "Turn a song into a finished video.",
         benefit: "Reads your track and plans shots to the beat.",
@@ -55,15 +55,15 @@ public struct MusicvideoPack: Pack {
         badgeURL: PackKnowledge.badgeURL()
     )
 
-    /// One honest starter: kick off the production pipeline in gate order (song → analysis →
-    /// brief; the brief interview builds on the song's tempo/structure). The prompt is USER-VISIBLE
-    /// in the transcript, so it stays in the user's language — the tool choreography (attach_song,
-    /// run_phase, show_blocks) lives in the agent manual, tool descriptions, and phase docs.
+    /// One honest starter. The prompt is USER-VISIBLE — it lands in the transcript as if the user
+    /// typed it, so it reads as a natural first-person request, NOT an agent-facing instruction wall.
+    /// The tool choreography (attach_song, run_phase, show_blocks) lives in the agent manual, tool
+    /// descriptions, and phase docs — never in this line.
     public let starters = [
         PackStarter(
             id: "start",
-            title: "Start the music-video pipeline",
-            prompt: "Start the music-video production pipeline for this project. Ask me for the song first, analyze it and walk me through the result, then guide me through drafting the brief, keeping direction ahead of technicalities."
+            title: "Start the music video",
+            prompt: "Let's make a music video from my song. Start the pipeline and take me through it step by step — begin by asking me for the track."
         )
     ]
 

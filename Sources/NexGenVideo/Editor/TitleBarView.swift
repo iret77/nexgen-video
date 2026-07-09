@@ -183,7 +183,14 @@ struct TitleBarView: View {
         let approved = state.phases.filter(\.approved).count
         let total = state.phases.count
         if state.isComplete { return "Complete" }
-        if let next = state.nextPhaseName { return "\(next.capitalized) · \(approved)/\(total)" }
+        if let next = state.nextPhaseName { return "\(Self.phaseLabel(next)) · \(approved)/\(total)" }
         return "\(approved)/\(total)"
+    }
+
+    /// User-facing label for a phase id — the internal ids are snake_case (`project_init`), which must
+    /// never reach the UI as raw debug text. Generic (works for pack phases too): underscores → spaces,
+    /// title-cased.
+    static func phaseLabel(_ id: String) -> String {
+        id.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }
