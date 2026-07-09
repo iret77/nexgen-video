@@ -37,7 +37,7 @@ extension ToolExecutor {
             // go through the gated generate_* paths (compile_prompt). The name denylist is a cheap
             // pre-filter; this schema/argument check is the robust catch — a provider's own generator
             // (however named) advertises a `prompt`/`lyrics` field, a true workflow tool does not.
-            if Self.advertisesPrompt(match.inputSchema) || Self.argumentsCarryPrompt(arguments) {
+            if Self.advertisesPrompt(match.inputSchema) || Self.argumentsCarryPrompt(args["arguments"]) {
                 await client.disconnect()
                 throw ToolError("'\(match.name)' takes a creative prompt \u{2014} that's generation. Route it through generate_video / generate_image / generate_audio so the prompt engine runs. run_provider_tool is for prompt-free workflow tools only.")
             }
@@ -98,8 +98,12 @@ extension ToolExecutor {
         return jsonContainsPromptKey(json)
     }
 
-    nonisolated static func argumentsCarryPrompt(_ args: [String: String]) -> Bool {
-        args.keys.contains { promptFieldNames.contains($0.lowercased()) }
+    /// Walk the RAW arguments (before string coercion) for a creative-prompt field — nested objects
+    /// like `{ "params": { "prompt": … } }`, and values that are themselves stringified JSON, are
+    /// caught, not just top-level keys.
+    nonisolated static func argumentsCarryPrompt(_ raw: Any?) -> Bool {
+        guard let raw else { return false }
+        return jsonContainsPromptKey(raw)
     }
 
     private nonisolated static func jsonContainsPromptKey(_ any: Any) -> Bool {
@@ -111,6 +115,11 @@ extension ToolExecutor {
             return false
         }
         if let array = any as? [Any] { return array.contains { jsonContainsPromptKey($0) } }
+        // A value may itself be stringified JSON (agent-encoded params) — parse and walk it too.
+        if let s = any as? String, let data = s.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data), !(parsed is String) {
+            return jsonContainsPromptKey(parsed)
+        }
         return false
     }
 

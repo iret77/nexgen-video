@@ -57,5 +57,9 @@ struct ProviderToolTests {
         #expect(ToolExecutor.argumentsCarryPrompt(["prompt": "a neon city"]))
         #expect(ToolExecutor.argumentsCarryPrompt(["lyrics": "la la la"]))
         #expect(ToolExecutor.argumentsCarryPrompt(["aspect_ratio": "16:9", "media_id": "abc"]) == false)
+        // Nested and stringified-JSON prompts must not slip past.
+        #expect(ToolExecutor.argumentsCarryPrompt(["params": ["prompt": "x"]]))
+        #expect(ToolExecutor.argumentsCarryPrompt(["params": #"{"prompt":"x"}"#]))
+        #expect(ToolExecutor.argumentsCarryPrompt(nil) == false)
     }
 }
