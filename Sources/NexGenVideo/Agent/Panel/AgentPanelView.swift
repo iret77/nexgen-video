@@ -177,7 +177,9 @@ struct AgentPanelView: View {
         if command.requiresArgument {
             service.prefillInput(command.command + " ")
         } else {
-            service.send(text: command.command, mentions: [])
+            // A pack command/starter the user tapped — its prompt is auto-generated, so seed the agent
+            // hidden rather than dropping the raw instruction into the chat as a fake user message.
+            service.send(text: command.command, mentions: [], hidden: true)
         }
     }
 
@@ -275,7 +277,9 @@ struct AgentPanelView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
                     let results = toolResults
-                    ForEach(service.messages) { msg in
+                    // Hidden kickoff turns (Start production, a pack starter) seed the agent but are
+                    // never the user's own words — don't render them as a fake user bubble.
+                    ForEach(service.messages.filter { !$0.hidden }) { msg in
                         AgentMessageView(message: msg, toolResults: results)
                             .id(msg.id)
                     }
@@ -479,10 +483,18 @@ struct AgentPanelView: View {
     private func submit() {
         guard canSend else { return }
         if let fn = service.pendingFunction {
-            service.send(
-                text: AgentService.composedFunctionMessage(prompt: fn.prompt, note: service.draft),
-                mentions: service.mentions
-            )
+            let note = service.draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            if note.isEmpty {
+                // One-tap starter, no note of the user's own → seed the agent hidden; the raw prompt
+                // is never the user's words, so it must not appear as a chat bubble.
+                service.send(text: fn.prompt, mentions: service.mentions, hidden: true)
+            } else {
+                // The user added their own direction → that IS their message; keep it visible.
+                service.send(
+                    text: AgentService.composedFunctionMessage(prompt: fn.prompt, note: note),
+                    mentions: service.mentions
+                )
+            }
         } else {
             service.send(text: service.draft, mentions: service.mentions)
         }

@@ -478,12 +478,14 @@ final class AgentService {
         onSessionsChanged?()
     }
 
-    func send(text: String, mentions: [AgentMention]) {
+    /// `hidden` seeds the agent's first turn without a visible user bubble — for kickoffs the user
+    /// never typed (Start production, a pack starter). The model sees it; the transcript does not.
+    func send(text: String, mentions: [AgentMention], hidden: Bool = false) {
         if claudeRuntimeEnabled {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             streamError = nil
-            sendViaClaudeRuntime(trimmed)
+            sendViaClaudeRuntime(trimmed, hidden: hidden)
             return
         }
         guard canStream else {
@@ -502,7 +504,7 @@ final class AgentService {
         resolveOrphanToolUses()
         messages.append(AgentMessage(
             role: .user, blocks: [.text(trimmed)],
-            mentions: referencedMentions, contextHint: contextHint
+            mentions: referencedMentions, contextHint: contextHint, hidden: hidden
         ))
         streamError = nil
         kickOffStream()
@@ -583,9 +585,9 @@ final class AgentService {
 
     /// Route a message to the embedded Claude Code runtime. The engine is native and in-process, so
     /// there's nothing to bootstrap — the session starts immediately with NexGenVideo's MCP.
-    private func sendViaClaudeRuntime(_ trimmed: String) {
+    private func sendViaClaudeRuntime(_ trimmed: String, hidden: Bool = false) {
         let context = Self.selectionHint(editor: editor).map { "<app-context>\($0)</app-context>" }
-        claudeRuntime.send(text: trimmed, context: context)
+        claudeRuntime.send(text: trimmed, context: context, hidden: hidden)
     }
 
     private static func configuredPermissionMode() -> String {
@@ -893,13 +895,18 @@ struct AgentMessage: Identifiable, Codable {
     var blocks: [AgentContentBlock]
     var mentions: [AgentMention]
     var contextHint: String?
+    /// A kickoff/starter turn the USER never typed — sent to the model to start the agent working,
+    /// but NOT rendered in the transcript (showing it would be a fake, uneditable user message —
+    /// a look into the kitchen). Default false; decodes as false for pre-existing sessions.
+    var hidden: Bool = false
 
-    init(id: UUID = UUID(), role: Role, blocks: [AgentContentBlock], mentions: [AgentMention] = [], contextHint: String? = nil) {
+    init(id: UUID = UUID(), role: Role, blocks: [AgentContentBlock], mentions: [AgentMention] = [], contextHint: String? = nil, hidden: Bool = false) {
         self.id = id
         self.role = role
         self.blocks = blocks
         self.mentions = mentions
         self.contextHint = contextHint
+        self.hidden = hidden
     }
 }
 

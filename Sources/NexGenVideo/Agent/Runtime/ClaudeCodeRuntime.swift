@@ -43,8 +43,8 @@ final class ClaudeCodeRuntime {
 
     /// `context` (e.g. the user's current selection) is prepended to the payload sent to the model but
     /// never shown in the transcript — the user sees exactly what they typed.
-    func send(text: String, context: String? = nil) {
-        mapper.appendUserText(text)
+    func send(text: String, context: String? = nil, hidden: Bool = false) {
+        mapper.appendUserText(text, hidden: hidden)
         let payload = context.map { "\($0)\n\n\(text)" } ?? text
         if process == nil {
             guard startSession(firstMessage: payload) else { return }  // failure path already published
