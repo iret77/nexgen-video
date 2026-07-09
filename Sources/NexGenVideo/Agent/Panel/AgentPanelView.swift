@@ -78,6 +78,9 @@ struct AgentPanelView: View {
         }
         .background(AppTheme.Background.surfaceColor)
         .onAppear { refreshDiscoveredPlugins() }
+        // A pack activating AFTER the panel appeared (project open, Start production) must swap the
+        // generic starters for the pack's own — otherwise the chips stay stale-generic.
+        .onChange(of: editor.activePluginName) { _, _ in refreshDiscoveredPlugins() }
     }
 
     private func refreshDiscoveredPlugins() {

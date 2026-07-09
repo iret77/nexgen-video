@@ -277,7 +277,7 @@ enum AppTheme {
         static let pluginCardMinWidth: CGFloat = 220
         /// Fixed height of the Sanity strip pinned under the Review gallery (predictable galleries above).
         static let reviewSanityStripHeight: CGFloat = 200
-        static let agentComposerMinHeight: CGFloat = 64
+        static let agentComposerMinHeight: CGFloat = 92
         static let agentComposerMaxHeight: CGFloat = 280
         static let agentComposerGrabHeight: CGFloat = 10
         static let agentBlockLabelWidth: CGFloat = 96

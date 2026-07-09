@@ -169,6 +169,7 @@ struct AgentInputBox<LeadingTools: View>: View {
                 .fill(Color.white.opacity(AppTheme.Opacity.hint))
                 .frame(height: AppTheme.BorderWidth.hairline)
             HStack(spacing: AppTheme.Spacing.md) {
+                attachButton
                 leadingTools
                 Spacer(minLength: 0)
                 GlassEffectContainer(spacing: AppTheme.Spacing.xs) {
@@ -209,6 +210,38 @@ struct AgentInputBox<LeadingTools: View>: View {
             .disabled(!canSend)
             .opacity(canSend ? 1 : AppTheme.Opacity.strong)
             .transition(.scale.combined(with: .opacity))
+        }
+    }
+
+    /// The reliable way to bring a local file (a song, a clip, a still) into the chat — a real file
+    /// picker, since dropping onto the text area is eaten by the text editor and the agent can't open
+    /// one itself. Imports each pick as a media asset and @mentions it, exactly like drop/paste.
+    private var attachButton: some View {
+        Button(action: presentAttachPanel) {
+            Image(systemName: "paperclip")
+                .font(.system(size: AppTheme.FontSize.md, weight: .medium))
+                .foregroundStyle(AppTheme.Text.tertiaryColor)
+                .frame(width: AppTheme.IconSize.smMd, height: AppTheme.IconSize.smMd)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Attach a file — song, video, or image")
+    }
+
+    private func presentAttachPanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.audio, .movie, .image]
+        panel.prompt = "Attach"
+        panel.message = "Choose a song, video, or image to bring into the project."
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            if let asset = editor.addMediaAsset(from: url) {
+                editor.agentService.attachMention(for: asset)
+            }
         }
     }
 
