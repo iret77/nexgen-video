@@ -106,51 +106,63 @@ struct TitleBarView: View {
 
     // MARK: - Pipeline health capsule (absent when the project has no pipeline)
 
-    /// The Format-plugin control — the editor's one entry into the pack gallery AND the workspace's
-    /// active-format identity (Epic #98 / #95 C4). Format packs are the core feature, so this reads
-    /// as a labelled, tappable control rather than a bare name: "Format" names the field, the value
-    /// is the active pack (or "Generic"). When a pack is bound the pill takes an accent tint and
-    /// border — active presence, so the chrome visibly reflects the running format.
+    /// Once production has started, the format is fixed — switching would strand the pipeline's
+    /// artifacts (phases/bible/shotlist are format-specific). Generic counts as a started workflow too
+    /// once its pipeline exists.
+    private var formatLocked: Bool { editor.projectState != nil || editor.productionStarting }
+
+    /// The Format control. Before production starts it's a tappable picker (choose/change the format —
+    /// generic ⇄ pack — safe, no artifacts yet). Once production starts it becomes a plain STATUS pill
+    /// (no chevron, not tappable): the workspace shows the running format, but you can't switch it.
+    @ViewBuilder
     private var pluginChip: some View {
+        if formatLocked {
+            chipBody(interactive: false)
+                .help("Format is set for this project. It's chosen at the start — changing it mid-workflow would strand the pipeline.")
+        } else {
+            Button { showsPluginPicker = true } label: { chipBody(interactive: true) }
+                .buttonStyle(.plain)
+                .help(editor.activePluginName != nil
+                      ? "Active format. Click to change — available until production starts."
+                      : "Generic workflow. Click to pick a format (until production starts).")
+        }
+    }
+
+    private func chipBody(interactive: Bool) -> some View {
         let active = editor.activePluginName != nil
-        return Button {
-            showsPluginPicker = true
-        } label: {
-            HStack(spacing: AppTheme.Spacing.xs) {
-                Image(systemName: "puzzlepiece.extension.fill")
-                    .font(.system(size: AppTheme.FontSize.sm))
-                    .foregroundStyle(active ? AppTheme.Accent.primary : AppTheme.Text.tertiaryColor)
-                Text("Format")
-                    .font(.system(size: AppTheme.FontSize.xxs, weight: .medium))
-                    .foregroundStyle(AppTheme.Text.mutedColor)
-                    .fixedSize()
-                Text(activePluginLabel)
-                    .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
-                    .foregroundStyle(active ? AppTheme.Accent.primary : AppTheme.Text.secondaryColor)
-                    .lineLimit(1)
+        return HStack(spacing: AppTheme.Spacing.xs) {
+            Image(systemName: "puzzlepiece.extension.fill")
+                .font(.system(size: AppTheme.FontSize.sm))
+                .foregroundStyle(active ? AppTheme.Accent.primary : AppTheme.Text.tertiaryColor)
+            Text("Format")
+                .font(.system(size: AppTheme.FontSize.xxs, weight: .medium))
+                .foregroundStyle(AppTheme.Text.mutedColor)
+                .fixedSize()
+            Text(activePluginLabel)
+                .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
+                .foregroundStyle(active ? AppTheme.Accent.primary : AppTheme.Text.secondaryColor)
+                .lineLimit(1)
+            // Chevron only when it's actually a picker; the locked status pill carries no affordance.
+            if interactive {
                 Image(systemName: "chevron.down")
                     .font(.system(size: AppTheme.FontSize.micro, weight: .semibold))
                     .foregroundStyle(AppTheme.Text.mutedColor)
             }
-            .padding(.horizontal, AppTheme.Spacing.smMd)
-            .padding(.vertical, AppTheme.Spacing.xxs)
-            .background(
-                Capsule().fill(active
-                               ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.faint)
-                               : Color.white.opacity(AppTheme.Opacity.subtle))
-            )
-            .overlay(
-                Capsule().strokeBorder(active
-                                       ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.moderate)
-                                       : Color.white.opacity(AppTheme.Opacity.faint),
-                                       lineWidth: AppTheme.BorderWidth.hairline)
-            )
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .help(active
-              ? "Active format plugin. Click to browse or change formats."
-              : "Generic production workflow. Click to browse format plugins.")
+        .padding(.horizontal, AppTheme.Spacing.smMd)
+        .padding(.vertical, AppTheme.Spacing.xxs)
+        .background(
+            Capsule().fill(active
+                           ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.faint)
+                           : Color.white.opacity(AppTheme.Opacity.subtle))
+        )
+        .overlay(
+            Capsule().strokeBorder(active
+                                   ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.moderate)
+                                   : Color.white.opacity(AppTheme.Opacity.faint),
+                                   lineWidth: AppTheme.BorderWidth.hairline)
+        )
+        .contentShape(Capsule())
     }
 
     private var activePluginLabel: String {
