@@ -122,6 +122,24 @@ jobs:
             || { echo "::error::app does not dynamically link libNexGenEngine.dylib"; exit 1; }
           echo "OK: NexGenEngine is one shared dynamic image across app + pack"
 
+      - name: Load-test — the app actually loads the pack from an EXTERNAL dir (guards the load-time cast)
+        run: |
+          set -euo pipefail
+          # The static checks above are necessary but NOT sufficient — they missed the 0.7.6 rpath
+          # regression where the pack couldn't resolve the shared engine at load time. This reproduces
+          # the FIELD layout: the pack lives OUTSIDE the app bundle, so its @rpath/libNexGenEngine.dylib
+          # must resolve to the host's Contents/Frameworks via @executable_path/../Frameworks. The REAL
+          # app binary loads it (gate → Bundle.load() → principalClass cast → makePack()) and exits 0
+          # only on success.
+          PACK_BIN="$(ls .build/plugins/*.ngvpack/Contents/MacOS/* | head -1)"
+          otool -l "$PACK_BIN" | grep -q 'path @executable_path/../Frameworks' \
+            || { echo "::error::pack is missing the @executable_path/../Frameworks rpath — it can't reach the host engine"; exit 1; }
+          EXTDIR="$(mktemp -d)/packs"; mkdir -p "$EXTDIR"
+          cp -R .build/plugins/musicvideo.ngvpack "$EXTDIR/"
+          echo "loading $EXTDIR/musicvideo.ngvpack with the real app binary…"
+          NGV_SELFTEST_PACK="$EXTDIR/musicvideo.ngvpack" .build/NexGenVideo.app/Contents/MacOS/NexGenVideo
+          echo "OK: the app loaded the pack from an external directory"
+
       - name: Zip .app
         run: ditto -c -k --keepParent .build/NexGenVideo.app .build/NexGenVideo.zip
 

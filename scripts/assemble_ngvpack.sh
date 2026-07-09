@@ -57,6 +57,14 @@ mkdir -p "$PACK/Contents/MacOS" "$PACK/Contents/Resources"
 cp "$DYLIB" "$PACK/Contents/MacOS/${ID}"
 cp -R "$RES_BUNDLE" "$PACK/Contents/Resources/"
 
+# The pack loads from OUTSIDE the app bundle, so its build-time rpath (@loader_path) can't reach the
+# host's shared libNexGenEngine.dylib. @executable_path is ALWAYS the HOST executable's dir for any
+# image in the process, so this rpath resolves the pack's @rpath/libNexGenEngine.dylib to the app's
+# Contents/Frameworks — the SAME image the host already loaded (dyld dedups → one PackEntry class →
+# the load-time `principalClass as? PackEntry.Type` cast succeeds). Without it the pack pulls a second
+# engine image and the cast fails ("entry point not found" — the 0.7.6 regression). Must precede codesign.
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$PACK/Contents/MacOS/${ID}"
+
 # Info.plist via plistlib — no shell-escaping hazards with the copy strings.
 NGV_ID="$ID" NGV_DISPLAY="$DISPLAY" NGV_TAGLINE="$TAGLINE" NGV_HEADLINE="$HEADLINE" \
 NGV_BENEFIT="$BENEFIT" NGV_VERSION="$VERSION" NGV_MINAPP="$MINAPP" NGV_PRINCIPAL="$PRINCIPAL" \
