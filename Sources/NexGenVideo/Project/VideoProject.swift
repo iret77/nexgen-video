@@ -278,6 +278,13 @@ final class VideoProject: NSDocument {
                oldURL.standardizedFileURL != newURL.standardizedFileURL {
                 MainActor.assumeIsolated {
                     ProjectRegistry.shared.updateURL(from: oldURL, to: newURL)
+                    // Save As retargets the whole project: re-point the editor at the new package so
+                    // media destinations and the working-copy key follow it (fileURL changes AFTER
+                    // write(), so the new package already holds the just-persisted pipeline), then
+                    // retire the old location's working copy.
+                    let oldKey = ProjectWorkingCopy.stableKey(for: oldURL)
+                    editorViewModel.projectURL = newURL
+                    ProjectWorkingCopy.discard(key: oldKey)
                 }
             }
         }
