@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         Task.detached(priority: .utility) {
             Project.ensureStorageDirectory()
+            ProjectStorageMigration.cleanUpProjectsFolder()
         }
 
         AppNotifications.configure()

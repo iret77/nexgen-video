@@ -21,6 +21,12 @@ struct EditorWindowContentView: View {
         .sheet(item: $editor.pendingSettingsMismatch) { mismatch in
             ProjectSettingsMismatchView(mismatch: mismatch).environment(editor)
         }
+        .alert("Recover unsaved work?", isPresented: $editor.recoveredUnsavedWork) {
+            Button("Keep") { editor.keepRecoveredWork() }
+            Button("Discard", role: .destructive) { editor.discardRecoveredWork() }
+        } message: {
+            Text("NexGenVideo found unsaved changes from a session that didn't close normally. Keep them, or discard and open the last saved version.")
+        }
         .overlay { TheaterOverlayView() }
         .overlay { TourOverlay() }
     }

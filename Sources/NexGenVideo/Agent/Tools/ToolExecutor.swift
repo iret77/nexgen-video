@@ -46,6 +46,11 @@ final class ToolExecutor {
         } catch {
             result = .error(error.localizedDescription)
         }
+        // A successful pipeline write diverges the working copy from the saved package — mark the
+        // document edited so ⌘S persists it and the user is warned before closing without saving.
+        if !result.isError, tool.isPipelineWrite {
+            editor.onPipelineChanged?()
+        }
         feedbackState.record(result, for: tool)
         let elapsed = started.duration(to: .now).seconds
         let telemetry = result.isError ? "Agent tool failed" : "Agent tool finished"

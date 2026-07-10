@@ -15,6 +15,7 @@ private struct ProjectPackageSnapshot: Sendable {
     var generationLog: Data?
     var thumbnail: Data?
     var chatSessionFiles: [(name: String, data: Data)]
+    var workingCopyKey: String?
 }
 
 final class VideoProject: NSDocument {
@@ -35,6 +36,7 @@ final class VideoProject: NSDocument {
     private nonisolated(unsafe) var snapshotThumbnail: Data?
     private nonisolated(unsafe) var snapshotChatSessionFiles: [(name: String, data: Data)] = []
     private nonisolated(unsafe) var snapshotSourceProjectURL: URL?
+    private nonisolated(unsafe) var snapshotWorkingCopyKey: String?
     private nonisolated(unsafe) var snapshotPreparedForWrite = false
 
     // MARK: - Persistence
@@ -141,7 +143,8 @@ final class VideoProject: NSDocument {
                 manifest: snapshotManifest,
                 generationLog: snapshotGenerationLog,
                 thumbnail: snapshotThumbnail,
-                chatSessionFiles: snapshotChatSessionFiles
+                chatSessionFiles: snapshotChatSessionFiles,
+                workingCopyKey: snapshotWorkingCopyKey
             ),
             to: url,
             sourceURL: snapshotSourceProjectURL
@@ -158,6 +161,7 @@ final class VideoProject: NSDocument {
             .compactMap { session in
                 ChatSessionStore.encodeSession(session).map { (name: "\(session.id.uuidString).json", data: $0) }
             }
+        snapshotWorkingCopyKey = editorViewModel.workingCopyKey
         snapshotPreparedForWrite = true
     }
 
@@ -193,6 +197,12 @@ final class VideoProject: NSDocument {
         }
         try writeChatDirectory(snapshot.chatSessionFiles, to: packageURL, fm: fm)
         try copyMediaDirectoryIfNeeded(from: sourceURL, to: packageURL, fm: fm)
+        // Sync the engine's live working copy (bible, shotlist, renders, …) into the package so the
+        // project is self-contained. Handles "Save As"/swap too: the pipeline lands in whatever
+        // package URL NSDocument is writing to, not just an in-place save.
+        if let key = snapshot.workingCopyKey {
+            try ProjectWorkingCopy.persist(key: key, to: packageURL)
+        }
     }
 
     private nonisolated static func createPackageDirectory(at url: URL, fm: FileManager) throws {
@@ -273,6 +283,9 @@ final class VideoProject: NSDocument {
     // MARK: - Close
 
     override func close() {
+        // Clean close (any save/don't-save prompt already resolved) → drop the working copy so the next
+        // launch doesn't mistake it for crash-surviving unsaved work.
+        editorViewModel.releaseWorkingCopy()
         super.close()
         DispatchQueue.main.async {
             if AppState.shared.activeProject === self {
@@ -316,6 +329,11 @@ final class VideoProject: NSDocument {
         editorViewModel.projectURL = fileURL
         editorViewModel.agentService.loadSessions(from: fileURL)
         editorViewModel.agentService.onSessionsChanged = { [weak self] in
+            self?.updateChangeCount(.changeDone)
+        }
+        // A pipeline change lives only in the working copy until saved — mark the document edited so
+        // ⌘S persists it into the package and the user is warned before closing without saving.
+        editorViewModel.onPipelineChanged = { [weak self] in
             self?.updateChangeCount(.changeDone)
         }
 
