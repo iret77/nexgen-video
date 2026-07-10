@@ -222,16 +222,82 @@ final class EditorViewModel {
         didSet {
             guard projectURL != oldValue else { return }
             activePluginName = ProjectPluginSettings.activePlugin(projectURL: projectURL)
-            refreshProductionPipelineMarker()
             projectId = projectURL.flatMap { url in
                 let resolved = url.standardizedFileURL
                 return ProjectRegistry.shared.entries
                     .first(where: { $0.url.standardizedFileURL == resolved })?
                     .id.uuidString
             }
+            prepareWorkingCopy()
         }
     }
     private(set) var projectId: String?
+
+    // MARK: - Working copy (crash-safe editing home; synced into the .ngv package on save)
+
+    /// The engine/agent edit here, NOT inside the `.ngv` package, so the project on disk stays pristine
+    /// and unsaved work survives a crash. Nil until the project opens. See `docs/PROJECT_STORAGE.md`.
+    private(set) var workingCopyHome: URL?
+    /// A crash left a working copy from the last session — the UI offers to restore it. Bindable so the
+    /// recovery alert can dismiss itself.
+    var recoveredUnsavedWork = false
+    /// Marks the document edited when the pipeline changes (so the user is prompted to save, which
+    /// persists the working copy into the package). Set by the owning document.
+    var onPipelineChanged: (() -> Void)?
+
+    /// Stable per-project key for the working copy (same project → same copy across launches).
+    var workingCopyKey: String? { projectURL.map { ProjectWorkingCopy.stableKey(for: $0) } }
+
+    /// Materialize the working copy from the package (or keep a crash-surviving one). Off-main file I/O;
+    /// the format-lock marker is probed synchronously first so an already-started project locks at once.
+    private func prepareWorkingCopy() {
+        recoveredUnsavedWork = false
+        guard let projectURL, let key = workingCopyKey else {
+            workingCopyHome = nil
+            refreshProductionPipelineMarker()
+            return
+        }
+        refreshProductionPipelineMarker()
+        Task { [weak self] in
+            let result = await Task.detached {
+                try? ProjectWorkingCopy.open(key: key, packageURL: projectURL)
+            }.value
+            guard let self, self.projectURL == projectURL else { return }
+            self.workingCopyHome = result?.home
+            self.recoveredUnsavedWork = result?.recoveredUnsaved ?? false
+            self.refreshProductionPipelineMarker()
+            await self.refreshEngineState()
+        }
+    }
+
+    /// Keep the recovered working copy (it's already the live editing state) and mark the document
+    /// edited so a save persists it back into the package.
+    func keepRecoveredWork() {
+        recoveredUnsavedWork = false
+        onPipelineChanged?()
+    }
+
+    /// Throw away the recovered working copy and start from the last saved project state.
+    func discardRecoveredWork() {
+        guard let projectURL, let key = workingCopyKey else { return }
+        recoveredUnsavedWork = false
+        Task { [weak self] in
+            let home = await Task.detached {
+                try? ProjectWorkingCopy.rematerialize(key: key, packageURL: projectURL)
+            }.value
+            guard let self, self.projectURL == projectURL else { return }
+            self.workingCopyHome = home
+            self.refreshProductionPipelineMarker()
+            await self.refreshEngineState()
+        }
+    }
+
+    /// Discard the working copy on a clean close (so no false crash-recovery prompt next time).
+    func releaseWorkingCopy() {
+        guard let key = workingCopyKey else { return }
+        ProjectWorkingCopy.discard(key: key)
+        workingCopyHome = nil
+    }
 
     /// The project's ACTIVE format plugin — exactly one, or nil for the generic workflow. Installed
     /// plugins stay inert until activated here (gallery in Project settings). The embedded runtime
@@ -245,7 +311,11 @@ final class EditorViewModel {
     private(set) var hasProductionPipeline = false
 
     private func refreshProductionPipelineMarker() {
-        hasProductionPipeline = projectURL.map { DataRootResolver.dataRoot(of: $0) != nil } ?? false
+        // Production has started if EITHER the live working copy OR the saved package holds a pipeline —
+        // covers an unsaved just-started production (working copy only) and a freshly-opened project
+        // (package only, before the working copy materializes).
+        let roots = [workingCopyHome, projectURL].compactMap { $0 }
+        hasProductionPipeline = roots.contains { DataRootResolver.dataRoot(of: $0) != nil }
     }
 
     /// The format may change only until production starts — after that its pipeline artifacts
@@ -272,10 +342,11 @@ final class EditorViewModel {
     private(set) var productionStarting = false
 
     func startProduction() {
-        guard let url = projectURL, !productionStarting else { return }
-        // The pipeline (`pipeline`) is created inside the project package itself so the cockpit — which
-        // reads `<projectURL>/pipeline` — finds it. name is the display name, recorded in project.yaml.
-        let home = url
+        guard let url = projectURL, let key = workingCopyKey, !productionStarting else { return }
+        // The pipeline is scaffolded into the WORKING COPY (not the package); ⌘S syncs it back. The
+        // cockpit reads the working copy via `workingRoot`, so it finds the freshly-created pipeline.
+        let home = ProjectWorkingCopy.home(key)
+        workingCopyHome = home
         let name = url.deletingPathExtension().lastPathComponent
         let extraDirs = PackCatalog.projectDirs(activePack: activePluginName)
         productionStarting = true
@@ -300,6 +371,9 @@ final class EditorViewModel {
                     message: "Couldn't set up the production pipeline: \(scaffoldError.localizedDescription)")
                 return
             }
+            // The pipeline now exists in the working copy — mark the document edited so a save persists
+            // it into the `.ngv` package (and the user is warned before closing without saving).
+            self.onPipelineChanged?()
             // Genuine dialogue handoff — the pipeline is up. A pack whose workflow starts differently
             // (musicvideo: song → analysis gate → brief) supplies its own starter; the generic
             // brief-drafting kickoff is only right for no-pack projects. The kickoff is HIDDEN — the
@@ -314,7 +388,7 @@ final class EditorViewModel {
     /// Directory the pipeline engine reads/writes for cockpit data (Bible, shotlist, sanity, `pipeline/`).
     /// It is the open project package itself — a `.nexgen` bundle is a directory, so engine data lives
     /// inside it next to `media/`: self-contained, per-project, moves with the project. Nil until saved.
-    var workingRoot: URL? { projectURL }
+    var workingRoot: URL? { workingCopyHome }
 
     // Placeholder replaced in init() — @Observable doesn't support lazy var
     private(set) var mediaResolver: MediaResolver = MediaResolver(

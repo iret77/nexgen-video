@@ -67,6 +67,19 @@ enum ToolName: String, CaseIterable, Sendable {
     case getUIContract = "get_ui_contract"
     case setGateState = "set_gate_state"
     case runProviderTool = "run_provider_tool"
+
+    /// Tools that write the pipeline data root (not the timeline, which is undo-tracked and already
+    /// marks the document edited). After one of these the working copy diverges from the saved package,
+    /// so the document must be marked edited to prompt a save.
+    var isPipelineWrite: Bool {
+        switch self {
+        case .initProject, .approveGate, .rewind, .runPhase, .recordRender,
+             .setLedgerAttribute, .lockLedgerAttribute, .removeLedgerAttribute, .setGateState:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 struct AgentTool: @unchecked Sendable {
@@ -913,15 +926,15 @@ enum ToolDefinitions {
         ),
         AgentTool(
             name: .initProject,
-            description: "Scaffold a fresh project under `home_dir` and return `{data_root, project, created}`. WRITES.\n\nCreates the `pipeline/` data root with the engine's format-neutral core subdirs PLUS the active pack's own subdirs (e.g. musicvideo adds audio/lyrics/analysis), and writes `project.yaml` (mode, budget) and `gates.yaml`. `mode` is one of beat/phrase/section/multicam. Fails if `home_dir` already holds a project.",
+            description: "Scaffold a fresh project and return `{data_root, project, created}`. WRITES.\n\nCreates the `pipeline/` data root with the engine's format-neutral core subdirs PLUS the active pack's own subdirs (e.g. musicvideo adds audio/lyrics/analysis), and writes `project.yaml` (mode, budget) and `gates.yaml`. `mode` is one of beat/phrase/section/multicam. Omit `home_dir` to scaffold the open project (recommended); pass it only for out-of-band scaffolding. Fails if the target already holds a project.",
             inputSchema: objectSchema(
                 properties: [
-                    "home_dir": ["type": "string", "description": "Directory to scaffold the project under."],
+                    "home_dir": ["type": "string", "description": "Optional. Directory to scaffold under; omit to use the open project."],
                     "name": ["type": "string", "description": "Project name."],
                     "mode": ["type": "string", "description": "Cut mode: beat/phrase/section/multicam (default beat)."],
                     "budget_eur": ["type": "number", "description": "Project budget in EUR (default 50)."],
                 ],
-                required: ["home_dir", "name"]
+                required: ["name"]
             )
         ),
         AgentTool(

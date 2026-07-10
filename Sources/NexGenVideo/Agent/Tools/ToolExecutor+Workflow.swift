@@ -115,7 +115,16 @@ extension ToolExecutor {
     // MARK: - Scaffold (WRITES)
 
     func initProjectTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
-        let home = URL(fileURLWithPath: try args.requireString("home_dir"))
+        // Default to the open project's working copy (⌘S syncs it into the package); an explicit
+        // home_dir still works for out-of-band scaffolding.
+        let home: URL
+        if let hd = args.string("home_dir"), !hd.isEmpty {
+            home = URL(fileURLWithPath: hd)
+        } else if let working = editor.workingRoot {
+            home = working
+        } else {
+            throw ToolError("No open project — pass home_dir to scaffold a project location.")
+        }
         let name = try args.requireString("name")
         let modeRaw = args.string("mode") ?? "beat"
         guard let mode = Mode(rawValue: modeRaw) else {
