@@ -63,6 +63,13 @@ enum ProjectWorkingCopy {
         // Clear the completion sentinel FIRST: while the copy is in flight the working copy is partial
         // and must not read as recoverable if the app dies mid-materialize.
         try? fm.removeItem(at: sentinel)
+        // Never destroy a possibly-real working copy: if an existing pipeline is a valid data root but
+        // lacks the sentinel (a legacy/interrupted copy), move it aside rather than delete it.
+        let existingMarker = dstPipeline.appendingPathComponent(DataRootResolver.projectMarker)
+        if fm.fileExists(atPath: existingMarker.path) {
+            let quarantine = dstHome.appendingPathComponent(".pre-sentinel-\(UUID().uuidString)", isDirectory: true)
+            try? fm.moveItem(at: dstPipeline, to: quarantine)
+        }
         try? fm.removeItem(at: dstPipeline)
         if let packageURL, let srcPipeline = packagePipeline(in: packageURL) {
             // Copy to a staging dir, then atomic-move into place: a mid-copy failure can never leave a
