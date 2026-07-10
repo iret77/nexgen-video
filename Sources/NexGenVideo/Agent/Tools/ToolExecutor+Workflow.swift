@@ -561,7 +561,24 @@ extension ToolExecutor {
         guard let fileURL = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else {
             return nil
         }
-        return existingOrImportedAsset(fileURL, editor: editor)
+        return existingOrImportedAsset(durableMediaURL(for: fileURL, editor: editor), editor: editor)
+    }
+
+    /// A render lives in the ephemeral working copy (Recovery), which is deleted on a clean close — a
+    /// timeline clip referencing it there would go offline on reopen. Copy any file outside the package
+    /// into the package's `media/` (the durable, self-contained media home) and reference that copy.
+    private func durableMediaURL(for fileURL: URL, editor: EditorViewModel) -> URL {
+        guard let projectURL = editor.projectURL,
+              !fileURL.standardizedFileURL.path.hasPrefix(projectURL.standardizedFileURL.path)
+        else { return fileURL }
+        let mediaDir = projectURL.appendingPathComponent(Project.mediaDirectoryName, isDirectory: true)
+        let dest = mediaDir.appendingPathComponent(fileURL.lastPathComponent)
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: dest.path) {
+            try? fm.createDirectory(at: mediaDir, withIntermediateDirectories: true)
+            try? fm.copyItem(at: fileURL, to: dest)
+        }
+        return fm.fileExists(atPath: dest.path) ? dest : fileURL
     }
 
     /// The single song in `audio/` as a media asset (imported once, reused after), or nil when there
@@ -569,7 +586,7 @@ extension ToolExecutor {
     private func resolveSongAsset(dataRoot: URL, editor: EditorViewModel) -> MediaAsset? {
         let songs = AudioProjectLayout.songFiles(dataRoot: dataRoot)
         guard songs.count == 1, let songURL = songs.first else { return nil }
-        return existingOrImportedAsset(songURL, editor: editor)
+        return existingOrImportedAsset(durableMediaURL(for: songURL, editor: editor), editor: editor)
     }
 
     /// Reuse the library asset already backed by `fileURL`, else import it.

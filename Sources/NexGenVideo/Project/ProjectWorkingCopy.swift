@@ -8,6 +8,10 @@ import NexGenEngine
 /// See `docs/PROJECT_STORAGE.md`.
 enum ProjectWorkingCopy {
     private static let pipelineDir = DataRootResolver.pipelineDirname   // "pipeline"
+    /// Written only after a materialize fully completes. Its presence proves the working copy is a
+    /// COMPLETE mirror — a partial/interrupted copy (or one from an older direct-copy build) lacks it
+    /// and is never treated as recoverable, so a partial tree can't be persisted over the package.
+    private static let completeSentinel = ".ngv-materialized"
 
     /// The working-copy home for a project; its `pipeline/` data root lives directly under it.
     static func home(_ key: String) -> URL { AppPaths.workingCopy(projectId: key) }
@@ -28,11 +32,14 @@ enum ProjectWorkingCopy {
     /// Otherwise materialize a fresh copy from the package's stored pipeline.
     @discardableResult
     static func open(key: String, packageURL: URL?) throws -> OpenResult {
-        // Recovered only if the surviving working copy is a VALID data root (has project.yaml) — a
-        // partial copy from an interrupted materialize must NOT be mistaken for unsaved work.
+        // Recovered only if the surviving working copy fully materialized (completion sentinel) AND is
+        // a valid data root (has project.yaml). A partial/interrupted copy is rebuilt from the package,
+        // never persisted over it.
+        let fm = FileManager.default
+        let sentinel = home(key).appendingPathComponent(completeSentinel)
         let marker = home(key).appendingPathComponent(pipelineDir)
             .appendingPathComponent(DataRootResolver.projectMarker)
-        if FileManager.default.fileExists(atPath: marker.path) {
+        if fm.fileExists(atPath: sentinel.path), fm.fileExists(atPath: marker.path) {
             return OpenResult(home: home(key), recoveredUnsaved: true)
         }
         return OpenResult(home: try materialize(key: key, packageURL: packageURL), recoveredUnsaved: false)
@@ -52,19 +59,26 @@ enum ProjectWorkingCopy {
         let fm = FileManager.default
         let dstHome = AppPaths.ensure(home(key))
         let dstPipeline = dstHome.appendingPathComponent(pipelineDir)
+        let sentinel = dstHome.appendingPathComponent(completeSentinel)
+        // Clear the completion sentinel FIRST: while the copy is in flight the working copy is partial
+        // and must not read as recoverable if the app dies mid-materialize.
+        try? fm.removeItem(at: sentinel)
         try? fm.removeItem(at: dstPipeline)
-        guard let packageURL, let srcPipeline = packagePipeline(in: packageURL) else { return dstHome }
-        // Copy to a staging dir, then atomic-move into place: a mid-copy failure can never leave a
-        // partial `pipeline` that a later open would mistake for recoverable work.
-        let staging = dstHome.appendingPathComponent(".materialize-\(UUID().uuidString)", isDirectory: true)
-        try? fm.removeItem(at: staging)
-        do {
-            try fm.copyItem(at: srcPipeline, to: staging)
-            try fm.moveItem(at: staging, to: dstPipeline)
-        } catch {
+        if let packageURL, let srcPipeline = packagePipeline(in: packageURL) {
+            // Copy to a staging dir, then atomic-move into place: a mid-copy failure can never leave a
+            // partial `pipeline`.
+            let staging = dstHome.appendingPathComponent(".materialize-\(UUID().uuidString)", isDirectory: true)
             try? fm.removeItem(at: staging)
-            throw error
+            do {
+                try fm.copyItem(at: srcPipeline, to: staging)
+                try fm.moveItem(at: staging, to: dstPipeline)
+            } catch {
+                try? fm.removeItem(at: staging)
+                throw error
+            }
         }
+        // Materialize is complete (empty home for a new project, or a full pipeline copy).
+        try? Data().write(to: sentinel)
         return dstHome
     }
 

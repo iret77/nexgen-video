@@ -47,6 +47,19 @@ struct ProjectWorkingCopyTests {
         #expect(second.recoveredUnsaved == true)
     }
 
+    @Test("a working copy missing the completion sentinel is rebuilt, not recovered")
+    func partialCopyNotRecovered() throws {
+        let pkg = try tempPackage()
+        let key = uniqueKey()
+        defer { ProjectWorkingCopy.discard(key: key); try? FileManager.default.removeItem(at: pkg) }
+
+        let home = try ProjectWorkingCopy.materialize(key: key, packageURL: pkg)
+        // Simulate a partial/old copy: valid project.yaml present, but no completion sentinel.
+        try FileManager.default.removeItem(at: home.appendingPathComponent(".ngv-materialized"))
+        let result = try ProjectWorkingCopy.open(key: key, packageURL: pkg)
+        #expect(result.recoveredUnsaved == false)
+    }
+
     @Test("legacy _studio in the package is materialized into pipeline")
     func materializesLegacy() throws {
         let pkg = try tempPackage(pipelineName: DataRootResolver.legacyPipelineDirname)
