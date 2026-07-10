@@ -735,19 +735,13 @@ extension ToolExecutor {
             == destURL.standardizedFileURL.resolvingSymlinksInPath()
 
         // The runner keeps exactly one song in audio/. A different existing audio file blocks unless
-        // `replace` is set; removal failures are real errors (a leftover would block analysis later
-        // while this call reported success).
-        let existing = existingAudioFiles(in: audioDir)
-        let others = existing.filter { $0.lastPathComponent != destURL.lastPathComponent }
-        if !others.isEmpty {
-            guard replace else {
-                let names = others.map(\.lastPathComponent).sorted().joined(separator: ", ")
-                throw ToolError("audio/ already holds a different song (\(names)). Pass replace: true to swap it — the analysis runner keeps exactly one song.")
-            }
-            for url in others {
-                do { try FileManager.default.removeItem(at: url) }
-                catch { throw ToolError("Couldn't remove \(url.lastPathComponent) from audio/: \(error.localizedDescription)") }
-            }
+        // `replace` is set. VALIDATE up front (fail with no side effects), but don't delete the old
+        // song yet — the new one is copied into place first, so a failed copy never leaves audio/ empty.
+        let others = existingAudioFiles(in: audioDir)
+            .filter { $0.lastPathComponent != destURL.lastPathComponent }
+        if !others.isEmpty, !replace {
+            let names = others.map(\.lastPathComponent).sorted().joined(separator: ", ")
+            throw ToolError("audio/ already holds a different song (\(names)). Pass replace: true to swap it — the analysis runner keeps exactly one song.")
         }
 
         if !alreadyInPlace {
@@ -772,6 +766,13 @@ extension ToolExecutor {
                 try? FileManager.default.removeItem(at: staging)
                 throw ToolError("Couldn't copy the song into audio/: \(error.localizedDescription)")
             }
+        }
+
+        // The new song is safely in place — now retire the other old songs (validated above). A
+        // leftover would block analysis later while this call reported success.
+        for url in others {
+            do { try FileManager.default.removeItem(at: url) }
+            catch { throw ToolError("Couldn't remove \(url.lastPathComponent) from audio/: \(error.localizedDescription)") }
         }
 
         return try jsonResult(["filename": destURL.lastPathComponent, "audio_dir": audioDir.path])
