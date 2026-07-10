@@ -572,7 +572,16 @@ extension ToolExecutor {
               !fileURL.standardizedFileURL.path.hasPrefix(projectURL.standardizedFileURL.path)
         else { return fileURL }
         let mediaDir = projectURL.appendingPathComponent(Project.mediaDirectoryName, isDirectory: true)
-        let dest = mediaDir.appendingPathComponent(fileURL.lastPathComponent)
+        // Collision-safe: distinct renders can share a basename (renders/s001/output.mp4 vs
+        // s002/output.mp4). Suffix with a hash of the SOURCE path so different sources never alias,
+        // while a re-run of the same source reuses its copy.
+        let src = fileURL.standardizedFileURL.resolvingSymlinksInPath().path
+        var h: UInt64 = 0xcbf29ce484222325
+        for b in src.utf8 { h = (h ^ UInt64(b)) &* 0x100000001b3 }
+        let base = fileURL.deletingPathExtension().lastPathComponent
+        let ext = fileURL.pathExtension
+        let stamped = "\(base)-\(String(h, radix: 16))"
+        let dest = mediaDir.appendingPathComponent(ext.isEmpty ? stamped : "\(stamped).\(ext)")
         let fm = FileManager.default
         if !fm.fileExists(atPath: dest.path) {
             try? fm.createDirectory(at: mediaDir, withIntermediateDirectories: true)
