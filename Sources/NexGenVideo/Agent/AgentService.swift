@@ -234,7 +234,7 @@ final class AgentService {
     }
 
     /// Extract `[Section]` markers (one per line, e.g. `[Chorus]`) from lyrics text, in order.
-    static func lyricsSectionMarkers(_ text: String) -> [String] {
+    nonisolated static func lyricsSectionMarkers(_ text: String) -> [String] {
         text.split(whereSeparator: \.isNewline).compactMap { line in
             let t = line.trimmingCharacters(in: .whitespaces)
             guard t.count > 2, t.hasPrefix("["), t.hasSuffix("]") else { return nil }
