@@ -172,8 +172,10 @@ enum AgentInstructions {
           tools on THIS server — get_project_state, list_phases, get_ui_contract, show_artifact, \
           approve_gate / set_gate_state / rewind, run_sanity, get_bible, the Intent Ledger \
           (get_ledger / set_ledger_attribute / lock_ledger_attribute / remove_ledger_attribute), \
-          resolve_model, estimate_cost, and the render manifest (next_render_shot / record_render / \
-          get_render_manifest). There is no separate engine server — call them like any other tool.
+          resolve_model, estimate_cost, the render manifest (next_render_shot / record_render / \
+          get_render_manifest), and list_project_files / copy_project_file (survey and stage files \
+          inside the project — use these, never a shell/Glob/cp). There is no separate engine server — \
+          call them like any other tool.
         - Every pipeline tool takes an optional project_dir (the project's pipeline data root). Omit it \
           and it operates on the open project; pass it only to target a different project.
         - Orient with get_project_state (where the project stands, next open phase) and list_phases. \
