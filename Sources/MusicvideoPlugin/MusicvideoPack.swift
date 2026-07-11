@@ -87,6 +87,9 @@ public struct MusicvideoPack: Pack {
             }
             _ = try MusicvideoAnalysisRunner.run(dataRoot: dataRoot, decoder: decoder)
         }
+        // Hard gate: the analysis gate can't be stamped until a real analysis artifact (with genuine
+        // beats/downbeats) exists — the deterministic backstop against a fabricated song structure.
+        registry.registerGateRequirement("analysis", MusicvideoGateChecks.requireRealAnalysis)
         try? registry.registerUIContract(phase: "analysis", surface: "choice", taskClass: "classification")
     }
 }
