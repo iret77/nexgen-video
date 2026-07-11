@@ -195,6 +195,33 @@ struct WorkflowToolsTests {
         #expect(ToolHarness.textOf(blocked2).contains("run_phase"))
     }
 
+    @Test("list_project_files + copy_project_file stage files and refuse to escape the project")
+    func projectFileTools() async throws {
+        let (h, dataRoot, cleanup) = try scaffold()
+        defer { try? FileManager.default.removeItem(at: cleanup) }
+        let importDir = dataRoot.appendingPathComponent("import/characters/mouse", isDirectory: true)
+        try FileManager.default.createDirectory(at: importDir, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: importDir.appendingPathComponent("face.png"))
+
+        let list = try #require(try await h.runOK("list_project_files", args: [
+            "project_dir": dataRoot.path, "subdir": "import",
+        ]) as? [String: Any])
+        #expect((list["files"] as? [String])?.contains("import/characters/mouse/face.png") == true)
+
+        _ = try await h.runOK("copy_project_file", args: [
+            "project_dir": dataRoot.path,
+            "from": "import/characters/mouse/face.png", "to": "bible/refs/mouse/face.png",
+        ])
+        #expect(FileManager.default.fileExists(atPath: dataRoot.appendingPathComponent("bible/refs/mouse/face.png").path))
+        #expect(FileManager.default.fileExists(atPath: importDir.appendingPathComponent("face.png").path))  // copy, source stays
+
+        // A path that escapes the project is refused.
+        let escape = await h.runRaw("copy_project_file", args: [
+            "project_dir": dataRoot.path, "from": "import/characters/mouse/face.png", "to": "../escape.png",
+        ])
+        #expect(escape.isError == true)
+    }
+
     @Test("set_gate_state rejects an unknown state")
     func setGateStateBadValue() async throws {
         let (h, dataRoot, cleanup) = try scaffold()
