@@ -38,7 +38,9 @@ struct IdentitySlugTests {
 
 @Suite("Copy files uniquely")
 struct CopyFilesUniquelyTests {
-    @Test("copies (not moves), uniquifies duplicate basenames, keeps sources")
+    private func read(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+
+    @Test("copies (not moves), uniquifies against batch AND existing files, never overwrites")
     func copies() throws {
         let fm = FileManager.default
         let tmp = fm.temporaryDirectory.appendingPathComponent("copy-\(UUID().uuidString)", isDirectory: true)
@@ -48,17 +50,21 @@ struct CopyFilesUniquelyTests {
         defer { try? fm.removeItem(at: tmp) }
         try fm.createDirectory(at: a, withIntermediateDirectories: true)
         try fm.createDirectory(at: b, withIntermediateDirectories: true)
-        // Two different files with the SAME basename.
+        try fm.createDirectory(at: dest, withIntermediateDirectories: true)
+        // A pre-existing reference already in dest (e.g. from an earlier session) must be preserved.
+        try Data("EXISTING".utf8).write(to: dest.appendingPathComponent("ref.jpg"))
+        // Two different picked files with the SAME basename.
         try Data("A".utf8).write(to: a.appendingPathComponent("ref.jpg"))
         try Data("B".utf8).write(to: b.appendingPathComponent("ref.jpg"))
 
         let names = try AgentService.copyFilesUniquely(
             [a.appendingPathComponent("ref.jpg"), b.appendingPathComponent("ref.jpg")], into: dest)
 
-        #expect(names == ["ref.jpg", "ref-2.jpg"])            // uniquified, count truthful
-        #expect(fm.fileExists(atPath: dest.appendingPathComponent("ref.jpg").path))
-        #expect(fm.fileExists(atPath: dest.appendingPathComponent("ref-2.jpg").path))
-        #expect(fm.fileExists(atPath: a.appendingPathComponent("ref.jpg").path))  // sources untouched (copy)
-        #expect(fm.fileExists(atPath: b.appendingPathComponent("ref.jpg").path))
+        #expect(names == ["ref-2.jpg", "ref-3.jpg"])              // uniquified past the existing ref.jpg
+        #expect(read(dest.appendingPathComponent("ref.jpg")) == "EXISTING")   // never overwritten
+        #expect(read(dest.appendingPathComponent("ref-2.jpg")) == "A")        // contents match sources
+        #expect(read(dest.appendingPathComponent("ref-3.jpg")) == "B")
+        #expect(read(a.appendingPathComponent("ref.jpg")) == "A")             // sources untouched (copy)
+        #expect(read(b.appendingPathComponent("ref.jpg")) == "B")
     }
 }

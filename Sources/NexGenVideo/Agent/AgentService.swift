@@ -337,13 +337,22 @@ final class AgentService {
             + "The production-design agent (K2) curates these as the style source.", mentions: [])
     }
 
-    /// Copy files into `dir` (copy, never move), uniquifying duplicate basenames and skipping a file
-    /// already at its destination. Returns the destination names. One routine for every image intake.
+    /// Copy files into `dir` (copy, never move), choosing a free name for each so nothing is ever
+    /// overwritten — collisions with files ALREADY in `dir` (e.g. a reference from an earlier session)
+    /// and within this batch both get a `-2`/`-3` suffix. A file already sitting at its destination is
+    /// kept as-is. Returns the destination names. One routine for every image intake.
     nonisolated static func copyFilesUniquely(_ urls: [URL], into dir: URL) throws -> [String] {
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fm = FileManager.default
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        var used = Set((try? fm.contentsOfDirectory(atPath: dir.path)) ?? [])
         var copied: [String] = []
-        var used: Set<String> = []
         for src in urls {
+            let inPlace = dir.appendingPathComponent(src.lastPathComponent)
+            if src.standardizedFileURL == inPlace.standardizedFileURL {
+                used.insert(src.lastPathComponent)
+                copied.append(src.lastPathComponent)
+                continue
+            }
             let ext = src.pathExtension
             let base = src.deletingPathExtension().lastPathComponent
             var name = src.lastPathComponent
@@ -353,10 +362,7 @@ final class AgentService {
                 n += 1
             }
             used.insert(name)
-            let dest = dir.appendingPathComponent(name)
-            if src.standardizedFileURL == dest.standardizedFileURL { copied.append(name); continue }
-            if FileManager.default.fileExists(atPath: dest.path) { try? FileManager.default.removeItem(at: dest) }
-            try FileManager.default.copyItem(at: src, to: dest)
+            try fm.copyItem(at: src, to: dir.appendingPathComponent(name))
             copied.append(name)
         }
         return copied
