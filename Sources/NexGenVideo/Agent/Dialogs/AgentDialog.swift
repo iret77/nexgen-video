@@ -91,10 +91,14 @@ struct AgentDialog: Identifiable, Equatable, Sendable {
         let prompt: String?
         let allowsMultiple: Bool
         /// Where the chosen file goes. Default (nil) ⇒ the media library, referenced back as an
-        /// @mention (the song path). `"lyrics"` ⇒ the host writes it deterministically to the project's
-        /// `lyrics/lyrics.txt` — a pipeline sidecar, not a media clip — and reports the parsed section
-        /// markers to the agent.
+        /// @mention (the song path). `"lyrics"`/`"script"` ⇒ host writes a text sidecar. `"character"`/
+        /// `"location"` ⇒ host copies the images into `import/<characters|locations>/<slug>/` (the bible
+        /// anchor convention), using `namePrompt`'s value as the identity name.
         let attachAs: String?
+        /// When set, the well also shows a required identity-name field (e.g. "Character name"). Used by
+        /// the `character`/`location` intakes so the host can name the destination folder. The name
+        /// arrives in `AgentDialogResult.direction`.
+        let namePrompt: String?
     }
 
     let id: String
@@ -189,11 +193,13 @@ struct AgentDialog: Identifiable, Equatable, Sendable {
             .filter { !$0.isEmpty }
         let prompt = (raw["prompt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let attachAs = (raw["attachAs"] as? String)?.trimmingCharacters(in: .whitespaces)
+        let namePrompt = (raw["namePrompt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         return FileIntake(
             accept: accept,
             prompt: (prompt?.isEmpty == false) ? prompt : nil,
             allowsMultiple: (raw["multiple"] as? Bool) ?? false,
-            attachAs: (attachAs?.isEmpty == false) ? attachAs : nil
+            attachAs: (attachAs?.isEmpty == false) ? attachAs : nil,
+            namePrompt: (namePrompt?.isEmpty == false) ? namePrompt : nil
         )
     }
 

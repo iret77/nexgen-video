@@ -119,7 +119,8 @@ enum ToolDefinitions {
                             "accept": ["type": "array", "items": ["type": "string"], "description": "Accepted kinds ('audio', 'video', 'image', 'text') or bare file extensions ('mp3', 'wav', 'txt'). Empty \u{21D2} any file."],
                             "prompt": ["type": "string", "description": "Short line shown in the drop well, e.g. 'Drop your track or choose a file (.wav / .mp3 / .m4a / .aiff / .flac / .aac)'."],
                             "multiple": ["type": "boolean", "description": "Allow more than one file. Default false."],
-                            "attachAs": ["type": "string", "description": "Where the file goes. Omit \u{21D2} the media library, returned as an @mention (the song path). 'lyrics' \u{21D2} host writes lyrics/lyrics.txt and replies with the parsed [Section] markers. 'script' \u{21D2} host writes import/script.md and tells you to build the treatment/bible FROM it (a brownfield project). Both are text sidecars \u{2014} use accept ['text'] with them."],
+                            "attachAs": ["type": "string", "description": "Where the file goes. Omit \u{21D2} the media library, returned as an @mention (the song path). 'lyrics' \u{21D2} host writes lyrics/lyrics.txt and replies with the parsed [Section] markers. 'script' \u{21D2} host writes import/script.md for a brownfield project (accept ['text'] for both). 'character'/'location' \u{2192} host copies the images into import/characters|locations/<slug>/ as a bible anchor (accept ['image'], set namePrompt, usually multiple:true)."],
+                            "namePrompt": ["type": "string", "description": "For attachAs 'character'/'location': the label of a REQUIRED identity-name field the well shows (e.g. 'Character name'). The typed name becomes the destination folder; confirm stays disabled until it's filled."],
                         ],
                     ],
                     "sections": [

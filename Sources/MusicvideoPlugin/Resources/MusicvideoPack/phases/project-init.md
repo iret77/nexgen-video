@@ -103,12 +103,15 @@ Offer the optional brownfield inputs with a **show_dialog**:
   and tells you to build the treatment/bible FROM it. If provided, treat
   its characters, locations, and beats as the source of truth and confirm
   your reading with the user.
-- **Prepared characters / locations** — real character photos and
-  location photos, **structured** into `import/characters/<id>/` or
-  `import/locations/<id>/`. This path convention is mandatory: it is how
-  the bible-agent (K5) recognizes identity refs and adopts them as bible
-  anchors. Tell the user to place them there (their own subdirs under
-  `import/` for loose style inspiration are also fine).
+- **Prepared characters / locations** — for each identity the user has
+  reference images for, present a **show_dialog** with a `fileIntake`
+  (`accept: ["image"]`, `multiple: true`, `attachAs: "character"` or
+  `"location"`, `namePrompt: "Character name"` / `"Location name"`,
+  prompt e.g. "Drop the reference images"). The user names the identity
+  and drops/picks the images; the host copies them into
+  `import/characters/<slug>/` or `import/locations/<slug>/` — the bible
+  anchor the bible-agent (K5) adopts. One dialog per identity; repeat for
+  each. Never tell the user to place files in a folder by hand.
 
 If the user has neither, proceed greenfield — but only after asking, so a
 prepared project is never overwritten by an invented one.

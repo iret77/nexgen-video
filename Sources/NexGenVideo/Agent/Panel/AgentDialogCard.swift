@@ -166,6 +166,11 @@ struct AgentDialogCard: View {
     @ViewBuilder
     private func fileWell(_ intake: AgentDialog.FileIntake) -> some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            if let namePrompt = intake.namePrompt {
+                TextField(namePrompt, text: $direction)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: AppTheme.FontSize.sm))
+            }
             if pickedFiles.isEmpty {
                 emptyFileWell(intake)
             } else {
@@ -320,9 +325,13 @@ struct AgentDialogCard: View {
         }
     }
 
-    /// A file-intake dialog can't be confirmed until the user has actually chosen a file.
+    /// A file-intake dialog can't be confirmed until the user has actually chosen a file — and, when
+    /// the intake asks for an identity name (character/location), until that name is filled in too.
     private var canSubmit: Bool {
-        dialog.fileIntake == nil || !pickedFiles.isEmpty
+        guard let intake = dialog.fileIntake else { return true }
+        if pickedFiles.isEmpty { return false }
+        if intake.namePrompt != nil, direction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
+        return true
     }
 
     // MARK: - State
