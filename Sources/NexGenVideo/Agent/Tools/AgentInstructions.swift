@@ -137,9 +137,12 @@ enum AgentInstructions {
           mode). For a TEXT sidecar that belongs in the pipeline rather than the media library, set \
           fileIntake.attachAs: "lyrics" (host writes lyrics/lyrics.txt, replies with the [Section] \
           markers) or "script" (host writes import/script.md for a brownfield project) with \
-          accept: ["text"]. Outside a dialog, the composer's paperclip / drag-onto-Media does the \
-          media case. Never ask the user to type or paste a file path. After presenting the dialog, \
-          STOP and wait.
+          accept: ["text"]. For PREPARED characters/locations the user already has, set \
+          attachAs: "character" or "location" with accept: ["image"], multiple: true, and \
+          namePrompt (the well shows a required name field); the host copies the images into \
+          import/characters|locations/<slug>/ as a bible anchor — one dialog per identity. Outside a \
+          dialog, the composer's paperclip / drag-onto-Media does the media case. Never ask the user \
+          to type or paste a file path. After presenting the dialog, STOP and wait.
 
         # Audio generation
         - Two categories, distinguished by model (see list_models type='audio'):

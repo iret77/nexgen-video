@@ -24,3 +24,14 @@ struct LyricsMarkersTests {
         #expect(AgentService.lyricsSectionMarkers("just\nsome\nplain lyrics").isEmpty)
     }
 }
+
+@Suite("Identity slug")
+struct IdentitySlugTests {
+    @Test("names become filesystem-safe folder slugs")
+    func slugs() {
+        #expect(AgentService.identitySlug("Claude Mouse") == "claude-mouse")
+        #expect(AgentService.identitySlug("  The AI Cat!!  ") == "the-ai-cat")
+        #expect(AgentService.identitySlug("Café_déjà 2") == "café-déjà-2")
+        #expect(AgentService.identitySlug("---") == "")
+    }
+}

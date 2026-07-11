@@ -163,12 +163,18 @@ final class AgentService {
     /// this one). Kept on `AgentService` so no surface re-implements dialog submission.
     func submitDialog(_ dialog: AgentDialog, result: AgentDialogResult) {
         pendingDialog = nil
-        // A text sidecar (lyrics / story script) is pipeline input, not a media clip: the host writes
-        // it deterministically into the project and briefs the agent, rather than importing it to the
-        // media library. Unknown/absent attachAs falls through to the normal media-asset path.
-        if let sidecar = dialog.fileIntake?.attachAs, sidecar == "lyrics" || sidecar == "script" {
-            attachTextSidecar(sidecar, dialog: dialog, result: result)
+        // Pipeline inputs (not media clips) are written deterministically into the project by the host,
+        // then the agent is briefed — rather than importing to the media library. Unknown/absent
+        // attachAs falls through to the normal media-asset path.
+        switch dialog.fileIntake?.attachAs {
+        case "lyrics", "script":
+            attachTextSidecar(dialog.fileIntake!.attachAs!, dialog: dialog, result: result)
             return
+        case "character", "location":
+            attachIdentityAssets(dialog.fileIntake!.attachAs!, dialog: dialog, result: result)
+            return
+        default:
+            break
         }
         switch dialog.purpose {
         case .chatClarification:
@@ -237,6 +243,81 @@ final class AgentService {
                 + "bible, and shots FROM this script — its characters, locations, and beats are the source of "
                 + "truth. Confirm your reading with the user; don't invent a different story."
         }
+    }
+
+    /// Copy prepared character/location reference images into the bible-anchor convention
+    /// `import/<characters|locations>/<slug>/` (copy, never move), keyed by the identity name the user
+    /// typed. This is the brownfield path: the bible-agent (K5) adopts these as identity anchors, so the
+    /// pipeline stays consistent with the user's prepared assets instead of inventing new ones.
+    private func attachIdentityAssets(_ kind: String, dialog: AgentDialog, result: AgentDialogResult) {
+        guard let editor, let workingRoot = editor.workingRoot,
+              let dataRoot = DataRootResolver.dataRoot(of: workingRoot),
+              !result.fileURLs.isEmpty
+        else {
+            send(text: Self.chatMessage(from: dialog, result: result), mentions: [])
+            return
+        }
+        let name = result.direction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let slug = Self.identitySlug(name)
+        guard !slug.isEmpty else {
+            send(text: "Couldn't attach the \(kind) — no usable name was given. Ask the user for the "
+                + "\(kind)'s name, then re-present the dialog.", mentions: [])
+            return
+        }
+        let category = kind == "location" ? "locations" : "characters"
+        let dir = dataRoot.appendingPathComponent("import").appendingPathComponent(category).appendingPathComponent(slug)
+        var copied: [String] = []
+        var usedNames: Set<String> = []
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            for src in result.fileURLs {
+                // Uniquify duplicate basenames so two "ref.jpg" from different folders don't collapse
+                // into one (which would overwrite and overstate the count).
+                let ext = src.pathExtension
+                let base = src.deletingPathExtension().lastPathComponent
+                var name = src.lastPathComponent
+                var n = 2
+                while usedNames.contains(name) {
+                    name = ext.isEmpty ? "\(base)-\(n)" : "\(base)-\(n).\(ext)"
+                    n += 1
+                }
+                usedNames.insert(name)
+                let dest = dir.appendingPathComponent(name)
+                // Re-picking a file already at its destination must not delete the source.
+                if src.standardizedFileURL == dest.standardizedFileURL {
+                    copied.append(name)
+                    continue
+                }
+                if FileManager.default.fileExists(atPath: dest.path) { try? FileManager.default.removeItem(at: dest) }
+                try FileManager.default.copyItem(at: src, to: dest)
+                copied.append(name)
+            }
+        } catch {
+            send(text: "Couldn't attach the \(kind) \"\(name)\": \(error.localizedDescription).", mentions: [])
+            return
+        }
+        editor.onPipelineChanged?()
+        let noun = kind == "location" ? "Location" : "Character"
+        send(text: "\(noun) \"\(name)\" attached: \(copied.count) reference image\(copied.count == 1 ? "" : "s") "
+            + "in import/\(category)/\(slug)/. This is a BROWNFIELD anchor — the bible-agent adopts it; "
+            + "keep this identity consistent across the pipeline and don't invent a different one.", mentions: [])
+    }
+
+    /// A filesystem-safe slug for an identity folder name: lowercased, non-alphanumerics collapsed to
+    /// single hyphens, trimmed. "Claude Mouse" -> "claude-mouse".
+    nonisolated static func identitySlug(_ name: String) -> String {
+        var out = ""
+        var lastDash = false
+        for ch in name.lowercased() {
+            if ch.isLetter || ch.isNumber {
+                out.append(ch)
+                lastDash = false
+            } else if !lastDash {
+                out.append("-")
+                lastDash = true
+            }
+        }
+        return out.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 
     /// Extract `[Section]` markers (one per line, e.g. `[Chorus]`) from lyrics text, in order.
