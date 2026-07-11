@@ -391,13 +391,13 @@ struct AgentPanelView: View {
                                 prompt: command.command
                             )
                             AgentStarterPromptButton(starterPrompt: starter) {
-                                stageFunction(starter)
+                                runStarter(starter)
                             }
                         }
                     } else {
                         ForEach(Self.starterPrompts) { starterPrompt in
                             AgentStarterPromptButton(starterPrompt: starterPrompt) {
-                                stageFunction(starterPrompt)
+                                runStarter(starterPrompt)
                             }
                         }
                     }
@@ -521,6 +521,14 @@ struct AgentPanelView: View {
             systemImage: starter.systemImage,
             prompt: starter.prompt
         )
+    }
+
+    /// A starter chip is a one-tap action: clicking it RUNS the starter immediately. If the user has
+    /// already typed a note in the composer it's composed in (visible); otherwise the prompt is seeded
+    /// hidden. Either way a click starts — it never just parks a pill the user then has to send.
+    private func runStarter(_ starter: AgentStarterPrompt) {
+        stageFunction(starter)
+        submit()
     }
 }
 
