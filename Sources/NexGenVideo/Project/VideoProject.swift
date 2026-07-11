@@ -356,9 +356,10 @@ final class VideoProject: NSDocument {
         hostingController.safeAreaRegions = []
 
         let window = NSWindow(contentViewController: hostingController)
-        // Autosave "-v2": bumping the key resets stale frames saved before screen-aware sizing.
-        let restored = window.setFrameUsingName("NexGenVideoWindow-v2")
-        window.setFrameAutosaveName("NexGenVideoWindow-v2")
+        // Autosave "-v3": bumping the key resets stale/too-short frames saved by an earlier build so
+        // the taller default (projectDefault) applies on next launch.
+        let restored = window.setFrameUsingName("NexGenVideoWindow-v3")
+        window.setFrameAutosaveName("NexGenVideoWindow-v3")
         // Compute the visible frame AFTER restore so a frame saved on a different or
         // since-changed display clamps against the screen it actually lands on, not the
         // window's initial screen.

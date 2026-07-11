@@ -290,8 +290,8 @@ enum AppTheme {
         // Landscape — a square home window left the sparse project grid swimming in dead space.
         static let homeDefault = NSSize(width: 1160, height: 740)
         static let homeMin = NSSize(width: 760, height: 480)
-        static let projectDefault = NSSize(width: 1600, height: 1000)
-        static let projectMin = NSSize(width: 960, height: 600)
+        static let projectDefault = NSSize(width: 1760, height: 1320)
+        static let projectMin = NSSize(width: 960, height: 640)
         static let splash = NSSize(width: 600, height: 400)
     }
 
