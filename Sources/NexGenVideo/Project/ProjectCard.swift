@@ -29,13 +29,16 @@ struct ProjectCard: View {
                 }
                 .overlay {
                     if !entry.isAccessible {
-                        Color.black.opacity(0.6)
+                        Color.black.opacity(0.45)
 
-                        VStack(spacing: AppTheme.Spacing.xs) {
+                        VStack(spacing: AppTheme.Spacing.xxs) {
                             Image(systemName: "questionmark.folder")
-                                .font(.system(size: AppTheme.FontSize.title1))
-                            Text("File missing")
+                                .font(.system(size: AppTheme.FontSize.title2, weight: .light))
+                            Text("Unavailable")
                                 .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                            Text("Moved or deleted")
+                                .font(.system(size: AppTheme.FontSize.xxs))
+                                .foregroundStyle(AppTheme.Text.mutedColor)
                         }
                         .foregroundStyle(AppTheme.Text.tertiaryColor)
                     }
@@ -73,14 +76,19 @@ struct ProjectCard: View {
         .opacity(entry.isAccessible ? 1.0 : 0.6)
         .overlay(alignment: .topTrailing) {
             if isHovered {
-                Button { showDeleteConfirmation = true } label: {
-                    Image(systemName: "trash.fill")
+                // A present file → delete to Trash; a missing one → just drop it from Recents (there's
+                // nothing to Trash), so a gone project is one click to clear instead of a dead tile.
+                Button {
+                    if entry.isAccessible { showDeleteConfirmation = true } else { onRemove(entry.url) }
+                } label: {
+                    Image(systemName: entry.isAccessible ? "trash.fill" : "xmark")
                         .font(.system(size: AppTheme.FontSize.smMd, weight: .semibold))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(entry.isAccessible ? .red : .white)
                         .frame(width: AppTheme.IconSize.lgXl, height: AppTheme.IconSize.lgXl)
                         .glassEffect(.regular, in: .circle)
                 }
                 .buttonStyle(.plain)
+                .help(entry.isAccessible ? "Delete project" : "Remove from Recents")
                 .padding(AppTheme.Spacing.smMd)
                 .transition(.opacity.combined(with: .scale))
             }

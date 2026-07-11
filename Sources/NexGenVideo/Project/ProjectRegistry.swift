@@ -106,6 +106,9 @@ final class ProjectRegistry {
         Task { [weak self] in
             guard let self, await self.disk.trashIfPresent(url) else { return }
             self.remove(url)
+            // Drop the Caches working copy too — otherwise a new project later saved to this same path
+            // would inherit this one's pipeline via crash-recovery (the key is path-derived).
+            ProjectWorkingCopy.discard(key: ProjectWorkingCopy.stableKey(for: url))
         }
     }
 

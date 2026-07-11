@@ -315,7 +315,7 @@ final class VideoProject: NSDocument {
         // The visible frame is a hard ceiling: on a desktop smaller than `projectMin`
         // the floor would otherwise push the window past the screen edge.
         let w = min(max(visible.width * 0.88, floor.width), cap.width, visible.width)
-        let h = min(max(visible.height * 0.90, floor.height), cap.height, visible.height)
+        let h = min(max(visible.height * 0.92, floor.height), cap.height, visible.height)
         return NSSize(width: w, height: h)
     }
 

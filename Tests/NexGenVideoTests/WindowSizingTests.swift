@@ -7,7 +7,7 @@ import Testing
 struct WindowSizingTests {
 
     // A small laptop screen: the default must fit inside it (never exceed the desktop) with
-    // real editor height, not the 1600×1000 cap.
+    // real editor height — a screen fraction here, well below the projectDefault cap.
     @Test func defaultFitsASmallScreen() {
         let visible = NSRect(x: 0, y: 0, width: 1440, height: 812)  // 13" after menu bar
         let size = VideoProject.defaultProjectContentSize(visible: visible)
