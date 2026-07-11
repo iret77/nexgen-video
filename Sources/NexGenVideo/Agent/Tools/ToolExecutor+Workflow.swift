@@ -147,12 +147,23 @@ extension ToolExecutor {
 
     // MARK: - Project files (list / copy — replaces shell Glob/cp in pack docs)
 
-    /// Resolve a data-root-relative path, refusing anything that escapes the project (no `../`).
+    /// Resolve a data-root-relative path, refusing anything that escapes the project — both lexically
+    /// (`../`) AND through a symlink. The symlink check resolves the deepest EXISTING ancestor (the
+    /// destination itself may not exist yet) and confirms it still lives under the canonical root.
     private static func resolveInside(_ root: URL, _ rel: String) throws -> URL {
         let base = root.standardizedFileURL
         let target = base.appendingPathComponent(rel).standardizedFileURL
         guard target.path == base.path || target.path.hasPrefix(base.path + "/") else {
             throw ToolError("Path escapes the project: '\(rel)'.")
+        }
+        let canonicalRoot = root.resolvingSymlinksInPath().standardizedFileURL
+        var probe = target
+        while !FileManager.default.fileExists(atPath: probe.path), probe.pathComponents.count > 1 {
+            probe = probe.deletingLastPathComponent()
+        }
+        let resolved = probe.resolvingSymlinksInPath().standardizedFileURL
+        guard resolved.path == canonicalRoot.path || resolved.path.hasPrefix(canonicalRoot.path + "/") else {
+            throw ToolError("Path escapes the project via a link: '\(rel)'.")
         }
         return target
     }

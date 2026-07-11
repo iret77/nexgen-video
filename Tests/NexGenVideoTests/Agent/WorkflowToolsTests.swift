@@ -212,14 +212,25 @@ struct WorkflowToolsTests {
             "project_dir": dataRoot.path,
             "from": "import/characters/mouse/face.png", "to": "bible/refs/mouse/face.png",
         ])
-        #expect(FileManager.default.fileExists(atPath: dataRoot.appendingPathComponent("bible/refs/mouse/face.png").path))
-        #expect(FileManager.default.fileExists(atPath: importDir.appendingPathComponent("face.png").path))  // copy, source stays
+        let copiedURL = dataRoot.appendingPathComponent("bible/refs/mouse/face.png")
+        #expect(try String(contentsOf: copiedURL, encoding: .utf8) == "x")                 // bytes copied
+        #expect(try String(contentsOf: importDir.appendingPathComponent("face.png"), encoding: .utf8) == "x")  // source intact (copy)
 
-        // A path that escapes the project is refused.
+        // A lexically escaping path is refused.
         let escape = await h.runRaw("copy_project_file", args: [
             "project_dir": dataRoot.path, "from": "import/characters/mouse/face.png", "to": "../escape.png",
         ])
         #expect(escape.isError == true)
+
+        // A symlink escaping the project is refused too.
+        let outside = cleanup.appendingPathComponent("outside", isDirectory: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: dataRoot.appendingPathComponent("import/link"), withDestinationURL: outside)
+        let symlinkEscape = await h.runRaw("copy_project_file", args: [
+            "project_dir": dataRoot.path, "from": "import/characters/mouse/face.png", "to": "import/link/stolen.png",
+        ])
+        #expect(symlinkEscape.isError == true)
+        #expect(!FileManager.default.fileExists(atPath: outside.appendingPathComponent("stolen.png").path))
     }
 
     @Test("set_gate_state rejects an unknown state")

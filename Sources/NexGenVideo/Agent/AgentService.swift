@@ -335,8 +335,15 @@ final class AgentService {
         do {
             try FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true)
             if src.standardizedFileURL != dest.standardizedFileURL {
-                if FileManager.default.fileExists(atPath: dest.path) { try FileManager.default.removeItem(at: dest) }
-                try FileManager.default.copyItem(at: src, to: dest)
+                // Stage next to the destination, then swap in — a failed copy never destroys an existing
+                // same-named song (copy-before-delete).
+                let staging = audioDir.appendingPathComponent(".song-\(UUID().uuidString).\(src.pathExtension)")
+                try FileManager.default.copyItem(at: src, to: staging)
+                if FileManager.default.fileExists(atPath: dest.path) {
+                    _ = try FileManager.default.replaceItemAt(dest, withItemAt: staging)
+                } else {
+                    try FileManager.default.moveItem(at: staging, to: dest)
+                }
             }
             // One-song contract: retire any OTHER audio file only after the new one is safely in place.
             for other in AudioProjectLayout.songFiles(dataRoot: dataRoot)
