@@ -19,6 +19,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task.detached(priority: .utility) {
             Project.ensureStorageDirectory()
             ProjectStorageMigration.cleanUpProjectsFolder()
+            // Retire idle working copies + caches (frees both stores). Open docs and still-present
+            // recents are the "keep" set, keyed by each project's package UUID.
+            let liveKeys = await MainActor.run { () -> Set<String> in
+                // Read-only: never mint an id just to build the keep-set (that would rewrite every recent
+                // package at launch). A recent without an id has no UUID-keyed data to spare anyway.
+                let recents = ProjectRegistry.shared.entries
+                    .filter { $0.isAccessible }
+                    .compactMap { ProjectIdentity.existingKey(for: $0.url) }
+                let open = NSDocumentController.shared.documents
+                    .compactMap { ($0 as? VideoProject)?.fileURL }
+                    .compactMap { ProjectIdentity.existingKey(for: $0) }
+                return Set(recents + open)
+            }
+            ProjectWorkingCopy.sweepIdleProjectData(liveKeys: liveKeys)
         }
 
         AppNotifications.configure()

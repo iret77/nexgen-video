@@ -200,6 +200,11 @@ final class VideoProject: NSDocument {
         // Carry the active-format marker (ngv.json) across Save As / swap, else a copied pack project
         // reopens as generic while still holding its pack-specific pipeline data.
         try copyPreservedFile(ProjectPluginSettings.filename, from: sourceURL, to: packageURL, fm: fm)
+        // A Save As / swap COPIES the project — the carried ngv.json still names the source's UUID. Give
+        // the copy its own identity so the two projects can't share a working copy or caches.
+        if let sourceURL, !sameFile(sourceURL, packageURL) {
+            ProjectIdentity.regenerate(at: packageURL)
+        }
         // Sync the engine's live working copy (bible, shotlist, renders, …) into the package so the
         // project is self-contained. Handles "Save As"/swap too: the pipeline lands in whatever
         // package URL NSDocument is writing to, not just an in-place save.
@@ -282,9 +287,14 @@ final class VideoProject: NSDocument {
                     // media destinations and the working-copy key follow it (fileURL changes AFTER
                     // write(), so the new package already holds the just-persisted pipeline), then
                     // retire the old location's working copy.
-                    let oldKey = ProjectWorkingCopy.stableKey(for: oldURL)
+                    // Save-As leaves the old package in place (its id is still readable → discard the now-
+                    // orphaned copy). A move/rename leaves nothing at oldURL, so existingKey is nil and we
+                    // discard nothing — the live copy stays under the unchanged UUID key.
+                    let oldKey = ProjectIdentity.existingKey(for: oldURL)
                     editorViewModel.projectURL = newURL
-                    ProjectWorkingCopy.discard(key: oldKey)
+                    if let oldKey, oldKey != editorViewModel.workingCopyKey {
+                        ProjectWorkingCopy.discard(key: oldKey)
+                    }
                 }
             }
         }

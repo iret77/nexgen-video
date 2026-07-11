@@ -146,12 +146,11 @@ final class AppState {
                 if let format, !format.isEmpty {
                     ProjectPluginSettings.setActivePlugin(format, projectURL: url)
                 }
+                // Stamp a brand-new identity so this project can never share a working copy with a
+                // deleted namesake that once lived at the same path — the whole class of "new project
+                // inherited an old analysis" bug is closed at the source by a unique UUID.
+                ProjectIdentity.regenerate(at: url)
                 ProjectRegistry.shared.register(url)
-                // A BRAND-NEW project must never inherit a working copy left behind by a previous,
-                // now-deleted project that happened to live at the same path — otherwise the "crash
-                // recovery" path would resurrect its pipeline (analysis, gates) into the fresh project.
-                // There's no unsaved work to lose here: the project was just created.
-                ProjectWorkingCopy.discard(key: ProjectWorkingCopy.stableKey(for: url))
                 doc.makeWindowControllers()
                 doc.showWindows()
             }
