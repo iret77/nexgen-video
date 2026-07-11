@@ -8,6 +8,10 @@ struct AgentInputBox<LeadingTools: View>: View {
     @Binding var mentions: [AgentMention]
     let isSending: Bool
     let canSend: Bool
+    /// While a dialog card (or spend approval) is open above the composer, the composer is the second,
+    /// competing input surface — so it's locked. One active input at a time: answer the card first.
+    let blocked: Bool
+    let blockedHint: String
     let onSend: () -> Void
     let onCancel: () -> Void
     let leadingTools: LeadingTools
@@ -17,6 +21,8 @@ struct AgentInputBox<LeadingTools: View>: View {
         mentions: Binding<[AgentMention]>,
         isSending: Bool,
         canSend: Bool,
+        blocked: Bool = false,
+        blockedHint: String = "",
         onSend: @escaping () -> Void,
         onCancel: @escaping () -> Void,
         @ViewBuilder leadingTools: () -> LeadingTools
@@ -25,6 +31,8 @@ struct AgentInputBox<LeadingTools: View>: View {
         self._mentions = mentions
         self.isSending = isSending
         self.canSend = canSend
+        self.blocked = blocked
+        self.blockedHint = blockedHint
         self.onSend = onSend
         self.onCancel = onCancel
         self.leadingTools = leadingTools()
@@ -133,6 +141,8 @@ struct AgentInputBox<LeadingTools: View>: View {
                 .padding(.bottom, AppTheme.Spacing.xs)
                 .focused($focused)
                 .frame(height: clampedComposerHeight)
+                .disabled(blocked)
+                .opacity(blocked ? AppTheme.Opacity.strong : 1)
                 .onChange(of: draft) { old, new in
                     updateMentionQuery(from: new)
                     if !old.isEmpty && new.isEmpty {
@@ -153,7 +163,8 @@ struct AgentInputBox<LeadingTools: View>: View {
                 }
 
             if draft.isEmpty {
-                Text("Ask, or type @ to reference media")
+                Text(blocked ? (blockedHint.isEmpty ? "Answer the card above to continue" : blockedHint)
+                             : "Ask, or type @ to reference media")
                     .font(.body)
                     .foregroundStyle(AppTheme.Text.mutedColor)
                     .padding(.horizontal, AppTheme.Spacing.lgXl)
@@ -207,8 +218,8 @@ struct AgentInputBox<LeadingTools: View>: View {
             .controlSize(.regular)
             .tint(AppTheme.Accent.primary)
             .glassEffectID("sendStop", in: sendStopNamespace)
-            .disabled(!canSend)
-            .opacity(canSend ? 1 : AppTheme.Opacity.strong)
+            .disabled(!canSend || blocked)
+            .opacity(canSend && !blocked ? 1 : AppTheme.Opacity.strong)
             .transition(.scale.combined(with: .opacity))
         }
     }
@@ -226,6 +237,8 @@ struct AgentInputBox<LeadingTools: View>: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
+        .disabled(blocked)
+        .opacity(blocked ? AppTheme.Opacity.strong : 1)
         .help("Attach a file — song, video, or image")
     }
 

@@ -471,6 +471,9 @@ struct AgentPanelView: View {
                 mentions: $service.mentions,
                 isSending: service.isStreaming,
                 canSend: canSend,
+                blocked: service.pendingDialog != nil || service.pendingSpendApproval != nil,
+                blockedHint: service.pendingSpendApproval != nil ? "Respond to the approval above to continue"
+                                                                 : "Answer the card above to continue",
                 onSend: submit,
                 onCancel: { service.cancel() }
             ) {
