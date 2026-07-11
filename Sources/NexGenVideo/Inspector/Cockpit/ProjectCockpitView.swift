@@ -192,7 +192,7 @@ struct ProjectSettingsView: View {
                     }
                     .buttonStyle(.capsule(.prominent, size: .regular))
                     .controlSize(.small)
-                } else if editor.productionStarting {
+                } else if editor.productionStarted {
                     HStack(spacing: AppTheme.Spacing.xs) {
                         ProgressView().controlSize(.small)
                         Text("Starting…")

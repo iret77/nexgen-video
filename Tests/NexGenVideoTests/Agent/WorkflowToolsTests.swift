@@ -146,6 +146,8 @@ struct WorkflowToolsTests {
         defer { try? FileManager.default.removeItem(at: cleanup) }
         let dir = dataRoot.path
 
+        // Gates approve in order — project_init before brief.
+        _ = try await h.runOK("approve_gate", args: ["project_dir": dir, "phase": "project_init"])
         let approved = try await h.runOK("approve_gate", args: ["project_dir": dir, "phase": "brief", "notes": "ok"]) as? [String: Any]
         #expect(approved?["approved"] as? Bool == true)
         #expect(approved?["phase"] as? String == "brief")
@@ -156,7 +158,9 @@ struct WorkflowToolsTests {
         #expect(revised?["state"] as? String == "needs_revision")
         #expect(revised?["approved"] as? Bool == false)
 
-        // Approve treatment, then rewind to brief resets brief + everything after it.
+        // Re-approve brief, then approve in order through treatment; rewind to brief resets brief + after.
+        _ = try await h.runOK("approve_gate", args: ["project_dir": dir, "phase": "brief"])
+        _ = try await h.runOK("approve_gate", args: ["project_dir": dir, "phase": "production_design"])
         _ = try await h.runOK("approve_gate", args: ["project_dir": dir, "phase": "treatment"])
         let rewound = try await h.runOK("rewind", args: ["project_dir": dir, "target_phase": "brief"]) as? [String: Any]
         #expect(rewound?["target"] as? String == "brief")
@@ -183,8 +187,8 @@ struct WorkflowToolsTests {
         ])
         #expect(blocked2.isError == true)
 
-        // A prose phase carries no requirement and still approves.
-        let ok = try await h.runOK("approve_gate", args: ["project_dir": dataRoot.path, "phase": "brief"]) as? [String: Any]
+        // The first phase (no requirement, no unapproved predecessor) still approves.
+        let ok = try await h.runOK("approve_gate", args: ["project_dir": dataRoot.path, "phase": "project_init"]) as? [String: Any]
         #expect(ok?["approved"] as? Bool == true)
     }
 
