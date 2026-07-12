@@ -360,6 +360,55 @@ public enum MusicvideoChecks {
         return out
     }
 
+    /// Model capability + aspect compatibility. Port of `sanity/checks/compatibility.py`, using the
+    /// bundled cost config for model resolution (`runwayModel`) + `ModelCapabilities`/`AspectResolver`:
+    ///  - UNKNOWN_MODEL (error), DURATION_TRUNCATED (warn), KEYFRAME_NOT_SUPPORTED (error),
+    ///    KEYFRAME_END_NOT_SUPPORTED (error), TOO_MANY_CHARACTERS (warn), RATIO_NOT_SUPPORTED (error).
+    public static let compatibilityCheck: SanityCheck = { ctx in
+        var out: [Finding] = []
+        let costs = CostsConfig.bundledDefault
+        for shot in ctx.shotlist.shots {
+            let model = costs.runwayModel(for: shot, phase: .final)
+            guard let cap = ModelCapabilities.capability(model) else {
+                out.append(Finding(level: .error, code: "UNKNOWN_MODEL", shotId: shot.id,
+                    message: "resolved model \"\(model)\" isn't in the capabilities registry."))
+                continue
+            }
+            if shot.durationS > cap.maxDurationS {
+                out.append(Finding(level: .warn, code: "DURATION_TRUNCATED", shotId: shot.id,
+                    message: "duration_s=\(shot.durationS) > \(model) max=\(cap.maxDurationS)s — truncated."))
+            }
+            if shot.keyframeStrategy == .start && !cap.supportsKeyframeStart {
+                out.append(Finding(level: .error, code: "KEYFRAME_NOT_SUPPORTED", shotId: shot.id,
+                    message: "\(model) doesn't support a start keyframe."))
+            }
+            if shot.keyframeStrategy == .startEnd && !cap.supportsKeyframeEnd {
+                out.append(Finding(level: .error, code: "KEYFRAME_END_NOT_SUPPORTED", shotId: shot.id,
+                    message: "\(model) doesn't support an end keyframe."))
+            }
+            if shot.characterRefs.count > cap.maxCharactersInFrame {
+                out.append(Finding(level: .warn, code: "TOO_MANY_CHARACTERS", shotId: shot.id,
+                    message: "\(shot.characterRefs.count) characters > \(model) stable max "
+                        + "\(cap.maxCharactersInFrame)."))
+            }
+        }
+        if let brief = ctx.brief,
+           let aspect = AspectResolver.resolveBriefAspect(
+               aspectRatio: brief.aspectRatio.rawValue, aspectOther: brief.aspectRatioOther) {
+            var used = Set<String>()
+            for shot in ctx.shotlist.shots { used.insert(costs.runwayModel(for: shot, phase: .final)) }
+            for model in used.sorted() {
+                guard let cap = ModelCapabilities.capability(model) else { continue }
+                if AspectResolver.resolveForModel(aspect, supportedRatios: cap.supportedRatios) == nil {
+                    out.append(Finding(level: .error, code: "RATIO_NOT_SUPPORTED",
+                        message: "aspect \(aspect) isn't supported by \(model) "
+                            + "(supported: \(cap.supportedRatios.joined(separator: ", ")))."))
+                }
+            }
+        }
+        return out
+    }
+
     /// Tempo-pacing check: ASL drift + per-shot hard-cap. Port of
     /// `checks.py::tempo`.
     ///
