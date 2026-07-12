@@ -81,6 +81,16 @@ enum ProjectWorkingCopy {
                 throw error
             }
         }
+        // Mirror the project's app metadata (`ngv.json` — active pack + id) into the working copy. The
+        // runtime resolves the ACTIVE PACK from the working copy (cockpit, gate enforcement, run_phase),
+        // so without this copy the pack never loads in-session: no pack phases, no hard gates, no analysis
+        // DSP runner — the agent is left to improvise the very analysis the gates exist to force.
+        if let packageURL {
+            let srcMeta = packageURL.appendingPathComponent(ProjectPluginSettings.filename)
+            let dstMeta = dstHome.appendingPathComponent(ProjectPluginSettings.filename)
+            try? fm.removeItem(at: dstMeta)
+            if fm.fileExists(atPath: srcMeta.path) { try? fm.copyItem(at: srcMeta, to: dstMeta) }
+        }
         // Materialize is complete (empty home for a new project, or a full pipeline copy).
         try? Data().write(to: sentinel)
         return dstHome

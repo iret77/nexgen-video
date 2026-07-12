@@ -336,6 +336,11 @@ final class EditorViewModel {
     func setActivePlugin(_ name: String?) {
         guard let projectURL, canChangeFormat else { return }
         ProjectPluginSettings.setActivePlugin(name, projectURL: projectURL)
+        // Keep the working copy's ngv.json mirror in step: the in-session pack resolution reads the
+        // WORKING COPY, not the package, so a format change must reach it now — not only at next open.
+        if let home = workingCopyHome {
+            ProjectPluginSettings.setActivePlugin(name, projectURL: home)
+        }
         activePluginName = name
     }
 
