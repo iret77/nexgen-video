@@ -209,7 +209,9 @@ enum NativeCockpitReader {
         // core-checks + discover_packs() gather.
         let checks = PackCatalog.registry(activePack: activePack).sanityChecks
         let report = audit(
-            AuditContext(shotlist: shotlist, brief: brief, bible: bible),
+            // Pass the data root so pack checks that read their own project dirs (e.g. PATTERN_DRIFT's
+            // per-section storyboard overrides) can resolve them.
+            AuditContext(shotlist: shotlist, brief: brief, bible: bible, extra: ["data_root": dataRoot.path]),
             checks: checks
         )
         let findings: [[String: Any]] = report.findings.map { f in
