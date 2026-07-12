@@ -93,9 +93,68 @@ struct ProjectWorkingCopyTests {
             atPath: pkg.appendingPathComponent(DataRootResolver.legacyPipelineDirname).path))
     }
 
-    @Test("stableKey is deterministic for the same location")
-    func stableKeyDeterministic() {
-        let url = URL(fileURLWithPath: "/tmp/demo.ngv")
-        #expect(ProjectWorkingCopy.stableKey(for: url) == ProjectWorkingCopy.stableKey(for: url))
+    // MARK: - Idle-data sweep
+
+    /// Build a throwaway store; entries are added by `makeHome`.
+    private func tempStore() throws -> URL {
+        let store = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ngv-store-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
+        return store
+    }
+
+    /// Create a `p-…` entry in `store`; `ageDays` back-dates BOTH access and modification time (via
+    /// utimes) so the idle gate — which uses the later of the two — can be exercised. Set the times
+    /// LAST so creating contents can't refresh them.
+    @discardableResult
+    private func makeHome(in store: URL, key: String, ageDays: Double = 0) throws -> URL {
+        let home = store.appendingPathComponent(key, isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        if ageDays > 0 {
+            let secs = Date(timeIntervalSinceNow: -ageDays * 24 * 3600).timeIntervalSince1970
+            var times = [timeval(tv_sec: Int(secs), tv_usec: 0), timeval(tv_sec: Int(secs), tv_usec: 0)]
+            _ = utimes(home.path, &times)   // [atime, mtime]
+        }
+        return home
+    }
+
+    @Test("sweep retires a stale entry nobody reopened")
+    func sweepRetiresStaleCopy() throws {
+        let store = try tempStore()
+        defer { try? FileManager.default.removeItem(at: store) }
+        let stale = try makeHome(in: store, key: "p-stale", ageDays: 30)
+
+        ProjectWorkingCopy.purgeKeyedStore(store, liveKeys: [], graceInterval: 14 * 24 * 3600)
+        #expect(!FileManager.default.fileExists(atPath: stale.path))
+    }
+
+    @Test("sweep keeps a freshly-touched entry")
+    func sweepKeepsFreshCopy() throws {
+        let store = try tempStore()
+        defer { try? FileManager.default.removeItem(at: store) }
+        let fresh = try makeHome(in: store, key: "p-fresh", ageDays: 1)
+
+        ProjectWorkingCopy.purgeKeyedStore(store, liveKeys: [], graceInterval: 14 * 24 * 3600)
+        #expect(FileManager.default.fileExists(atPath: fresh.path))
+    }
+
+    @Test("sweep spares an open/recent project's entry even when stale")
+    func sweepSparesLiveKey() throws {
+        let store = try tempStore()
+        defer { try? FileManager.default.removeItem(at: store) }
+        let live = try makeHome(in: store, key: "p-open", ageDays: 30)   // idle, but the project is open
+
+        ProjectWorkingCopy.purgeKeyedStore(store, liveKeys: ["p-open"], graceInterval: 14 * 24 * 3600)
+        #expect(FileManager.default.fileExists(atPath: live.path))
+    }
+
+    @Test("sweep ignores non-project strays")
+    func sweepIgnoresStrays() throws {
+        let store = try tempStore()
+        defer { try? FileManager.default.removeItem(at: store) }
+        let stray = try makeHome(in: store, key: "notes-scratch", ageDays: 30)   // no p- prefix
+
+        ProjectWorkingCopy.purgeKeyedStore(store, liveKeys: [], graceInterval: 14 * 24 * 3600)
+        #expect(FileManager.default.fileExists(atPath: stray.path))
     }
 }

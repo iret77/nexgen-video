@@ -60,7 +60,9 @@ struct NewProjectFormatSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 Group {
                     if let badge {
-                        Image(nsImage: badge).resizable().scaledToFill()
+                        // Banner art is authored at the hero aspect, so fit (not fill) shows all of it —
+                        // fill shaves a subpixel row off the bottom when the frame height rounds down.
+                        Image(nsImage: badge).resizable().scaledToFit()
                     } else {
                         Color.white.opacity(AppTheme.Opacity.subtle)
                             .overlay(

@@ -200,6 +200,11 @@ final class VideoProject: NSDocument {
         // Carry the active-format marker (ngv.json) across Save As / swap, else a copied pack project
         // reopens as generic while still holding its pack-specific pipeline data.
         try copyPreservedFile(ProjectPluginSettings.filename, from: sourceURL, to: packageURL, fm: fm)
+        // A Save As / swap COPIES the project — the carried ngv.json still names the source's UUID. Give
+        // the copy its own identity so the two projects can't share a working copy or caches.
+        if let sourceURL, !sameFile(sourceURL, packageURL) {
+            ProjectIdentity.regenerate(at: packageURL)
+        }
         // Sync the engine's live working copy (bible, shotlist, renders, …) into the package so the
         // project is self-contained. Handles "Save As"/swap too: the pipeline lands in whatever
         // package URL NSDocument is writing to, not just an in-place save.
@@ -282,9 +287,14 @@ final class VideoProject: NSDocument {
                     // media destinations and the working-copy key follow it (fileURL changes AFTER
                     // write(), so the new package already holds the just-persisted pipeline), then
                     // retire the old location's working copy.
-                    let oldKey = ProjectWorkingCopy.stableKey(for: oldURL)
+                    // Save-As leaves the old package in place (its id is still readable → discard the now-
+                    // orphaned copy). A move/rename leaves nothing at oldURL, so existingKey is nil and we
+                    // discard nothing — the live copy stays under the unchanged UUID key.
+                    let oldKey = ProjectIdentity.existingKey(for: oldURL)
                     editorViewModel.projectURL = newURL
-                    ProjectWorkingCopy.discard(key: oldKey)
+                    if let oldKey, oldKey != editorViewModel.workingCopyKey {
+                        ProjectWorkingCopy.discard(key: oldKey)
+                    }
                 }
             }
         }
@@ -315,7 +325,7 @@ final class VideoProject: NSDocument {
         // The visible frame is a hard ceiling: on a desktop smaller than `projectMin`
         // the floor would otherwise push the window past the screen edge.
         let w = min(max(visible.width * 0.88, floor.width), cap.width, visible.width)
-        let h = min(max(visible.height * 0.90, floor.height), cap.height, visible.height)
+        let h = min(max(visible.height * 0.92, floor.height), cap.height, visible.height)
         return NSSize(width: w, height: h)
     }
 
@@ -356,9 +366,10 @@ final class VideoProject: NSDocument {
         hostingController.safeAreaRegions = []
 
         let window = NSWindow(contentViewController: hostingController)
-        // Autosave "-v2": bumping the key resets stale frames saved before screen-aware sizing.
-        let restored = window.setFrameUsingName("NexGenVideoWindow-v2")
-        window.setFrameAutosaveName("NexGenVideoWindow-v2")
+        // Autosave "-v3": bumping the key resets stale/too-short frames saved by an earlier build so
+        // the taller default (projectDefault) applies on next launch.
+        let restored = window.setFrameUsingName("NexGenVideoWindow-v3")
+        window.setFrameAutosaveName("NexGenVideoWindow-v3")
         // Compute the visible frame AFTER restore so a frame saved on a different or
         // since-changed display clamps against the screen it actually lands on, not the
         // window's initial screen.

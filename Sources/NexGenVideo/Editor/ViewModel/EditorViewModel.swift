@@ -222,12 +222,9 @@ final class EditorViewModel {
         didSet {
             guard projectURL != oldValue else { return }
             activePluginName = ProjectPluginSettings.activePlugin(projectURL: projectURL)
-            projectId = projectURL.flatMap { url in
-                let resolved = url.standardizedFileURL
-                return ProjectRegistry.shared.entries
-                    .first(where: { $0.url.standardizedFileURL == resolved })?
-                    .id.uuidString
-            }
+            // Identity is the package UUID (travels with the file), resolved once here so the working
+            // copy, caches, and telemetry all key off the same stable id.
+            projectId = projectURL.map { ProjectIdentity.uuid(for: $0) }
             prepareWorkingCopy()
         }
     }
@@ -238,6 +235,10 @@ final class EditorViewModel {
     /// The engine/agent edit here, NOT inside the `.ngv` package, so the project on disk stays pristine
     /// and unsaved work survives a crash. Nil until the project opens. See `docs/PROJECT_STORAGE.md`.
     private(set) var workingCopyHome: URL?
+    /// The key of the copy currently live in THIS session. A rename/move keeps the package UUID, so the
+    /// key is unchanged — used to tell "re-pointed at my own live copy" apart from "opened a project",
+    /// so a move never re-reads the session's edits as crash-recovered.
+    private var activeWorkingCopyKey: String?
     /// A crash left a working copy from the last session — the UI offers to restore it. Bindable so the
     /// recovery alert can dismiss itself.
     var recoveredUnsavedWork = false
@@ -245,8 +246,9 @@ final class EditorViewModel {
     /// persists the working copy into the package). Set by the owning document.
     var onPipelineChanged: (() -> Void)?
 
-    /// Stable per-project key for the working copy (same project → same copy across launches).
-    var workingCopyKey: String? { projectURL.map { ProjectWorkingCopy.stableKey(for: $0) } }
+    /// Stable per-project key for the working copy (same project → same copy across launches),
+    /// derived from the package UUID so a move/rename keeps it and a new project never inherits it.
+    var workingCopyKey: String? { projectURL.map { ProjectIdentity.key(for: $0) } }
 
     /// Materialize the working copy from the package (or keep a crash-surviving one). Synchronous so
     /// `workingRoot` is valid immediately — the copy is cheap on APFS (copy-on-write clone), and only
@@ -255,11 +257,20 @@ final class EditorViewModel {
         recoveredUnsavedWork = false
         guard let projectURL, let key = workingCopyKey else {
             workingCopyHome = nil
+            activeWorkingCopyKey = nil
+            refreshProductionPipelineMarker()
+            return
+        }
+        // A move/rename keeps the package UUID, so the key is unchanged and the copy already open this
+        // session is still ours — re-opening it would misread our own unsaved edits as crash-recovered.
+        // Only open when the identity actually changed (first open, or Save-As to a new identity).
+        if key == activeWorkingCopyKey, workingCopyHome != nil {
             refreshProductionPipelineMarker()
             return
         }
         let result = try? ProjectWorkingCopy.open(key: key, packageURL: projectURL)
         workingCopyHome = result?.home
+        activeWorkingCopyKey = key
         recoveredUnsavedWork = result?.recoveredUnsaved ?? false
         refreshProductionPipelineMarker()
         Task { [weak self] in await self?.refreshEngineState() }
@@ -292,6 +303,7 @@ final class EditorViewModel {
         guard let key = workingCopyKey else { return }
         ProjectWorkingCopy.discard(key: key)
         workingCopyHome = nil
+        activeWorkingCopyKey = nil
     }
 
     /// The project's ACTIVE format plugin — exactly one, or nil for the generic workflow. Installed

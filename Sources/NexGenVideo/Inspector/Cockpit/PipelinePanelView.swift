@@ -166,18 +166,12 @@ struct PipelinePanelView: View {
     }
 
     private func summaryHeader(_ data: ProjectStateData) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-            let approved = data.phases.filter(\.approved).count
-            Text(data.isComplete ? "All phases complete" : "\(approved) of \(data.phases.count) phases approved")
-                .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
-                .foregroundStyle(AppTheme.Text.primaryColor)
-            if let next = data.nextPhaseName, !data.isComplete {
-                Text("Next: \(PhaseDisplay.label(next))")
-                    .font(.system(size: AppTheme.FontSize.sm))
-                    .foregroundStyle(AppTheme.Accent.timecodeColor)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Just the progress count — the next phase is already marked with a NEXT badge on its row below,
+        // so a separate "Next: …" line here is redundant.
+        Text(data.isComplete ? "All phases complete" : "\(data.phases.filter(\.approved).count) of \(data.phases.count) phases approved")
+            .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+            .foregroundStyle(AppTheme.Text.primaryColor)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func phaseRow(_ phase: ProjectPhase, isNext: Bool, isLast: Bool) -> some View {

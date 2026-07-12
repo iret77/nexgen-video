@@ -13,17 +13,9 @@ enum ProjectWorkingCopy {
     /// and is never treated as recoverable, so a partial tree can't be persisted over the package.
     private static let completeSentinel = ".ngv-materialized"
 
-    /// The working-copy home for a project; its `pipeline/` data root lives directly under it.
+    /// The working-copy home for a project; its `pipeline/` data root lives directly under it. `key` is
+    /// the project's `ProjectIdentity.key(for:)` — a package UUID, not the file path.
     static func home(_ key: String) -> URL { AppPaths.workingCopy(projectId: key) }
-
-    /// A stable, filesystem-safe key for a project derived from its location — the same project
-    /// yields the same working copy across launches (so a crash's working copy is found again).
-    static func stableKey(for url: URL) -> String {
-        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
-        var hash: UInt64 = 0xcbf29ce484222325
-        for byte in path.utf8 { hash = (hash ^ UInt64(byte)) &* 0x100000001b3 }
-        return "p-" + String(hash, radix: 16)
-    }
 
     struct OpenResult: Sendable { let home: URL; let recoveredUnsaved: Bool }
 
@@ -122,6 +114,54 @@ enum ProjectWorkingCopy {
     /// Remove the working copy — a clean close, so no crash-recovery prompt next time.
     static func discard(key: String) {
         try? FileManager.default.removeItem(at: home(key))
+    }
+
+    private static let idleKeys: Set<URLResourceKey> = [.contentAccessDateKey, .contentModificationDateKey]
+
+    /// Time since a store entry was last touched — the later of last access and last modification, so a
+    /// project merely reopened (read, not written) still counts as recently used. Unknown dates → fresh.
+    private static func idle(_ url: URL, now: Date) -> TimeInterval {
+        let v = try? url.resourceValues(forKeys: idleKeys)
+        let last = max(v?.contentAccessDate ?? .distantPast, v?.contentModificationDate ?? .distantPast)
+        return last == .distantPast ? 0 : now.timeIntervalSince(last)
+    }
+
+    /// Retire idle working copies from the Recovery store so it can't grow without bound. A clean close
+    /// already discards a project's copy; only a crash leaves one behind. "Idle" means untouched — no
+    /// read OR write — past `graceInterval`. A project that's open or recent (its key in `liveKeys`) is
+    /// always spared; the age gate is the real safety. Deliberately never inspects a source path, so a
+    /// file the user merely MOVED is never mistaken for deleted. Runs off the main thread at launch.
+    static func sweepIdleProjectData(liveKeys: Set<String>, graceInterval: TimeInterval = 14 * 24 * 3600) {
+        purgeKeyedStore(AppPaths.recovery, liveKeys: liveKeys, graceInterval: graceInterval)
+        // Quarantined salvage (unsentineled copies set aside during materialize) is scratch — age it out.
+        purgeAged(AppPaths.recovery.appendingPathComponent(".quarantine", isDirectory: true),
+                  graceInterval: graceInterval)
+    }
+
+    /// Purge idle `p-…` entries from a project-keyed store, sparing anything in `liveKeys`. Testable in
+    /// isolation via a temp `store`.
+    static func purgeKeyedStore(_ store: URL, liveKeys: Set<String>, graceInterval: TimeInterval) {
+        let fm = FileManager.default
+        let now = Date()
+        guard let items = try? fm.contentsOfDirectory(
+            at: store, includingPropertiesForKeys: Array(idleKeys), options: [.skipsHiddenFiles]) else { return }
+        for item in items {
+            let key = item.lastPathComponent
+            guard key.hasPrefix("p-") else { continue }          // a project store entry, not a stray
+            if liveKeys.contains(key) { continue }               // open or recent — its data is live
+            if idle(item, now: now) > graceInterval {
+                try? fm.removeItem(at: item)
+                Log.project.notice("swept idle project data \(key) in \(store.lastPathComponent)")
+            }
+        }
+    }
+
+    private static func purgeAged(_ dir: URL, graceInterval: TimeInterval) {
+        let fm = FileManager.default
+        let now = Date()
+        guard let items = try? fm.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: Array(idleKeys), options: []) else { return }
+        for item in items where idle(item, now: now) > graceInterval { try? fm.removeItem(at: item) }
     }
 
     /// The package's stored data root, current or legacy, if present.

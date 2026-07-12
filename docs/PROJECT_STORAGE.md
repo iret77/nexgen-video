@@ -45,6 +45,25 @@ The engine and editor never write into the `.ngv` package during editing. Instea
    launch NexGenVideo finds a working copy newer than its package and offers to restore
    the unsaved work (ACE Studio model).
 
+## Project identity
+
+`<projectId>` above is a UUID stored INSIDE the package (`ngv.json`), not a hash of the
+file path. It is minted when the project is created and travels with the package, so:
+
+- moving or renaming the `.ngv` keeps the same working copy;
+- a brand-new project — even one saved where a deleted project once lived — gets a fresh
+  id, so it can never inherit the old project's pipeline;
+- Save As / duplicate mints a new id for the copy (a distinct project).
+
+Pre-identity packages are migrated (an id is generated and written) on first open.
+
+## Idle cleanup (launch)
+
+A crash leaves a working copy behind (step 6 above); one that's never reopened would sit
+forever. On launch NexGenVideo retires Recovery working copies untouched — no read *or*
+write — for more than 14 days, sparing any project that is open or in Recents. It never
+inspects a source path, so a file the user merely moved is never mistaken for deleted.
+
 ## Migration (automatic, on open)
 
 - Fold a legacy in-package `_studio/` (or a loose sibling `_studio/`) into `pipeline/`.

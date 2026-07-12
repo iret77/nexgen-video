@@ -103,9 +103,13 @@ final class ProjectRegistry {
     }
 
     func delete(_ url: URL) {
+        // Read identity while the package still exists — once trashed, its UUID is unreadable.
+        let key = ProjectIdentity.key(for: url)
         Task { [weak self] in
             guard let self, await self.disk.trashIfPresent(url) else { return }
             self.remove(url)
+            // Retire the project's working copy now instead of waiting for the age sweep.
+            ProjectWorkingCopy.discard(key: key)
         }
     }
 
