@@ -39,7 +39,17 @@ struct BeatThisDetector: AudioBeatDetecting {
         // Plausibility guard: a real grid is several strictly-increasing beats. Anything else → let the
         // caller keep its DSP grid instead of overriding with a degenerate neural result.
         guard beats.count >= 4, zip(beats, beats.dropFirst()).allSatisfy({ $0 < $1 }) else { return nil }
-        return DetectedBeatGrid(beats: beats, downbeats: downbeats, bpm: nil)
+        // Derive BPM from the neural beats so the persisted tempo agrees with the persisted grid (the
+        // detector returns nil BPM otherwise, leaving the mismatched DSP value in place).
+        return DetectedBeatGrid(beats: beats, downbeats: downbeats, bpm: Self.estimateBPM(beats))
+    }
+
+    /// Median-interval BPM from a beat sequence (robust to the odd missed/extra beat). Nil if too few.
+    private static func estimateBPM(_ beats: [Double]) -> Double? {
+        let intervals = zip(beats, beats.dropFirst()).map { $1 - $0 }.filter { $0 > 0 }.sorted()
+        guard !intervals.isEmpty else { return nil }
+        let median = intervals[intervals.count / 2]
+        return median > 0 ? 60.0 / median : nil
     }
 
     // MARK: - Mel spectrogram (port of MelSpectrogram.cpp)
@@ -190,24 +200,28 @@ struct BeatThisDetector: AudioBeatDetecting {
     }
 
     private static func floats(_ value: ORTValue) throws -> [Float] {
-        let data = try value.tensorData()
-        let count = data.length / MemoryLayout<Float>.stride
-        let p = data.bytes.bindMemory(to: Float.self, capacity: count)
-        return Array(UnsafeBufferPointer(start: p, count: count))
+        // `tensorData()` wraps the ORTValue's buffer without copying — keep `value` alive across the read.
+        try withExtendedLifetime(value) {
+            let data = try value.tensorData()
+            let count = data.length / MemoryLayout<Float>.stride
+            let p = data.bytes.bindMemory(to: Float.self, capacity: count)
+            return Array(UnsafeBufferPointer(start: p, count: count))
+        }
     }
 
     // MARK: - Post-processing (port of Postprocessor.cpp, "minimal")
 
     private static func postprocess(beat: [Float], downbeat: [Float]) -> (beats: [Double], downbeats: [Double]) {
-        // Peak = local max under a width-7 max-pool AND positive. Run jointly over [beat | downbeat].
-        let combined = beat + downbeat
-        let pooled = maxPool1d(combined, kernel: 7, padding: 3)
+        // Peak = local max under a width-7 max-pool AND positive. Pool the two series SEPARATELY: the
+        // model's postprocess runs max_pool1d per channel — concatenating them would let a strong peak
+        // in one series suppress peaks near the concat boundary of the other.
+        let pooledBeat = maxPool1d(beat, kernel: 7, padding: 3)
+        let pooledDown = maxPool1d(downbeat, kernel: 7, padding: 3)
         var beatFrames: [Int] = []
         var downFrames: [Int] = []
         for i in beat.indices {
-            if combined[i] == pooled[i] && combined[i] > 0 { beatFrames.append(i) }
-            let di = i + beat.count
-            if combined[di] == pooled[di] && combined[di] > 0 { downFrames.append(i) }
+            if beat[i] == pooledBeat[i] && beat[i] > 0 { beatFrames.append(i) }
+            if downbeat[i] == pooledDown[i] && downbeat[i] > 0 { downFrames.append(i) }
         }
         beatFrames = deduplicate(beatFrames, width: 1)
         downFrames = deduplicate(downFrames, width: 1)

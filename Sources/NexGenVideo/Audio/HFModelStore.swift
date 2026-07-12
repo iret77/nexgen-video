@@ -23,20 +23,18 @@ enum HFModelStore {
     }
 
     /// Resolve `repo`/`file` from the HF resolve endpoint into `subdir`, downloading (blocking) if the
-    /// cached copy is absent or empty. Returns the local file URL.
-    static func ensure(repo: String, file: String, subdir: String) throws -> URL {
+    /// cached copy is absent or too small. Returns the local file URL. `minBytes` guards against a
+    /// cached error page / truncated download being trusted as a model (these models are tens of MB+).
+    static func ensure(repo: String, file: String, subdir: String, minBytes: Int = 1_000_000) throws -> URL {
         try ensure(urlString: "https://huggingface.co/\(repo)/resolve/main/\(file)?download=true",
-                   file: file, subdir: subdir)
+                   file: file, subdir: subdir, minBytes: minBytes)
     }
 
     /// Resolve `file` from an explicit public URL into `subdir` (for models hosted outside HF, e.g. a
-    /// GitHub raw asset), downloading (blocking) if absent. Returns the local file URL.
-    static func ensure(urlString: String, file: String, subdir: String) throws -> URL {
+    /// GitHub raw asset), downloading (blocking) if absent or too small. Returns the local file URL.
+    static func ensure(urlString: String, file: String, subdir: String, minBytes: Int = 1_000_000) throws -> URL {
         let dest = try modelsDir(subdir).appendingPathComponent(file)
-        if FileManager.default.fileExists(atPath: dest.path),
-            let size = try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? Int, size > 0 {
-            return dest
-        }
+        if fileSize(dest) >= minBytes { return dest }
         guard let url = URL(string: urlString) else {
             throw StoreError.downloadFailed("bad model URL: \(urlString)")
         }
@@ -58,6 +56,16 @@ enum HFModelStore {
         task.resume()
         sem.wait()
         if let thrown { throw thrown }
+        // Reject a bad payload (e.g. an HTML error body served with a 200) so we don't hand ORT garbage
+        // and cache it forever.
+        guard fileSize(dest) >= minBytes else {
+            try? FileManager.default.removeItem(at: dest)
+            throw StoreError.downloadFailed("\(file) came back too small (\(fileSize(dest)) bytes) — not a valid model")
+        }
         return dest
+    }
+
+    private static func fileSize(_ url: URL) -> Int {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
     }
 }

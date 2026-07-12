@@ -78,6 +78,7 @@ struct WhisperCppTranscriber: AudioTranscribing {
         }
 
         for segment in 0..<whisper_full_n_segments(ctx) {
+            flush()  // a word never spans two segments — close the previous segment's last word
             for token in 0..<whisper_full_n_tokens(ctx, segment) {
                 if whisper_full_get_token_id(ctx, segment, token) >= eot { continue }  // special/timestamp token
                 guard let cstr = whisper_full_get_token_text(ctx, segment, token) else { continue }

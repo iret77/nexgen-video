@@ -75,15 +75,21 @@ struct DemucsStemSeparator: AudioStemSeparating {
             guard let stemsVal = outputs["stems"] else {
                 throw SeparateError.inferenceFailed("model produced no 'stems' output")
             }
-            let outData = try stemsVal.tensorData()
-            // stems: [1, sourceCount, 2, segment] source-major → vocals L/R blocks.
+            // stems: [1, sourceCount, 2, segment] source-major → vocals L/R blocks. `tensorData()` wraps
+            // the ORTValue's buffer WITHOUT copying, so copy the vocal slices out while `stemsVal` is
+            // guaranteed alive — otherwise ARC could free the tensor before this read (use-after-free).
             let vocalOffset = vocalsIndex * 2 * segment
-            let floatCount = outData.length / MemoryLayout<Float>.stride
-            let p = outData.bytes.bindMemory(to: Float.self, capacity: floatCount)
+            let (vocalsL, vocalsR): ([Float], [Float]) = try withExtendedLifetime(stemsVal) {
+                let outData = try stemsVal.tensorData()
+                let floatCount = outData.length / MemoryLayout<Float>.stride
+                let p = outData.bytes.bindMemory(to: Float.self, capacity: floatCount)
+                return (Array(UnsafeBufferPointer(start: p + vocalOffset, count: chunkLen)),
+                        Array(UnsafeBufferPointer(start: p + vocalOffset + segment, count: chunkLen)))
+            }
             for j in 0..<chunkLen {
                 let w = window[j]
-                outL[start + j] += p[vocalOffset + j] * w
-                outR[start + j] += p[vocalOffset + segment + j] * w
+                outL[start + j] += vocalsL[j] * w
+                outR[start + j] += vocalsR[j] * w
                 weight[start + j] += w
             }
         }

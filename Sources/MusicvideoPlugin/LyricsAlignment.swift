@@ -31,11 +31,13 @@ public enum LyricsAlignment {
     private struct Tok { let surface: String; let key: String }
     private struct LyricLine { let text: String; let marker: String?; let tokens: [Tok] }
 
-    /// Below this token similarity a Needleman–Wunsch diagonal is NOT treated as a real anchor (it
-    /// stays a gap). Keeps genuine mishearings ("colour"~"color") while rejecting unrelated collisions,
-    /// so a line the ASR truly missed finds no anchor and is dropped — matching the original difflib
+    /// Below this token similarity a Needleman–Wunsch diagonal is NOT treated as a real anchor — and,
+    /// crucially, it's scored as a gap INSIDE the DP too (not just discarded in backtracking), so the DP
+    /// never optimizes a path around matches it will later drop. Keeps genuine mishearings
+    /// ("colour"~"color" ≈ 0.83) while rejecting weak short-word collisions (e.g. "the"~"she" ≈ 0.67),
+    /// so a line the ASR truly missed finds no anchor and is dropped — near the original difflib
     /// behavior, which only ever anchored on exact tokens.
-    private static let matchThreshold = 0.5
+    private static let matchThreshold = 0.7
 
     /// Normalize a token to a comparison key: fold diacritics + case, strip non-alphanumerics.
     static func normalize(_ s: String) -> String {
@@ -160,7 +162,11 @@ public enum LyricsAlignment {
         let n = lyric.count, m = asr.count
         let gap = -1.0
         func sub(_ i: Int, _ j: Int) -> Double {
-            lyric[i] == asr[j] ? 2.0 : (2.0 * similarity(lyric[i], asr[j]) - 1.0)
+            if lyric[i] == asr[j] { return 2.0 }
+            let s = similarity(lyric[i], asr[j])
+            // Sub-threshold pairs cost the same as gapping both tokens, so the DP has no incentive to
+            // route through diagonals the backtrack would discard anyway (DP/backtrack stay consistent).
+            return s >= matchThreshold ? (2.0 * s - 1.0) : (2.0 * gap)
         }
         var score = Array(repeating: Array(repeating: 0.0, count: m + 1), count: n + 1)
         for i in 1...n { score[i][0] = Double(i) * gap }
