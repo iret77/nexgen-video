@@ -738,6 +738,9 @@ extension ToolExecutor {
         // On-device vocal isolation (HT-Demucs FT via ONNX Runtime) so transcription reads the clean
         // voice, not the full mix. Model downloads on demand on first use.
         registry.registerStemSeparator(DemucsStemSeparator())
+        // On-device neural beat/downbeat tracking (Beat This! via ONNX Runtime) — supersedes the DSP
+        // grid when it looks valid. Model downloads on demand on first use.
+        registry.registerBeatDetector(BeatThisDetector())
         guard let runner = registry.phases[phase] else {
             return try jsonResult([
                 "phase": phase,

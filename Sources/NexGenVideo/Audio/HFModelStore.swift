@@ -25,13 +25,20 @@ enum HFModelStore {
     /// Resolve `repo`/`file` from the HF resolve endpoint into `subdir`, downloading (blocking) if the
     /// cached copy is absent or empty. Returns the local file URL.
     static func ensure(repo: String, file: String, subdir: String) throws -> URL {
+        try ensure(urlString: "https://huggingface.co/\(repo)/resolve/main/\(file)?download=true",
+                   file: file, subdir: subdir)
+    }
+
+    /// Resolve `file` from an explicit public URL into `subdir` (for models hosted outside HF, e.g. a
+    /// GitHub raw asset), downloading (blocking) if absent. Returns the local file URL.
+    static func ensure(urlString: String, file: String, subdir: String) throws -> URL {
         let dest = try modelsDir(subdir).appendingPathComponent(file)
         if FileManager.default.fileExists(atPath: dest.path),
             let size = try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? Int, size > 0 {
             return dest
         }
-        guard let url = URL(string: "https://huggingface.co/\(repo)/resolve/main/\(file)?download=true") else {
-            throw StoreError.downloadFailed("bad model URL for \(repo)/\(file)")
+        guard let url = URL(string: urlString) else {
+            throw StoreError.downloadFailed("bad model URL: \(urlString)")
         }
         let sem = DispatchSemaphore(value: 0)
         var thrown: Error?
@@ -40,7 +47,7 @@ enum HFModelStore {
             if let err { thrown = err; return }
             let code = (response as? HTTPURLResponse)?.statusCode ?? -1
             guard let tmp, (200..<300).contains(code) else {
-                thrown = StoreError.downloadFailed("HTTP \(code) for \(repo)/\(file)")
+                thrown = StoreError.downloadFailed("HTTP \(code) for \(file)")
                 return
             }
             do {
