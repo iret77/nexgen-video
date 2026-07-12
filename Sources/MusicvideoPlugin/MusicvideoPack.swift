@@ -99,6 +99,12 @@ public struct MusicvideoPack: Pack {
         registry.registerGateRequirement("brief") { try MusicvideoGateChecks.requireRealBrief(dataRoot: $0) }
         registry.registerGateRequirement("shotlist") { try MusicvideoGateChecks.requireRealShotlist(dataRoot: $0) }
         registry.registerGateRequirement("bible") { try MusicvideoGateChecks.requireRealBible(dataRoot: $0) }
+        registry.registerGateRequirement("treatment") { try MusicvideoGateChecks.requireRealTreatment(dataRoot: $0) }
+        registry.registerGateRequirement("storyboard") { try MusicvideoGateChecks.requireRealStoryboard(dataRoot: $0) }
+        registry.registerGateRequirement("production_design") { try MusicvideoGateChecks.requireRealProductionDesign(dataRoot: $0) }
+        registry.registerGateRequirement("frames") { try MusicvideoGateChecks.requireRealFrames(dataRoot: $0) }
+        registry.registerGateRequirement("render") { try MusicvideoGateChecks.requireRealRender(dataRoot: $0) }
+        registry.registerGateRequirement("cover") { try MusicvideoGateChecks.requireRealCover(dataRoot: $0) }
         try? registry.registerUIContract(phase: "analysis", surface: "choice", taskClass: "classification")
     }
 }

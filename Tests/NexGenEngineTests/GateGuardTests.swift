@@ -75,8 +75,9 @@ struct GateGuardTests {
     func requirementRegistered() {
         PackCatalog.register(MusicvideoPack())
         let registry = PackCatalog.registry(activePack: "musicvideo")
-        // The per-phase acceptance harness: each wired phase has a deterministic requirement.
-        for phase in ["analysis", "brief", "shotlist", "bible"] {
+        // The per-phase acceptance harness: every content phase has a deterministic requirement.
+        for phase in ["analysis", "brief", "production_design", "treatment", "storyboard", "bible",
+                      "shotlist", "frames", "render", "cover"] {
             #expect(registry.gateRequirements[phase] != nil, "\(phase) must have a gate requirement")
         }
         // A generic project carries none.

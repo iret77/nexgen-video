@@ -120,4 +120,112 @@ enum MusicvideoGateChecks {
                 + "sheets first — the bible must not claim art it never produced.")
         }
     }
+
+    /// `treatment`: schema-valid frontmatter (decode enforces version/origin/…), a real one-line
+    /// summary, and a non-empty prose body.
+    static func requireRealTreatment(dataRoot: URL) throws {
+        let treatment: Treatment
+        do { treatment = try TreatmentStore.load(dataRoot: dataRoot) }
+        catch { throw GateBlocked("Can't approve \"treatment\": no valid treatment yet (\(error)).") }
+        guard !treatment.meta.summaryOneline.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw GateBlocked("Can't approve \"treatment\": its one-line summary is empty.")
+        }
+        guard !treatment.bodyMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw GateBlocked("Can't approve \"treatment\": the treatment body is empty — write it.")
+        }
+    }
+
+    /// `storyboard`: schema-valid, real sections each with steps, none running past the measured song.
+    static func requireRealStoryboard(dataRoot: URL) throws {
+        guard let storyboard = try? StoryboardStore.load(dataRoot: dataRoot, version: .current),
+              !storyboard.sections.isEmpty else {
+            throw GateBlocked("Can't approve \"storyboard\": no valid, non-empty storyboard yet.")
+        }
+        guard storyboard.sections.allSatisfy({ !$0.steps.isEmpty }) else {
+            throw GateBlocked("Can't approve \"storyboard\": a section has no steps — each needs at least one.")
+        }
+        if let measured = BeatAssembly.loadBeatGrid(dataRoot: dataRoot) {
+            let end = storyboard.sections.map(\.timeEnd).max() ?? 0
+            guard end <= measured.durationS + 0.5 else {
+                throw GateBlocked("Can't approve \"storyboard\": a section ends at \(end)s, past the measured "
+                    + "song (\(measured.durationS)s).")
+            }
+        }
+    }
+
+    /// `production_design`: raw production_design.yaml exists, parses, names the SAME visual medium the
+    /// (already-gated) brief set, and actually defines a style layer (refs / color_script /
+    /// lighting_anchor). Free-form artifact → structural floor, not a content judgement.
+    static func requireRealProductionDesign(dataRoot: URL) throws {
+        let url = dataRoot.appendingPathComponent("production_design").appendingPathComponent("production_design.yaml")
+        guard let text = try? String(contentsOf: url, encoding: .utf8),
+              case .mapping(let pd)? = try? YAMLCoding.canonical(text) else {
+            throw GateBlocked("Can't approve \"production_design\": no valid production_design.yaml yet.")
+        }
+        func str(_ v: YAMLValue?) -> String? { if case .string(let s)? = v { return s } else { return nil } }
+        if let brief = try? YAMLArtifactStore(dataRoot: dataRoot).load(Brief.self, at: PipelineLayout.briefFile) {
+            let vm = str(pd["visual_medium"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let vm, vm == brief.visualMedium.rawValue else {
+                throw GateBlocked("Can't approve \"production_design\": visual_medium (\(vm ?? "missing")) "
+                    + "doesn't match the brief (\(brief.visualMedium.rawValue)).")
+            }
+        }
+        let hasRefs: Bool = { if case .sequence(let s)? = pd["refs"] { return !s.isEmpty }; return false }()
+        let hasColor: Bool = { if case .mapping(let m)? = pd["color_script"] { return !m.isEmpty }; return false }()
+        let hasLighting = !(str(pd["lighting_anchor"]) ?? "").isEmpty
+        guard hasRefs || hasColor || hasLighting else {
+            throw GateBlocked("Can't approve \"production_design\": no style layer defined — add style refs, "
+                + "a color script, or a lighting anchor.")
+        }
+    }
+
+    /// `frames`: every shot needing keyframes is actually rendered (recorded in the frames manifest).
+    static func requireRealFrames(dataRoot: URL) throws {
+        guard let shotlist = try? loadShotlist(dataRoot: dataRoot) else {
+            throw GateBlocked("Can't approve \"frames\": no shotlist to render keyframes for.")
+        }
+        let required = shotlist.shots
+            .filter { $0.sourceMode != .imported && $0.keyframeStrategy != .none }.map(\.id)
+        let manifest = try? loadRenderManifest(dataRoot: dataRoot, phase: "frames")
+        let missing = required.filter { manifest?.entries[$0]?.status != .rendered }
+        guard missing.isEmpty else {
+            throw GateBlocked("Can't approve \"frames\": \(missing.count) shot(s) have no rendered keyframe "
+                + "(e.g. \(missing.prefix(3).joined(separator: ", "))). Render them first.")
+        }
+    }
+
+    /// `render`: terminal gate — every provider-rendered (non-imported) shot is rendered with an output.
+    static func requireRealRender(dataRoot: URL) throws {
+        guard let shotlist = try? loadShotlist(dataRoot: dataRoot) else {
+            throw GateBlocked("Can't approve \"render\": no shotlist to render against.")
+        }
+        let required = shotlist.shots.filter { $0.sourceMode != .imported }.map(\.id)
+        let manifest = try? loadRenderManifest(dataRoot: dataRoot, phase: "final")
+        let missing = required.filter {
+            let e = manifest?.entries[$0]
+            return e?.status != .rendered || (e?.output ?? "").isEmpty
+        }
+        guard missing.isEmpty else {
+            throw GateBlocked("Can't approve \"render\": \(missing.count) shot(s) aren't rendered in the final "
+                + "pass (e.g. \(missing.prefix(3).joined(separator: ", "))).")
+        }
+    }
+
+    /// `cover` (optional): if approved, at least one format's cover was really produced — its clean image
+    /// exists on disk.
+    static func requireRealCover(dataRoot: URL) throws {
+        let produced = CoverFormatKey.allCases.contains { fmt in
+            guard let manifest = try? Cover.load(projectDir: dataRoot, format: fmt.rawValue),
+                  let clean = manifest.clean else { return false }
+            let p = clean.path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !p.isEmpty else { return false }
+            return FileManager.default.fileExists(atPath: p)
+                || FileManager.default.fileExists(atPath: dataRoot.appendingPathComponent(p).path)
+                || FileManager.default.fileExists(atPath: FrameInventory.projectHome(of: dataRoot).appendingPathComponent(p).path)
+        }
+        guard produced else {
+            throw GateBlocked("Can't approve \"cover\": no cover has a real clean image on disk — produce a "
+                + "cover first, or leave the gate unset to skip it.")
+        }
+    }
 }
