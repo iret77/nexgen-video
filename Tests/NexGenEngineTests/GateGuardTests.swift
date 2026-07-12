@@ -15,12 +15,22 @@ struct GateGuardTests {
     }
 
     private func writeAnalysis(_ root: URL, beats: [Double], downbeats: [Double], duration: Double,
-                              sectionLabels: [[String: String]] = []) throws {
+                              sectionLabels: [[String: String]] = [], aligned: Bool = false) throws {
         let dir = root.appendingPathComponent("analysis")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var obj: [String: Any] = ["beats": beats, "downbeats": downbeats, "duration_s": duration]
         if !sectionLabels.isEmpty { obj["interpretation"] = ["section_labels": sectionLabels] }
+        if aligned {
+            obj["alignment"] = [["start": 0.5, "end": 2.0, "text": "hello world",
+                                 "words": [["text": "hello", "start": 0.5, "end": 1.0]]]]
+        }
         try JSONSerialization.data(withJSONObject: obj).write(to: dir.appendingPathComponent("song.json"))
+    }
+
+    private func writeLyrics(_ root: URL) throws {
+        let dir = root.appendingPathComponent("lyrics")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try "[Verse 1]\nhello world".write(to: dir.appendingPathComponent("song.txt"), atomically: true, encoding: .utf8)
     }
 
     // MARK: - Fail-closed pack wiring (the triangle Engine↔Plugin↔Agent must be live)
@@ -49,10 +59,11 @@ struct GateGuardTests {
         try GateGuard.requireWiredPack(declared: "musicvideo", resolved: "musicvideo", registry: registry)
     }
 
-    @Test("analysis gate requires real rhythm data AND an A2 interpretation")
+    @Test("analysis gate requires rhythm, A2 interpretation, lyrics AND forced alignment")
     func analysisRequirement() throws {
         let root = try tempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
+        let labels = [["index": "0", "label": "intro"]]
 
         // No artifact → blocked.
         #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
@@ -65,9 +76,17 @@ struct GateGuardTests {
         try writeAnalysis(root, beats: [0.5, 1.0, 1.5], downbeats: [0.5, 2.5], duration: 12.0)
         #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
 
-        // Measured + interpreted (section labels) → passes.
+        // Rhythm + interpretation but NO lyrics → blocked (lyrics-mandatory).
+        try writeAnalysis(root, beats: [0.5, 1.0, 1.5], downbeats: [0.5, 2.5], duration: 12.0, sectionLabels: labels)
+        #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
+
+        // Lyrics present but the artifact carries NO alignment → blocked (forced-alignment mandatory).
+        try writeLyrics(root)
+        #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
+
+        // Rhythm + interpretation + lyrics + forced alignment → passes.
         try writeAnalysis(root, beats: [0.5, 1.0, 1.5], downbeats: [0.5, 2.5], duration: 12.0,
-                          sectionLabels: [["index": "0", "label": "intro"]])
+                          sectionLabels: labels, aligned: true)
         try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root)
     }
 
