@@ -74,7 +74,7 @@ struct WhisperCppTranscriber: AudioTranscribing {
             guard !text.isEmpty else { return }
             words.append(TranscribedWord(
                 text: text, start: c.start, end: max(c.end, c.start),
-                score: c.pCount > 0 ? c.pSum / Double(c.pCount) : nil))
+                confidence: c.pCount > 0 ? c.pSum / Double(c.pCount) : nil))
         }
 
         for segment in 0..<whisper_full_n_segments(ctx) {
