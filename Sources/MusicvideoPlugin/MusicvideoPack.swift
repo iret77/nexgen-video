@@ -94,6 +94,11 @@ public struct MusicvideoPack: Pack {
         // Hard gate: the analysis gate can't be stamped until a real analysis artifact (with genuine
         // beats/downbeats) exists — the deterministic backstop against a fabricated song structure.
         registry.registerGateRequirement("analysis") { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: $0) }
+        // Per-phase acceptance harness — every gate deterministically verifies the phase's artifact is
+        // real and to spec (not decoration). More phases wired as their checks land.
+        registry.registerGateRequirement("brief") { try MusicvideoGateChecks.requireRealBrief(dataRoot: $0) }
+        registry.registerGateRequirement("shotlist") { try MusicvideoGateChecks.requireRealShotlist(dataRoot: $0) }
+        registry.registerGateRequirement("bible") { try MusicvideoGateChecks.requireRealBible(dataRoot: $0) }
         try? registry.registerUIContract(phase: "analysis", surface: "choice", taskClass: "classification")
     }
 }
