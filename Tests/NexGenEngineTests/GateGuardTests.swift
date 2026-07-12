@@ -71,12 +71,16 @@ struct GateGuardTests {
         try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root)
     }
 
-    @Test("musicvideo registers a hard-gate requirement for analysis only")
+    @Test("musicvideo registers deterministic hard-gate requirements per phase")
     func requirementRegistered() {
         PackCatalog.register(MusicvideoPack())
         let registry = PackCatalog.registry(activePack: "musicvideo")
-        #expect(registry.gateRequirements["analysis"] != nil)
-        #expect(registry.gateRequirements["brief"] == nil)
+        // The per-phase acceptance harness: each wired phase has a deterministic requirement.
+        for phase in ["analysis", "brief", "shotlist", "bible"] {
+            #expect(registry.gateRequirements[phase] != nil, "\(phase) must have a gate requirement")
+        }
+        // A generic project carries none.
+        #expect(PackCatalog.registry(activePack: nil).gateRequirements["analysis"] == nil)
     }
 
     @Test("checkApprovable passes with no requirement and rethrows a blocked one")
