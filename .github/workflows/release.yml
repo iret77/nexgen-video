@@ -161,7 +161,10 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Publish signed build to rolling dev-latest
-        if: ${{ env.REL_DRY == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        # Only push-to-main refreshes the PUBLIC dev-latest download. PR runs still build+sign+notarize
+        # (validating signing changes end-to-end) but must NOT publish an unmerged branch build to the
+        # public rolling download.
+        if: ${{ env.REL_DRY == 'true' && github.event_name != 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
