@@ -335,6 +335,31 @@ public enum MusicvideoChecks {
         return out
     }
 
+    /// Proportion-anchor plausibility. Port of `sanity/checks/proportion_anchor.py`:
+    ///  - PROPORTION_ANCHOR_UNKNOWN (warn): a location's proportion_anchor_shot isn't in the shotlist.
+    ///  - PROPORTION_ANCHOR_MISMATCH (warn): the anchor shot's location_ref isn't that location.
+    public static let proportionAnchorCheck: SanityCheck = { ctx in
+        guard let bible = ctx.bible else { return [] }
+        var out: [Finding] = []
+        let byId = Dictionary(ctx.shotlist.shots.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for loc in bible.locations {
+            guard let anchorId = loc.proportionAnchorShot?.trimmingCharacters(in: .whitespaces),
+                  !anchorId.isEmpty else { continue }
+            guard let anchor = byId[anchorId] else {
+                out.append(Finding(level: .warn, code: "PROPORTION_ANCHOR_UNKNOWN",
+                    message: "location \"\(loc.id)\": proportion_anchor_shot=\"\(anchorId)\" isn't in the "
+                        + "shotlist."))
+                continue
+            }
+            if anchor.locationRef != loc.id {
+                out.append(Finding(level: .warn, code: "PROPORTION_ANCHOR_MISMATCH", shotId: anchor.id,
+                    message: "location \"\(loc.id)\": proportion_anchor_shot \"\(anchor.id)\" has "
+                        + "location_ref=\"\(anchor.locationRef ?? "")\", should be \"\(loc.id)\"."))
+            }
+        }
+        return out
+    }
+
     /// Tempo-pacing check: ASL drift + per-shot hard-cap. Port of
     /// `checks.py::tempo`.
     ///
