@@ -128,7 +128,11 @@ final class PluginManager {
         appVersion: String?,
         localBadge: (String) -> URL? = { _ in nil }
     ) -> [PluginRow] {
-        let catalogByID = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        // #168: a version-aware catalog lists MULTIPLE versions per pack. Collapse to the newest
+        // COMPATIBLE version per pack id (highest `version` whose `minAppVersion ≤ appVersion`) so a
+        // new app gets the newest pack and an old app the last pack that still supports it.
+        let selected = selectCompatiblePerPack(catalog, appVersion: appVersion)
+        let catalogByID = Dictionary(selected.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var rows: [PluginRow] = []
         var seen = Set<String>()
 
@@ -146,7 +150,7 @@ final class PluginManager {
                                         activePluginName: activePluginName, appVersion: appVersion)))
         }
 
-        for entry in catalog where !seen.contains(entry.id) {
+        for entry in selected where !seen.contains(entry.id) {
             rows.append(PluginRow(
                 id: entry.id, displayName: entry.displayName,
                 tagline: entry.tagline.isEmpty ? nil : entry.tagline,
@@ -186,6 +190,26 @@ final class PluginManager {
     /// The catalog entry, but only when it's installable on this app version.
     nonisolated static func installableEntry(_ entry: PluginCatalog.Entry, appVersion: String?) -> PluginCatalog.Entry? {
         PluginGate.versionCheck(minAppVersion: entry.minAppVersion, appVersion: appVersion) == nil ? entry : nil
+    }
+
+    /// #168: collapse a multi-version catalog to ONE entry per pack id — the highest `version` whose
+    /// `minAppVersion ≤ appVersion`. When no version is compatible with this app, keep the highest
+    /// version overall so the pack still appears (rendered `unavailable`), rather than vanishing.
+    /// Older versions stay published in the catalog so an older app finds its last compatible pack.
+    /// Pure + testable.
+    nonisolated static func selectCompatiblePerPack(
+        _ catalog: [PluginCatalog.Entry], appVersion: String?
+    ) -> [PluginCatalog.Entry] {
+        func version(_ e: PluginCatalog.Entry) -> SemanticVersion { SemanticVersion(e.version) ?? SemanticVersion("0.0.0")! }
+        func newest(_ entries: [PluginCatalog.Entry]) -> PluginCatalog.Entry? {
+            entries.max { version($0) < version($1) }
+        }
+        return Dictionary(grouping: catalog, by: \.id).compactMap { _, entries in
+            let compatible = entries.filter {
+                PluginGate.versionCheck(minAppVersion: $0.minAppVersion, appVersion: appVersion) == nil
+            }
+            return newest(compatible.isEmpty ? entries : compatible)
+        }
     }
 
     /// The catalog entry when it's a newer, installable version than `installed`.

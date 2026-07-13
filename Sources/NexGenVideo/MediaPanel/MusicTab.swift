@@ -24,8 +24,14 @@ struct MusicTab: View {
 
     // Every music model belongs here — filtering on a video input hid text-to-music models
     // entirely and showed "No music models available" although the catalog had them.
+    // Usable-only (#159): an activated provider must service the model AND the user hasn't disabled it
+    // in Settings → Models — never offer a music model that would fail at request time.
     private var models: [AudioModelConfig] {
-        AudioModelConfig.allModels.filter { $0.category == .music }
+        AudioModelConfig.allModels.filter {
+            $0.category == .music
+                && ModelPreferences.shared.isEnabled($0.id)
+                && GenerationProvider.canRun(modelId: $0.id)
+        }
     }
 
     private var model: AudioModelConfig? {

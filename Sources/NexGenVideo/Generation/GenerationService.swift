@@ -179,6 +179,24 @@ final class GenerationService {
         return placeholder
     }
 
+    /// Move a freshly downloaded file into the project's Caches-tier staging dir (per-project,
+    /// purgeable) and return the staged URL. Falls back to the original URL when no project is open or
+    /// the move fails — staging is a convenience, never a hard dependency of the download.
+    @MainActor
+    private static func stageDownload(_ downloaded: URL, ext: String, editor: EditorViewModel) -> URL {
+        guard let key = editor.workingCopyKey else { return downloaded }
+        let dir = AppPaths.ensure(AppPaths.projectStaging(projectId: key))
+        let dest = dir.appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(ext.isEmpty ? "bin" : ext)
+        do {
+            try? FileManager.default.removeItem(at: dest)
+            try FileManager.default.moveItem(at: downloaded, to: dest)
+            return dest
+        } catch {
+            return downloaded
+        }
+    }
+
     private static func destinationDirectory(for projectURL: URL?) -> URL {
         if let projectURL {
             let dir = projectURL.appendingPathComponent(Project.mediaDirectoryName, isDirectory: true)
@@ -192,12 +210,16 @@ final class GenerationService {
     private func downloadAndFinalize(asset: MediaAsset, remoteURL: URL, editor: EditorViewModel) async -> Bool {
         asset.generationStatus = .downloading
         do {
-            let (tempURL, _) = try await URLSession.shared.download(from: remoteURL)
+            let (downloadURL, _) = try await URLSession.shared.download(from: remoteURL)
             let realExt = remoteURL.pathExtension.lowercased()
             if !realExt.isEmpty, realExt != asset.url.pathExtension.lowercased(),
                ClipType(fileExtension: realExt) != nil {
                 asset.url = asset.url.deletingPathExtension().appendingPathExtension(realExt)
             }
+            // Stage the freshly downloaded bytes in the project's Caches-tier scratch (purgeable,
+            // per-project) before finalizing into the durable package media/. Falls back to the
+            // system temp URL when no project is open.
+            let tempURL = Self.stageDownload(downloadURL, ext: asset.url.pathExtension, editor: editor)
             try? FileManager.default.removeItem(at: asset.url)
             try FileManager.default.moveItem(at: tempURL, to: asset.url)
 
