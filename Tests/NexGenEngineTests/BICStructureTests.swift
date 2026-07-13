@@ -25,8 +25,8 @@ struct BICStructureTests {
 
     @Test("ΔBIC is positive across a real distribution shift, negative within one")
     func deltaBICSign() {
-        let different = block(count: 200, startK: 0, base: 5) + block(count: 200, startK: 200, base: -5)
-        let same = block(count: 400, startK: 0, base: 5)
+        let different = Self.block(count: 200, startK: 0, base: 5) + Self.block(count: 200, startK: 200, base: -5)
+        let same = Self.block(count: 400, startK: 0, base: 5)
         let pd = BICStructure.Prefix(frames: different, d: Self.d)
         let ps = BICStructure.Prefix(frames: same, d: Self.d)
         #expect(BICStructure.deltaBIC(prefix: pd, d: Self.d, left: 0, mid: 200, right: 400, penaltyWeight: 1.5) > 0)
@@ -36,13 +36,13 @@ struct BICStructureTests {
     @Test("segment splits two long, distinct timbres at their join")
     func segmentsAtTimbreChange() {
         let n = 800
-        let frames = block(count: 400, startK: 0, base: 5) + block(count: 400, startK: 400, base: -5)
+        let frames = Self.block(count: 400, startK: 0, base: 5) + Self.block(count: 400, startK: 400, base: -5)
         let duration = Double(n) * Self.frameDur
         let secs = BICStructure.segment(mfcc: frames, hop: Self.hop, sampleRate: Self.sr, duration: duration)
         #expect(secs.count >= 2)
         #expect(secs.allSatisfy { $0.source == "essentia" })
         let joinS = Double(400) * Self.frameDur
-        let boundaries = secs.dropFirst().map(\.start)
+        let boundaries = secs.dropFirst().map { $0.start }
         #expect(boundaries.contains { abs($0 - joinS) <= 1.0 }, "sections=\(secs.map { ($0.start, $0.end) })")
         // Full coverage, contiguous.
         #expect(secs.first?.start == 0.0)
@@ -52,7 +52,7 @@ struct BICStructureTests {
     @Test("homogeneous audio yields a single section")
     func homogeneousOneSection() {
         let n = 800
-        let frames = block(count: n, startK: 0, base: 5)
+        let frames = Self.block(count: n, startK: 0, base: 5)
         let duration = Double(n) * Self.frameDur
         let secs = BICStructure.segment(mfcc: frames, hop: Self.hop, sampleRate: Self.sr, duration: duration)
         #expect(secs.count == 1)
@@ -61,7 +61,7 @@ struct BICStructureTests {
 
     @Test("too few frames falls back to a single section")
     func tooFewFrames() {
-        let frames = block(count: 10, startK: 0, base: 5)
+        let frames = Self.block(count: 10, startK: 0, base: 5)
         let secs = BICStructure.segment(mfcc: frames, hop: Self.hop, sampleRate: Self.sr, duration: 5.0)
         #expect(secs.count == 1)
         #expect(secs.first?.start == 0.0 && secs.first?.end == 5.0)
