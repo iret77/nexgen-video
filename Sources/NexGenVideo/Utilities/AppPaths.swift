@@ -30,10 +30,21 @@ enum AppPaths {
         recovery.appendingPathComponent(projectId, isDirectory: true)
     }
 
+    /// Root of the per-project Caches tier (`~/Library/Caches/NexGenVideo/projects`). Project-keyed
+    /// (`p-…`) subdirs live here; the launch idle-sweep purges stale ones.
+    static var projectCachesRoot: URL { caches.appendingPathComponent("projects", isDirectory: true) }
+
     /// A project's transient cache (render scratch, decode caches, proxies) — safe to purge.
     static func projectCache(projectId: String) -> URL {
-        caches.appendingPathComponent("projects", isDirectory: true)
-            .appendingPathComponent(projectId, isDirectory: true)
+        projectCachesRoot.appendingPathComponent(projectId, isDirectory: true)
+    }
+
+    /// In-flight generation staging for a project — where a download lands before it's finalized into
+    /// the durable package `media/`. Recreatable + expendable, so it belongs in the Caches tier, not
+    /// `NSTemporaryDirectory` (per-project + swept, so an interrupted download is discoverable and
+    /// purged rather than orphaned in system temp).
+    static func projectStaging(projectId: String) -> URL {
+        projectCache(projectId: projectId).appendingPathComponent("staging", isDirectory: true)
     }
 
     @discardableResult

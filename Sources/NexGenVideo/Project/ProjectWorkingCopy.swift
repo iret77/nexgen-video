@@ -146,6 +146,9 @@ enum ProjectWorkingCopy {
         // Quarantined salvage (unsentineled copies set aside during materialize) is scratch — age it out.
         purgeAged(AppPaths.recovery.appendingPathComponent(".quarantine", isDirectory: true),
                   graceInterval: graceInterval)
+        // The Caches tier (generation staging, decode/proxy scratch) is expendable and the OS may purge
+        // it anyway — retire idle project-keyed entries on the same schedule as the working copies.
+        purgeKeyedStore(AppPaths.projectCachesRoot, liveKeys: liveKeys, graceInterval: graceInterval)
     }
 
     /// Purge idle `p-…` entries from a project-keyed store, sparing anything in `liveKeys`. Testable in
