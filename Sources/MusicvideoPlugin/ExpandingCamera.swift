@@ -25,6 +25,19 @@ enum CameraMoves {
         "no camera movement", "no movement", "still camera",
     ]
 
+    /// Distinct camera-move categories present in `cameraText` (repeat mentions of
+    /// one category count once), in `movePatterns` order. Port of
+    /// `camera_validator.py::analyze_camera_field`'s `move_categories`.
+    static func moveCategories(_ cameraText: String) -> [String] {
+        guard !cameraText.isEmpty else { return [] }
+        let lower = cameraText.lowercased()
+        var cats: [String] = []
+        for entry in movePatterns where entry.patterns.contains(where: { lower.contains($0) }) {
+            if !cats.contains(entry.category) { cats.append(entry.category) }
+        }
+        return cats
+    }
+
     static func isExpandingMove(_ cameraText: String) -> Bool {
         guard !cameraText.isEmpty else { return false }
         let lower = cameraText.lowercased()
