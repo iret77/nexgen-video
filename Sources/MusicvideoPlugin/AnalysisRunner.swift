@@ -174,7 +174,8 @@ public enum MusicvideoAnalysisRunner {
     /// kept as a `structure_candidate` and single-source anomalies are recorded).
     /// When `lyricsAlignment` carries `[Section]` markers, those become the primary
     /// boundary truth (Consolidator Path A). `stems` is populated when separation
-    /// ran; key/chords stay empty (deferred).
+    /// ran; `key` carries the DSP pipeline's Krumhansl-Schmuckler result; chords
+    /// stay empty (deferred — needed a deep-chroma chord model).
     static func toCanonical(
         _ raw: AudioAnalysis, project: String, songPath: String, stems: Stems? = nil,
         lyricsAlignment: [AlignmentLine] = [],
@@ -221,6 +222,7 @@ public enum MusicvideoAnalysisRunner {
             structureCandidates: [StructureCandidate(source: .librosa, sections: detected)],
             energyCurve: raw.energyCurve,
             tempoCurve: raw.tempoCurve,
+            key: raw.key,
             interpretation: interpretation,
             pipelineStages: pipelineStages
         )

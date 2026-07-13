@@ -65,8 +65,9 @@ public struct TempoPoint: Codable, Sendable, Equatable {
 }
 
 /// The DSP-producible subset of the canonical `Analysis` schema — the fields the
-/// native pipeline computes in v1 scope. Stems/alignment/key/chords/interpretation
-/// stay out (those schema fields remain optional on the canonical type).
+/// native pipeline computes in v1 scope. Stems/alignment/chords/interpretation
+/// stay out (those schema fields remain optional on the canonical type). `key`
+/// (Krumhansl-Schmuckler) is produced here.
 public struct AudioAnalysis: Codable, Sendable, Equatable {
     public var sampleRate: Int
     public var durationS: Double
@@ -77,6 +78,8 @@ public struct AudioAnalysis: Codable, Sendable, Equatable {
     public var sections: [AudioSection]
     public var energyCurve: [EnergyPoint]
     public var tempoCurve: [TempoPoint]
+    /// Detected musical key, e.g. `"C major"` / `"A minor"`; nil when undetermined.
+    public var key: String?
 
     public init(
         sampleRate: Int,
@@ -87,7 +90,8 @@ public struct AudioAnalysis: Codable, Sendable, Equatable {
         downbeatSource: String,
         sections: [AudioSection],
         energyCurve: [EnergyPoint],
-        tempoCurve: [TempoPoint]
+        tempoCurve: [TempoPoint],
+        key: String? = nil
     ) {
         self.sampleRate = sampleRate
         self.durationS = durationS
@@ -98,6 +102,7 @@ public struct AudioAnalysis: Codable, Sendable, Equatable {
         self.sections = sections
         self.energyCurve = energyCurve
         self.tempoCurve = tempoCurve
+        self.key = key
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -110,5 +115,6 @@ public struct AudioAnalysis: Codable, Sendable, Equatable {
         case sections
         case energyCurve = "energy_curve"
         case tempoCurve = "tempo_curve"
+        case key
     }
 }

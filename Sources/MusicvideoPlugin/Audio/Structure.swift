@@ -194,6 +194,25 @@ public enum Structure {
 
     // MARK: Features
 
+    /// Track-global 12-bin chroma: the mean of the per-frame chroma proxy over
+    /// the whole signal. Feeds `MusicalKey` (Krumhansl-Schmuckler). Reuses the
+    /// same mel → `chromaFromMelDB` path as `segment`, so the key derives from the
+    /// identical (documented-approximate) chroma the structure detector uses.
+    /// Returns 12 zeros for empty / silent input (→ `MusicalKey.detect` yields nil).
+    public static func globalChroma(_ y: [Float], sampleRate: Double, hop: Int = Spectral.hopLength) -> [Double] {
+        guard !y.isEmpty, sampleRate > 0 else { return [Double](repeating: 0, count: 12) }
+        let spec = Spectral.spectrogram(y, sampleRate: sampleRate, hop: hop)
+        let bank = Spectral.melFilterbank(sampleRate: sampleRate)
+        let mel = Spectral.melSpectrogram(spec, filterbank: bank)
+        let melDB = Spectral.powerToDB(mel)
+        let chroma = chromaFromMelDB(melDB, sampleRate: sampleRate)
+        guard !chroma.isEmpty else { return [Double](repeating: 0, count: 12) }
+        var mean = [Double](repeating: 0, count: 12)
+        for frame in chroma { for i in 0..<12 { mean[i] += frame[i] } }
+        for i in 0..<12 { mean[i] /= Double(chroma.count) }
+        return mean
+    }
+
     /// 12-band chroma proxy folded from mel-dB energy. Not CQT-chroma (that
     /// needs a constant-Q transform); a documented approximation that still
     /// captures harmonic-content changes for boundary detection. Each mel band's

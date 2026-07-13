@@ -3,8 +3,9 @@ import NexGenEngine
 
 /// Orchestrates the native audio analysis from raw PCM to the Analysis output
 /// shape, mirroring `pipeline.py`'s stage order (load → rhythm → structure →
-/// features → persist) for the v1-scope stages. Stems / alignment / key / chords
-/// are out of scope and their schema fields stay empty/optional.
+/// features → persist) for the v1-scope stages. Features include musical key
+/// (Krumhansl-Schmuckler). Stems / alignment / chords are wired elsewhere
+/// (`MusicvideoAnalysisRunner`) or stay optional.
 public enum AudioAnalysisPipeline {
     /// Run the full DSP pipeline on a mono PCM buffer.
     ///
@@ -49,6 +50,7 @@ public enum AudioAnalysisPipeline {
         // 5. Features.
         let energy = Energy.rmsCurve(y, sampleRate: sr)
         let tempo = Energy.tempoCurve(y, sampleRate: sr, hop: hop)
+        let key = MusicalKey.detect(chroma: Structure.globalChroma(y, sampleRate: sr, hop: hop))
 
         return AudioAnalysis(
             sampleRate: Int(sr.rounded()),
@@ -59,7 +61,8 @@ public enum AudioAnalysisPipeline {
             downbeatSource: Downbeats.source,
             sections: sections,
             energyCurve: energy,
-            tempoCurve: tempo
+            tempoCurve: tempo,
+            key: key
         )
     }
 
