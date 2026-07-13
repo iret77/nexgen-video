@@ -3,7 +3,12 @@ import Foundation
 
 @testable import NexGenVideo
 
-@Suite("CostGuard — the user's final word on paid agent renders (M7)")
+// `.serialized`: every test here mutates the same global `UserDefaults` key
+// (`CostGuard.autoApproveKey`) via `withThreshold`. swift-testing runs a suite's
+// tests in parallel by default, so without serialization they race on that shared
+// key — one test's threshold leaks into another's `needsApproval` read (observed:
+// `rendersAtOrUnderCeilingArePreApproved` intermittently failing on credits: 51).
+@Suite("CostGuard — the user's final word on paid agent renders (M7)", .serialized)
 struct CostGuardTests {
 
     private func withThreshold(_ n: Int, _ body: () -> Void) {

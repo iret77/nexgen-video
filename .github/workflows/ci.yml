@@ -38,12 +38,14 @@ jobs:
         shell: bash
         run: |
           set +e  # GitHub's default `-e` would abort on the first failing attempt; we handle codes below.
-          # The macos-26 runner intermittently SIGSEGVs the parallel `swift test` process during
-          # framework/XPC init — the log shows "CoreData: Failed to create NSXPCConnection" followed by
-          # "exited with unexpected signal code 11", and the identical commit passes on re-run. It is
-          # environmental, not a code defect. Retry ONLY on that crash signature; a genuine test failure
-          # (non-zero exit WITHOUT the crash signature) fails immediately and is never masked. Full
-          # coverage is kept — nothing is skipped.
+          # macos-26 SIGSEGV/SIGTRAP crashes here were traced (via SWIFT_BACKTRACE) to CODE traps, not the
+          # environment: an integer-overflow trap in BICStructure (t - Int.min) and a slow lazy-global init
+          # (PackKnowledge.packRoot) that starved the pool under concurrent first-touch — both fixed in the
+          # sources. The "CoreData: Failed to create NSXPCConnection" line the retry keys on is benign noise
+          # (present in passing runs too), NOT the cause. Retry + backtrace stay as a cheap backstop (exits
+          # on first success, costs nothing when green) for the runner's rarer genuine XPC flake and to pin
+          # any future trap. Full coverage is kept — nothing is skipped.
+          export SWIFT_BACKTRACE=enable=yes,interactive=no,demangle=yes,cache=no
           attempts=3
           for i in $(seq 1 "$attempts"); do
             echo "::group::swift test (attempt $i/$attempts)"

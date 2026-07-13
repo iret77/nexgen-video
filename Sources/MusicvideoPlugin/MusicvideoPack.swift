@@ -71,10 +71,39 @@ public struct MusicvideoPack: Pack {
     public init() {}
 
     public func register(_ registry: EngineRegistry) {
+        // Wiring-liveness probe: proves this pack's code is actually installed into the registry the
+        // runtime built for a session (not silently absent). See PackWiring.
+        registry.registerWiringProbe { PackWiring.token(pack: "musicvideo", nonce: $0) }
         registry.registerDurationPolicy(MusicDurationPolicy())
+        // Agent-callable pattern query surface (suggest/get) — the live path to the pattern library.
+        registry.registerPatternProvider(MusicvideoPatternProvider())
         registry.registerProjectDirs(["audio", "lyrics", "analysis"])
         registry.registerSanityCheck("tempo", MusicvideoChecks.tempoCheck)
         registry.registerSanityCheck("pacing", MusicvideoChecks.pacingCheck)
+        registry.registerSanityCheck("bible_integration", MusicvideoChecks.bibleReferenceIntegrityCheck)
+        registry.registerSanityCheck("blocking", MusicvideoChecks.noBlockingAtT0Check)
+        registry.registerSanityCheck("content_block", MusicvideoChecks.contentBlockRiskCheck)
+        registry.registerSanityCheck("prompt_language", MusicvideoChecks.promptLanguageCheck)
+        registry.registerSanityCheck("still_only_discipline", MusicvideoChecks.stillOnlyDisciplineCheck)
+        registry.registerSanityCheck("variation", MusicvideoChecks.variationCheck)
+        registry.registerSanityCheck("redundancy", MusicvideoChecks.redundancyCheck)
+        registry.registerSanityCheck("keyframe_anchor", MusicvideoChecks.keyframeAnchorCheck)
+        registry.registerSanityCheck("location_view", MusicvideoChecks.locationViewCheck)
+        registry.registerSanityCheck("proportion_anchor", MusicvideoChecks.proportionAnchorCheck)
+        registry.registerSanityCheck("composition", MusicvideoChecks.compositionCheck)
+        registry.registerSanityCheck("provider_consistency", MusicvideoChecks.providerConsistencyCheck)
+        registry.registerSanityCheck("reference_mode_prompt", MusicvideoChecks.referenceModePromptCheck)
+        registry.registerSanityCheck("literal", MusicvideoChecks.literalCheck)
+        registry.registerSanityCheck("plausibility", MusicvideoChecks.plausibilityCheck)
+        registry.registerSanityCheck("compatibility", MusicvideoChecks.compatibilityCheck)
+        registry.registerSanityCheck("pattern_drift", MusicvideoChecks.patternDriftCheck)
+        registry.registerSanityCheck("expanding_camera", MusicvideoChecks.expandingCameraCheck)
+        registry.registerSanityCheck("seedance_camera", MusicvideoChecks.seedanceDisciplineCheck)
+        registry.registerSanityCheck("references", MusicvideoChecks.referenceBudgetCheck)
+        registry.registerSanityCheck("frame_ratio", MusicvideoChecks.frameRatioCheck)
+        registry.registerSanityCheck("frame_size", MusicvideoChecks.frameSizeCheck)
+        registry.registerSanityCheck("builder_bypass", MusicvideoChecks.builderBypassCheck)
+        registry.registerSanityCheck("frame_audit_bridge", MusicvideoChecks.frameAuditBridgeCheck)
         // The runner resolves the audio decoder from the registry at run time
         // (weak capture — the registry outlives the call; no retain cycle). A
         // missing decoder surfaces as an actionable error, not a crash.
@@ -83,14 +112,30 @@ public struct MusicvideoPack: Pack {
         // appended after render (the Python append-order would be an impossible
         // workflow here).
         registry.registerPhase("analysis", after: "project_init") { [weak registry] dataRoot in
-            guard let decoder = registry?.audioDecoder else {
+            guard let registry, let decoder = registry.audioDecoder else {
                 throw MusicvideoAnalysisRunner.RunError.noDecoder
             }
-            _ = try MusicvideoAnalysisRunner.run(dataRoot: dataRoot, decoder: decoder)
+            _ = try MusicvideoAnalysisRunner.run(
+                dataRoot: dataRoot, decoder: decoder,
+                transcriber: registry.transcriber,
+                separator: registry.stemSeparator,
+                beatDetector: registry.beatDetector,
+                chordRecognizer: registry.chordRecognizer)
         }
         // Hard gate: the analysis gate can't be stamped until a real analysis artifact (with genuine
         // beats/downbeats) exists — the deterministic backstop against a fabricated song structure.
         registry.registerGateRequirement("analysis") { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: $0) }
+        // Per-phase acceptance harness — every gate deterministically verifies the phase's artifact is
+        // real and to spec (not decoration). More phases wired as their checks land.
+        registry.registerGateRequirement("brief") { try MusicvideoGateChecks.requireRealBrief(dataRoot: $0) }
+        registry.registerGateRequirement("shotlist") { try MusicvideoGateChecks.requireRealShotlist(dataRoot: $0) }
+        registry.registerGateRequirement("bible") { try MusicvideoGateChecks.requireRealBible(dataRoot: $0) }
+        registry.registerGateRequirement("treatment") { try MusicvideoGateChecks.requireRealTreatment(dataRoot: $0) }
+        registry.registerGateRequirement("storyboard") { try MusicvideoGateChecks.requireRealStoryboard(dataRoot: $0) }
+        registry.registerGateRequirement("production_design") { try MusicvideoGateChecks.requireRealProductionDesign(dataRoot: $0) }
+        registry.registerGateRequirement("frames") { try MusicvideoGateChecks.requireRealFrames(dataRoot: $0) }
+        registry.registerGateRequirement("render") { try MusicvideoGateChecks.requireRealRender(dataRoot: $0) }
+        registry.registerGateRequirement("cover") { try MusicvideoGateChecks.requireRealCover(dataRoot: $0) }
         try? registry.registerUIContract(phase: "analysis", surface: "choice", taskClass: "classification")
     }
 }

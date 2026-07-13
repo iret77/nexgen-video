@@ -15,18 +15,55 @@ struct GateGuardTests {
     }
 
     private func writeAnalysis(_ root: URL, beats: [Double], downbeats: [Double], duration: Double,
-                              sectionLabels: [[String: String]] = []) throws {
+                              sectionLabels: [[String: String]] = [], aligned: Bool = false) throws {
         let dir = root.appendingPathComponent("analysis")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var obj: [String: Any] = ["beats": beats, "downbeats": downbeats, "duration_s": duration]
         if !sectionLabels.isEmpty { obj["interpretation"] = ["section_labels": sectionLabels] }
+        if aligned {
+            obj["alignment"] = [["start": 0.5, "end": 2.0, "text": "hello world",
+                                 "words": [["text": "hello", "start": 0.5, "end": 1.0]]]]
+        }
         try JSONSerialization.data(withJSONObject: obj).write(to: dir.appendingPathComponent("song.json"))
     }
 
-    @Test("analysis gate requires real rhythm data AND an A2 interpretation")
+    private func writeLyrics(_ root: URL) throws {
+        let dir = root.appendingPathComponent("lyrics")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try "[Verse 1]\nhello world".write(to: dir.appendingPathComponent("song.txt"), atomically: true, encoding: .utf8)
+    }
+
+    // MARK: - Fail-closed pack wiring (the triangle Engine↔Plugin↔Agent must be live)
+
+    @Test("requireWiredPack: a generic project (no declared pack) is unaffected")
+    func wiringGenericPasses() throws {
+        try GateGuard.requireWiredPack(declared: nil, resolved: nil, registry: EngineRegistry())
+    }
+
+    @Test("requireWiredPack: a declared pack that didn't wire blocks EVERY approval (P0 fail-closed)")
+    func wiringDeclaredButUnwiredBlocks() {
+        // Package declares musicvideo but the runtime resolved nil / built an empty registry — no step
+        // may be approved, or the pipeline would advance ungated masquerading as generic.
+        #expect(throws: GateBlocked.self) {
+            try GateGuard.requireWiredPack(declared: "musicvideo", resolved: nil, registry: EngineRegistry())
+        }
+        #expect(throws: GateBlocked.self) {
+            try GateGuard.requireWiredPack(declared: "musicvideo", resolved: "musicvideo", registry: EngineRegistry())
+        }
+    }
+
+    @Test("requireWiredPack: a genuinely wired pack passes")
+    func wiringWiredPasses() throws {
+        let registry = EngineRegistry()
+        registry.registerWiringProbe { PackWiring.token(pack: "musicvideo", nonce: $0) }
+        try GateGuard.requireWiredPack(declared: "musicvideo", resolved: "musicvideo", registry: registry)
+    }
+
+    @Test("analysis gate requires rhythm, A2 interpretation, lyrics AND forced alignment")
     func analysisRequirement() throws {
         let root = try tempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
+        let labels = [["index": "0", "label": "intro"]]
 
         // No artifact → blocked.
         #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
@@ -39,18 +76,31 @@ struct GateGuardTests {
         try writeAnalysis(root, beats: [0.5, 1.0, 1.5], downbeats: [0.5, 2.5], duration: 12.0)
         #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
 
-        // Measured + interpreted (section labels) → passes.
+        // Rhythm + interpretation but NO lyrics → blocked (lyrics-mandatory).
+        try writeAnalysis(root, beats: [0.5, 1.0, 1.5], downbeats: [0.5, 2.5], duration: 12.0, sectionLabels: labels)
+        #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
+
+        // Lyrics present but the artifact carries NO alignment → blocked (forced-alignment mandatory).
+        try writeLyrics(root)
+        #expect(throws: GateBlocked.self) { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root) }
+
+        // Rhythm + interpretation + lyrics + forced alignment → passes.
         try writeAnalysis(root, beats: [0.5, 1.0, 1.5], downbeats: [0.5, 2.5], duration: 12.0,
-                          sectionLabels: [["index": "0", "label": "intro"]])
+                          sectionLabels: labels, aligned: true)
         try MusicvideoGateChecks.requireRealAnalysis(dataRoot: root)
     }
 
-    @Test("musicvideo registers a hard-gate requirement for analysis only")
+    @Test("musicvideo registers deterministic hard-gate requirements per phase")
     func requirementRegistered() {
         PackCatalog.register(MusicvideoPack())
         let registry = PackCatalog.registry(activePack: "musicvideo")
-        #expect(registry.gateRequirements["analysis"] != nil)
-        #expect(registry.gateRequirements["brief"] == nil)
+        // The per-phase acceptance harness: every content phase has a deterministic requirement.
+        for phase in ["analysis", "brief", "production_design", "treatment", "storyboard", "bible",
+                      "shotlist", "frames", "render", "cover"] {
+            #expect(registry.gateRequirements[phase] != nil, "\(phase) must have a gate requirement")
+        }
+        // A generic project carries none.
+        #expect(PackCatalog.registry(activePack: nil).gateRequirements["analysis"] == nil)
     }
 
     @Test("checkApprovable passes with no requirement and rethrows a blocked one")

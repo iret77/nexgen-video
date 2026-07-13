@@ -126,8 +126,8 @@ public struct StructureCandidate: Codable, Sendable, Equatable {
     }
 }
 
-/// `EnergyPoint`/`TempoPoint` now live in NexGenEngine (`Audio/AudioAnalysis.swift`)
-/// — generic DSP time-series primitives shared by the engine and this pack.
+/// `EnergyPoint`/`TempoPoint` live alongside the pack's DSP in `Audio/AudioAnalysis.swift`
+/// — music-domain time-series primitives the analysis pipeline produces.
 
 /// Port of `analysis_schema.py::Stems`.
 public struct Stems: Codable, Sendable, Equatable {
@@ -218,6 +218,7 @@ public struct Analysis: Codable, Sendable, Equatable {
     public enum DownbeatSource: String, Codable, Sendable, CaseIterable {
         case madmom
         case librosaHeuristic = "librosa-heuristic"
+        case beatTransformer = "beat-transformer"
     }
 
     /// Subjectively perceived tempo = bpm x tempoMultiplier. Default

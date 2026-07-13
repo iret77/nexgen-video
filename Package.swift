@@ -25,6 +25,10 @@ let package = Package(
         .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.40.0"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.3"),
         .package(url: "https://github.com/airbnb/lottie-ios", from: "4.6.1"),
+        // ONNX Runtime (ObjC/C bindings via a checksummed pod-archive binaryTarget) — the on-device
+        // inference runtime behind the app's Demucs (stem separation) and Beat This! (neural downbeat)
+        // implementations of the engine's audio-ML seams.
+        .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager", from: "1.19.2"),
     ],
     targets: [
         .executableTarget(
@@ -37,6 +41,8 @@ let package = Package(
                 .product(name: "Tokenizers", package: "swift-transformers"),
                 .product(name: "Lottie", package: "lottie-ios"),
                 .product(name: "NexGenEngine", package: "Engine"),
+                "whisper",
+                .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager"),
             ],
             path: "Sources/NexGenVideo",
             exclude: [
@@ -53,6 +59,9 @@ let package = Package(
             plugins: ["MetalCIKernelPlugin"]
         ),
         .plugin(name: "MetalCIKernelPlugin", capability: .buildTool()),
+        // Vendored whisper.cpp (macOS/arm64 slice) — on-device speech recognition behind the app's
+        // AudioTranscribing seam. See Vendor/README.md for provenance + update steps.
+        .binaryTarget(name: "whisper", path: "Vendor/whisper.xcframework"),
         // The musicvideo format pack. Links the shared NexGenEngine dynamic product
         // (from the Engine package) so its `Pack`/`PackEntry` metadata is IDENTICAL to
         // the host's. Its knowledge (pattern library, phase docs, badge) ships as target

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import NexGenEngine
+import MusicvideoPlugin
 
 @testable import NexGenVideo
 
@@ -91,6 +92,25 @@ struct ProjectWorkingCopyTests {
         // The legacy dir is gone; the project carries only `pipeline/`.
         #expect(!FileManager.default.fileExists(
             atPath: pkg.appendingPathComponent(DataRootResolver.legacyPipelineDirname).path))
+    }
+
+    @Test("materialize mirrors ngv.json so the pack + its analysis gate load in-session")
+    func materializeMirrorsActivePackForRuntime() throws {
+        PackCatalog.register(MusicvideoPack())
+        let pkg = try tempPackage()
+        // The active pack lives in the PACKAGE's ngv.json (app metadata, sibling of pipeline/).
+        ProjectPluginSettings.setActivePlugin("musicvideo", projectURL: pkg)
+        let key = uniqueKey()
+        defer { ProjectWorkingCopy.discard(key: key); try? FileManager.default.removeItem(at: pkg) }
+
+        let home = try ProjectWorkingCopy.materialize(key: key, packageURL: pkg)
+
+        // The runtime resolves the pack from the WORKING COPY (cockpit, gate enforcement, run_phase).
+        // Before the mirror this returned nil → the pack silently never loaded in a session, disabling
+        // the analysis DSP runner and its hard gate — letting the agent improvise the analysis.
+        #expect(ProjectPluginSettings.activePlugin(projectURL: home) == "musicvideo")
+        // …and the resolved pack actually wires the hard analysis gate that forces measured analysis.
+        #expect(PackCatalog.registry(activePack: "musicvideo").gateRequirements["analysis"] != nil)
     }
 
     // MARK: - Idle-data sweep

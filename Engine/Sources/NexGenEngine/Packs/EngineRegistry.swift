@@ -43,11 +43,30 @@ public final class EngineRegistry: @unchecked Sendable {
     /// stamping a gate, so the agent cannot rubber-stamp a phase whose deterministic output is missing.
     public private(set) var gateRequirements: [String: GateRequirement] = [:]
 
+    /// Liveness probe for the active pack: a closure the pack registers that returns
+    /// `PackWiring.token(pack:nonce:)` for a nonce. It exists ONLY if the pack's code actually loaded
+    /// into THIS registry — so the host can prove, deterministically, that the pack a project declares is
+    /// genuinely wired into the session, not silently resolved to nil (the class of bug where the bundle
+    /// loads but the runtime never routes to it: no phases, no gates). See `PackWiring`.
+    public private(set) var wiringToken: (@Sendable (String) -> String)?
+
     /// The host's audio decoder, injected so a pack's phase runner can turn an
     /// audio file into a `PCMBuffer` without the pure engine linking
     /// AVFoundation. Nil until the app registers one — the analysis runner then
     /// returns an actionable error instead of crashing.
     public private(set) var audioDecoder: (any AudioPCMDecoding)?
+
+    /// Host-injected on-device audio-ML inference (see `AudioML.swift`). Each is
+    /// nil until the app registers it; a pack's analysis runner degrades or blocks
+    /// with an actionable message rather than crashing when one is absent.
+    public private(set) var transcriber: (any AudioTranscribing)?
+    public private(set) var stemSeparator: (any AudioStemSeparating)?
+    public private(set) var beatDetector: (any AudioBeatDetecting)?
+    public private(set) var chordRecognizer: (any AudioChordRecognizing)?
+
+    /// Pack-provided director-pattern query surface (see `PatternProviding`). Nil until a pack registers
+    /// one; the host's `suggest_patterns`/`get_pattern` tools return an actionable "no patterns" instead.
+    public private(set) var patternProvider: (any PatternProviding)?
 
     /// A phase runner is an opaque callable the engine invokes to run a named
     /// pipeline phase (e.g. `"analysis"`). Precise signatures firm up as more
@@ -106,10 +125,39 @@ public final class EngineRegistry: @unchecked Sendable {
         gateRequirements[phase] = check
     }
 
+    /// Register the pack's wiring-liveness probe (see `wiringToken`). A pack calls this in `register`;
+    /// the host later asks the built registry for a token and compares it to the shared formula.
+    public func registerWiringProbe(_ probe: @escaping @Sendable (String) -> String) {
+        wiringToken = probe
+    }
+
     /// Inject the host's audio decoder (the app's AVFoundation implementation).
     /// A pack's analysis phase runner resolves it from the registry at run time.
     public func registerAudioDecoder(_ decoder: any AudioPCMDecoding) {
         audioDecoder = decoder
+    }
+
+    /// Inject the host's on-device audio-ML implementations. A pack's analysis
+    /// runner resolves whichever are present at run time (see `AudioML.swift`).
+    public func registerTranscriber(_ transcriber: any AudioTranscribing) {
+        self.transcriber = transcriber
+    }
+
+    public func registerStemSeparator(_ separator: any AudioStemSeparating) {
+        self.stemSeparator = separator
+    }
+
+    public func registerBeatDetector(_ detector: any AudioBeatDetecting) {
+        self.beatDetector = detector
+    }
+
+    public func registerChordRecognizer(_ recognizer: any AudioChordRecognizing) {
+        self.chordRecognizer = recognizer
+    }
+
+    /// Register the pack's director-pattern query surface (see `PatternProviding`).
+    public func registerPatternProvider(_ provider: any PatternProviding) {
+        self.patternProvider = provider
     }
 
     /// Domain reference data (e.g. music genre/mood pattern library).

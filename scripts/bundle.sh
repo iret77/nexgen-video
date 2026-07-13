@@ -78,6 +78,27 @@ fi
 cp "$RESOURCES/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp -R "$SPARKLE_FW" "$APP/Contents/Frameworks/Sparkle.framework"
 
+# Vendored whisper.cpp (on-device ASR) — embed its framework so the app's AudioTranscribing seam
+# resolves @rpath/whisper.framework/Versions/Current/whisper via the @executable_path/../Frameworks
+# rpath added below. macOS/arm64 slice only (see Vendor/README.md).
+WHISPER_FW="$ROOT/Vendor/whisper.xcframework/macos-arm64_x86_64/whisper.framework"
+if [ -d "$WHISPER_FW" ]; then
+  cp -R "$WHISPER_FW" "$APP/Contents/Frameworks/whisper.framework"
+else
+  echo "!! missing vendored whisper.framework at $WHISPER_FW — the app links it and won't launch" >&2
+  exit 1
+fi
+
+# ONNX Runtime (Demucs + Beat This! inference) — a downloaded pod-archive binaryTarget. Locate the
+# macOS slice under SwiftPM's artifacts and embed it like the other frameworks.
+ORT_FW="$(find "$ROOT/.build/artifacts" -type d -name onnxruntime.framework -path '*macos*' 2>/dev/null | head -1)"
+if [ -n "$ORT_FW" ] && [ -d "$ORT_FW" ]; then
+  cp -R "$ORT_FW" "$APP/Contents/Frameworks/onnxruntime.framework"
+else
+  echo "!! onnxruntime.framework not found under .build/artifacts — the app links it and won't launch" >&2
+  exit 1
+fi
+
 # Flatten SwiftPM's resource bundle into the app's Resources tree.
 RES_BUNDLE="$(dirname "$BIN")/NexGenVideo_NexGenVideo.bundle"
 if [ -d "$RES_BUNDLE/Fonts" ]; then
@@ -180,6 +201,16 @@ echo "==> Codesigning embedded engine dylib"
 codesign --force --options runtime --timestamp \
   --sign "$SIGN_IDENTITY" \
   "$APP/Contents/Frameworks/libNexGenEngine.dylib"
+
+echo "==> Codesigning embedded whisper framework"
+codesign --force --options runtime --timestamp \
+  --sign "$SIGN_IDENTITY" \
+  "$APP/Contents/Frameworks/whisper.framework"
+
+echo "==> Codesigning embedded onnxruntime framework"
+codesign --force --options runtime --timestamp \
+  --sign "$SIGN_IDENTITY" \
+  "$APP/Contents/Frameworks/onnxruntime.framework"
 
 echo "==> Codesigning main app"
 codesign --force --options runtime --timestamp \
