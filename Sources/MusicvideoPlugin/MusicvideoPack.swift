@@ -75,6 +75,8 @@ public struct MusicvideoPack: Pack {
         // runtime built for a session (not silently absent). See PackWiring.
         registry.registerWiringProbe { PackWiring.token(pack: "musicvideo", nonce: $0) }
         registry.registerDurationPolicy(MusicDurationPolicy())
+        // Agent-callable pattern query surface (suggest/get) — the live path to the pattern library.
+        registry.registerPatternProvider(MusicvideoPatternProvider())
         registry.registerProjectDirs(["audio", "lyrics", "analysis"])
         registry.registerSanityCheck("tempo", MusicvideoChecks.tempoCheck)
         registry.registerSanityCheck("pacing", MusicvideoChecks.pacingCheck)

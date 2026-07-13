@@ -63,6 +63,10 @@ public final class EngineRegistry: @unchecked Sendable {
     public private(set) var stemSeparator: (any AudioStemSeparating)?
     public private(set) var beatDetector: (any AudioBeatDetecting)?
 
+    /// Pack-provided director-pattern query surface (see `PatternProviding`). Nil until a pack registers
+    /// one; the host's `suggest_patterns`/`get_pattern` tools return an actionable "no patterns" instead.
+    public private(set) var patternProvider: (any PatternProviding)?
+
     /// A phase runner is an opaque callable the engine invokes to run a named
     /// pipeline phase (e.g. `"analysis"`). Precise signatures firm up as more
     /// phases land; kept minimal here for the one phase M8 registers. Port of
@@ -144,6 +148,11 @@ public final class EngineRegistry: @unchecked Sendable {
 
     public func registerBeatDetector(_ detector: any AudioBeatDetecting) {
         self.beatDetector = detector
+    }
+
+    /// Register the pack's director-pattern query surface (see `PatternProviding`).
+    public func registerPatternProvider(_ provider: any PatternProviding) {
+        self.patternProvider = provider
     }
 
     /// Domain reference data (e.g. music genre/mood pattern library).
