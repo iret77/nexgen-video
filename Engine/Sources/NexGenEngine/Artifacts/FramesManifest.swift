@@ -43,6 +43,24 @@ public struct FramesManifest: Codable, Sendable, Equatable {
 
     /// The `ShotFrames` for a shot id, or nil. Port of `FramesManifest.shot`.
     public func shot(_ shotId: String) -> ShotFrames? { shots.first { $0.shotId == shotId } }
+
+    /// Insert or replace a frame for a shot (matched by `role`), creating the shot's
+    /// record if it's the first frame. Value-semantic — returns the updated manifest.
+    /// The frame-recording path calls this as renders land.
+    public func upserting(shotId: String, keyframeStrategy: String, frame: FrameEntry) -> FramesManifest {
+        var copy = self
+        if let s = copy.shots.firstIndex(where: { $0.shotId == shotId }) {
+            copy.shots[s].keyframeStrategy = keyframeStrategy
+            if let f = copy.shots[s].frames.firstIndex(where: { $0.role == frame.role }) {
+                copy.shots[s].frames[f] = frame
+            } else {
+                copy.shots[s].frames.append(frame)
+            }
+        } else {
+            copy.shots.append(ShotFrames(shotId: shotId, keyframeStrategy: keyframeStrategy, frames: [frame]))
+        }
+        return copy
+    }
 }
 
 public struct ShotFrames: Codable, Sendable, Equatable {

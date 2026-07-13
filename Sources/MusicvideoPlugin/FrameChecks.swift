@@ -27,12 +27,14 @@ extension MusicvideoChecks {
 
         guard let root = ctx.extra?["data_root"],
               let manifest = try? loadFramesManifest(dataRoot: URL(fileURLWithPath: root)) else { return [] }
-        let dataRoot = URL(fileURLWithPath: root)
+        // Manifest lives in the pipeline data root; frame images are project-home-relative
+        // (the media library sits under the project home, next to `pipeline/`).
+        let home = FrameInventory.projectHome(of: URL(fileURLWithPath: root))
         let tolerance = 0.02
         var out: [Finding] = []
         for sf in manifest.shots {
             for frame in sf.frames where !frame.path.isEmpty {
-                guard let size = FrameRasterizer.pixelSize(of: dataRoot.appendingPathComponent(frame.path)),
+                guard let size = FrameRasterizer.pixelSize(of: home.appendingPathComponent(frame.path)),
                       size.height > 0 else { continue }
                 let actual = Double(size.width) / Double(size.height)
                 if max(actual / target, target / actual) > 1 + tolerance {
@@ -50,11 +52,11 @@ extension MusicvideoChecks {
     public static let frameSizeCheck: SanityCheck = { ctx in
         guard let root = ctx.extra?["data_root"],
               let manifest = try? loadFramesManifest(dataRoot: URL(fileURLWithPath: root)) else { return [] }
-        let dataRoot = URL(fileURLWithPath: root)
+        let home = FrameInventory.projectHome(of: URL(fileURLWithPath: root))
         var out: [Finding] = []
         for sf in manifest.shots {
             for frame in sf.frames where !frame.path.isEmpty {
-                guard let size = FrameRasterizer.pixelSize(of: dataRoot.appendingPathComponent(frame.path)) else { continue }
+                guard let size = FrameRasterizer.pixelSize(of: home.appendingPathComponent(frame.path)) else { continue }
                 let shortEdge = min(size.width, size.height)
                 if shortEdge < 1024 {
                     out.append(Finding(level: .warn, code: "FRAME_TOO_SMALL", shotId: sf.shotId,

@@ -462,6 +462,12 @@ extension ToolExecutor {
         } catch {
             throw ToolError("Couldn't save render manifest: \(error)")
         }
+        // A recorded keyframe render also lands in the frames manifest with its exact
+        // compiled provider prompt (for the frame_ratio / frame_size / builder_bypass
+        // checks). Best-effort sidecar — never fail the render record over it.
+        if phase == "frames", status == .rendered, let output, !output.isEmpty {
+            recordFrameManifest(shotId: shotId, output: output, role: args.string("role"), editor: editor, dataRoot: root)
+        }
         let entry = manifest.entries[shotId]
         return try jsonResult([
             "phase": phase,
@@ -676,6 +682,32 @@ extension ToolExecutor {
     /// an absolute path, or a path relative to the project home / data root / media dir. Reuses an
     /// existing asset for the same file so re-runs don't pile up duplicate library entries. Returns
     /// nil for a remote URL or a file that isn't on disk (the caller skips that shot).
+    /// Capture a recorded keyframe render in the frames manifest with the EXACT compiled
+    /// provider prompt (pulled off the resolved asset's `GenerationInput`), so the frame
+    /// sanity checks have real data. Frame `path` is project-home-relative (where the media
+    /// library lives). `role` defaults to "start" — `record_render` is per-shot-per-phase,
+    /// so a start_end shot's end frame only differentiates if the tool passes `role`.
+    /// Silent on any miss: the audit sidecar must never break recording a render.
+    private func recordFrameManifest(shotId: String, output: String, role: String?, editor: EditorViewModel, dataRoot: URL) {
+        guard let asset = resolveRenderedAsset(output, editor: editor, dataRoot: dataRoot),
+              let gi = asset.generationInput else { return }
+        let home = FrameInventory.projectHome(of: dataRoot)
+        let entry = FrameEntry(
+            role: role ?? "start",
+            path: FrameInventory.relativePath(of: asset.url, to: home),
+            prompt: gi.intent ?? "",
+            runwayModel: gi.model,
+            approved: false,
+            providerPrompt: gi.prompt,
+            multiRefHints: [])
+        let ks = ((try? loadShotlist(dataRoot: dataRoot)) ?? nil)?
+            .shots.first { $0.id == shotId }?.keyframeStrategy.rawValue ?? "start"
+        let manifest = ((try? loadFramesManifest(dataRoot: dataRoot))
+            ?? FramesManifest(project: FrameInventory.projectName(of: dataRoot) ?? "", generated: currentTimestamp()))
+            .upserting(shotId: shotId, keyframeStrategy: ks, frame: entry)
+        try? saveFramesManifest(manifest, dataRoot: dataRoot)
+    }
+
     private func resolveRenderedAsset(_ output: String, editor: EditorViewModel, dataRoot: URL) -> MediaAsset? {
         if let asset = editor.mediaAssets.first(where: { $0.id == output }) { return asset }
         let home = FrameInventory.projectHome(of: dataRoot)
