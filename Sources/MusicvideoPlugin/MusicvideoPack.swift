@@ -122,6 +122,16 @@ public struct MusicvideoPack: Pack {
                 beatDetector: registry.beatDetector,
                 chordRecognizer: registry.chordRecognizer)
         }
+        // #174: the one-song contract is load-bearing — analysis is meaningless without exactly one
+        // song in audio/. Pin it to the engine so a missing/duplicate song blocks the phase upfront
+        // with an actionable message, regardless of whether the agent established it via attach_song.
+        // Runs before the heavy DSP; defense-in-depth with the runner's own locateSong.
+        registry.registerDeterministicStep(
+            "one_song_contract", phase: "analysis",
+            summary: "Exactly one song must be in audio/ (engine-enforced before analysis)."
+        ) { dataRoot in
+            _ = try MusicvideoAnalysisRunner.locateSong(dataRoot: dataRoot)
+        }
         // Hard gate: the analysis gate can't be stamped until a real analysis artifact (with genuine
         // beats/downbeats) exists — the deterministic backstop against a fabricated song structure.
         registry.registerGateRequirement("analysis") { try MusicvideoGateChecks.requireRealAnalysis(dataRoot: $0) }

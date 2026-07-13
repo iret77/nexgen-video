@@ -43,6 +43,16 @@ public final class EngineRegistry: @unchecked Sendable {
     /// stamping a gate, so the agent cannot rubber-stamp a phase whose deterministic output is missing.
     public private(set) var gateRequirements: [String: GateRequirement] = [:]
 
+    /// Engine-pinned deterministic steps, in registration order (#174). A load-bearing step — file
+    /// intake into the right project dir, the one-song contract, the assembly hand-off — is the same
+    /// every run with a hard contract, so it must NOT depend on the agent choosing to perform it. A
+    /// pack declares such steps against a phase; the host runs them itself at phase entry, and reports
+    /// them to the agent as engine-owned so the agent orchestrates AROUND them (it never gets to skip a
+    /// load-bearing step). A step that throws blocks the phase with its actionable message. This is the
+    /// deterministic sibling of `PhaseRunner` (whole-phase code) and `GateRequirement` (approve-time
+    /// precondition): a named, guaranteed operation the agent can neither improvise nor omit.
+    public private(set) var deterministicSteps: [DeterministicStep] = []
+
     /// Liveness probe for the active pack: a closure the pack registers that returns
     /// `PackWiring.token(pack:nonce:)` for a nonce. It exists ONLY if the pack's code actually loaded
     /// into THIS registry — so the host can prove, deterministically, that the pack a project declares is
@@ -78,6 +88,22 @@ public final class EngineRegistry: @unchecked Sendable {
     /// message) when the phase's artifact isn't genuinely present in the data root.
     public typealias GateRequirement = @Sendable (URL) throws -> Void
 
+    /// A named, engine-run step pinned to a phase (#174). `run` executes the deterministic operation
+    /// against the data root; throwing blocks the phase with the error's message.
+    public struct DeterministicStep: Sendable {
+        public let id: String
+        public let phase: String
+        /// Human-facing one-liner for the agent's orchestration map ("engine owns this step").
+        public let summary: String
+        public let run: @Sendable (URL) throws -> Void
+        public init(id: String, phase: String, summary: String, run: @escaping @Sendable (URL) throws -> Void) {
+            self.id = id
+            self.phase = phase
+            self.summary = summary
+            self.run = run
+        }
+    }
+
     public init() {}
 
     /// Convenience read-through so callers can inspect `checks` the same way
@@ -102,6 +128,20 @@ public final class EngineRegistry: @unchecked Sendable {
     public func registerPhasePlacement(_ name: String, after: String? = nil) {
         phasePlacements.removeAll { $0.phase == name }
         phasePlacements.append(PhasePlacement(phase: name, after: after))
+    }
+
+    /// Declare an engine-pinned deterministic step for a phase (#174). Registration order within a
+    /// phase is preserved (steps run top-to-bottom). The host runs these at phase entry, before the
+    /// agent touches the phase.
+    public func registerDeterministicStep(
+        _ id: String, phase: String, summary: String, run: @escaping @Sendable (URL) throws -> Void
+    ) {
+        deterministicSteps.append(DeterministicStep(id: id, phase: phase, summary: summary, run: run))
+    }
+
+    /// The deterministic steps declared for a phase, in registration order.
+    public func deterministicSteps(forPhase phase: String) -> [DeterministicStep] {
+        deterministicSteps.filter { $0.phase == phase }
     }
 
     /// Extra project-layout subdirs the pack needs (e.g. music:

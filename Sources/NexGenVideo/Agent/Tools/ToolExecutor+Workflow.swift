@@ -132,11 +132,18 @@ extension ToolExecutor {
     }
 
     func getUIContractTool(_ editor: EditorViewModel) throws -> ToolResult {
-        let packEntries = PackCatalog.registry(activePack: editor.activePluginName).uiContracts
-        let contract = UIContract.fullContract(packEntries: packEntries)
+        let registry = PackCatalog.registry(activePack: editor.activePluginName)
+        let contract = UIContract.fullContract(packEntries: registry.uiContracts)
         var phases: [String: Any] = [:]
         for (phase, entry) in contract {
-            phases[phase] = ["surface": entry.surface, "task_class": entry.taskClass]
+            var info: [String: Any] = ["surface": entry.surface, "task_class": entry.taskClass]
+            // #174: engine-owned deterministic steps the host guarantees for this phase — the agent
+            // orchestrates AROUND these (never re-runs or improvises a load-bearing step).
+            let steps = registry.deterministicSteps(forPhase: phase)
+            if !steps.isEmpty {
+                info["engine_steps"] = steps.map { ["id": $0.id, "summary": $0.summary] }
+            }
+            phases[phase] = info
         }
         return try jsonResult(["surfaces": UIContract.surfaces, "phases": phases])
     }
@@ -1010,11 +1017,31 @@ extension ToolExecutor {
         // On-device chord recognition (BTC via ONNX, CQT baked into the graph) → analysis.chord_progression.
         // Model downloads on demand on first use; absent/offline degrades to no chords.
         registry.registerChordRecognizer(ChordRecognizer())
+
+        // #174: run the phase's engine-pinned deterministic steps FIRST — load-bearing operations the
+        // agent can neither skip nor improvise (file intake into the right dir, the one-song contract,
+        // the assembly hand-off). A step that throws blocks the phase with its actionable message.
+        let steps = registry.deterministicSteps(forPhase: phase)
+        for step in steps {
+            do {
+                try step.run(root)
+            } catch {
+                return try jsonResult([
+                    "phase": phase, "error": "deterministic_step_failed",
+                    "step": step.id, "detail": String(describing: error),
+                ])
+            }
+        }
+        let engineSteps: [[String: Any]] = steps.map { ["id": $0.id, "summary": $0.summary] }
+
         guard let runner = registry.phases[phase] else {
             return try jsonResult([
                 "phase": phase,
                 "runner": NSNull(),
-                "note": "no code runner registered; this phase is agent-driven",
+                "engine_steps": engineSteps,
+                "note": engineSteps.isEmpty
+                    ? "no code runner registered; this phase is agent-driven"
+                    : "no code runner, but \(steps.count) engine-owned step(s) already ran — orchestrate around them, don't repeat them",
             ])
         }
 
@@ -1034,7 +1061,10 @@ extension ToolExecutor {
         if let failure {
             return try jsonResult(["phase": phase, "error": "phase_failed", "detail": failure])
         }
-        return try jsonResult(["phase": phase, "ok": true, "result": analysisSummary(dataRoot: root, phase: phase)])
+        return try jsonResult([
+            "phase": phase, "ok": true, "engine_steps": engineSteps,
+            "result": analysisSummary(dataRoot: root, phase: phase),
+        ])
     }
 
     /// Read back the artifact the run just wrote (derived via the runner's own song discovery —
