@@ -175,10 +175,11 @@ public enum Structure {
         let n = nov.count
         guard n > 2 else { return [] }
         var peaks = [Int]()
-        var last = Int.min
+        var last: Int? = nil
         for i in 1..<(n - 1) {
             if nov[i] >= threshold && nov[i] >= nov[i - 1] && nov[i] >= nov[i + 1] {
-                if i - last >= minGap { peaks.append(i); last = i }
+                // `last == nil` guards the first peak — `i - Int.min` would overflow-trap.
+                if last == nil || i - last! >= minGap { peaks.append(i); last = i }
             }
         }
         return peaks

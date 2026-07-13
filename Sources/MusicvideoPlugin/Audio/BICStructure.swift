@@ -54,11 +54,12 @@ public enum BICStructure {
         }
         let minGap = max(1, Int((minSectionS / max(frameDur, 1e-9)).rounded()))
         var boundaryFrames: [Int] = []
-        var last = Int.min
+        var last: Int? = nil
         for t in (w)...(n - w) where t < n {
             let v = curve[t]
             guard v > 0 else { continue }
-            if v >= curve[t - 1] && v >= curve[min(t + 1, n - 1)] && t - last >= minGap {
+            // `last == nil` guards the first peak — computing `t - Int.min` would overflow-trap.
+            if v >= curve[t - 1] && v >= curve[min(t + 1, n - 1)] && (last == nil || t - last! >= minGap) {
                 boundaryFrames.append(t); last = t
             }
         }
