@@ -44,6 +44,9 @@ jobs:
           # environmental, not a code defect. Retry ONLY on that crash signature; a genuine test failure
           # (non-zero exit WITHOUT the crash signature) fails immediately and is never masked. Full
           # coverage is kept — nothing is skipped.
+          # DIAGNOSTIC: print a symbolicated backtrace on crash (interactive=no so it never blocks the
+          # runner) to pin down the exact frame of the startup SIGSEGV. Harmless when tests pass.
+          export SWIFT_BACKTRACE=enable=yes,interactive=no,demangle=yes,cache=no
           attempts=3
           for i in $(seq 1 "$attempts"); do
             echo "::group::swift test (attempt $i/$attempts)"
