@@ -38,19 +38,20 @@ jobs:
         shell: bash
         run: |
           set +e  # GitHub's default `-e` would abort on the first failing attempt; we handle codes below.
-          # The macos-26 runner intermittently SIGSEGVs the parallel `swift test` process during
-          # framework/XPC init — the log shows "CoreData: Failed to create NSXPCConnection" followed by
-          # "exited with unexpected signal code 11", and the identical commit passes on re-run. It is
-          # environmental, not a code defect. Retry ONLY on that crash signature; a genuine test failure
-          # (non-zero exit WITHOUT the crash signature) fails immediately and is never masked. Full
-          # coverage is kept — nothing is skipped.
-          # DIAGNOSTIC: print a symbolicated backtrace on crash (interactive=no so it never blocks the
-          # runner) to pin down the exact frame of the startup SIGSEGV. Harmless when tests pass.
+          # The macos-26 SIGSEGV/SIGTRAP that used to be blamed on "framework/XPC init" was actually
+          # cooperative-thread-pool STARVATION: swift-testing runs tests as concurrent async tasks, and
+          # synchronous blocking across many of them at once (lazy `static let` global init that does file
+          # I/O / `Bundle.all*` enumeration → `__ulock_wait`) exhausts the small runner's cooperative pool
+          # and deadlocks before any test runs. `--no-parallel` serializes the run so the pool is never
+          # saturated. The "CoreData: Failed to create NSXPCConnection" line is benign noise (present in
+          # passing runs too), not the cause. The retry stays as a cheap backstop (exits on first success,
+          # so it costs nothing when green); SWIFT_BACKTRACE keeps a symbolicated trace if anything slips
+          # through. Full coverage is kept — nothing is skipped.
           export SWIFT_BACKTRACE=enable=yes,interactive=no,demangle=yes,cache=no
           attempts=3
           for i in $(seq 1 "$attempts"); do
             echo "::group::swift test (attempt $i/$attempts)"
-            swift test 2>&1 | tee "test-attempt-$i.log"
+            swift test --no-parallel 2>&1 | tee "test-attempt-$i.log"
             code=${PIPESTATUS[0]}
             echo "::endgroup::"
             if [ "$code" -eq 0 ]; then
