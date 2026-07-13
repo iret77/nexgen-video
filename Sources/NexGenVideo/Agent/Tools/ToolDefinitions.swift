@@ -54,6 +54,8 @@ enum ToolName: String, CaseIterable, Sendable {
     case estimateCost = "estimate_cost"
     case showArtifact = "show_artifact"
     case runPhase = "run_phase"
+    case suggestPatterns = "suggest_patterns"
+    case getPattern = "get_pattern"
     case attachSong = "attach_song"
     case nextRenderShot = "next_render_shot"
     case recordRender = "record_render"
@@ -946,6 +948,34 @@ enum ToolDefinitions {
             name: .runSanity,
             description: "Run the full consistency audit for the project and return its findings.\n\nLoads the latest shotlist plus any brief/bible, runs every engine-core check AND every active-pack check, and returns `{project, findings:[{level, code, shot_id, message}]}`. If the project has no shotlist yet, returns `{\"error\": \"no shotlist\", ...}` instead of raising. Read-only. `project_dir` is the `pipeline/` data root; omit to use the open project.",
             inputSchema: projectDirSchema()
+        ),
+        AgentTool(
+            name: .suggestPatterns,
+            description: "Suggest director/style patterns for the brief (packs that ship a pattern library, e.g. musicvideo). Pass the brief's dimensions as raw enum strings — visual_medium, mood, perceived_bpm, concept, figures, aspect — and get the top-N patterns, each scored with WHY it matched and its cited sources. Use at the brief phase to pick a pattern, then set the chosen id as brief.director_pattern so PATTERN_DRIFT holds the shotlist to it. Read-only; omit dimensions you don't want to constrain. Errors if the active pack ships no patterns.",
+            inputSchema: objectSchema(
+                properties: [
+                    "visual_medium": ["type": "string", "description": "e.g. live_action_realistic, 2d_animation."],
+                    "mood": ["type": "string", "description": "Mood band, e.g. dreamy, aggressive, melancholic."],
+                    "perceived_bpm": ["type": "number", "description": "The song's perceived BPM (from analysis)."],
+                    "concept": ["type": "string", "description": "Concept type, e.g. narrative, performance, abstract."],
+                    "figures": ["type": "string", "description": "Figure presence, e.g. solo, band, none."],
+                    "aspect": ["type": "string", "description": "Aspect ratio, e.g. landscape_16_9."],
+                    "top": ["type": "integer", "description": "How many to return (default 5)."],
+                    "allow_genre_cross": ["type": "boolean", "description": "Lift the visual-medium veto (default false)."],
+                    "project_dir": ["type": "string", "description": "Optional pipeline data root; omit to use the open project."],
+                ]
+            )
+        ),
+        AgentTool(
+            name: .getPattern,
+            description: "Load one director pattern by id (an id from suggest_patterns): its framing_mix, asl_range, camera vocabulary, lighting signature, section arc, references and triggers. Consume these directives when writing the storyboard/shotlist/bible so the plan follows the pattern. Read-only.",
+            inputSchema: objectSchema(
+                properties: [
+                    "id": ["type": "string", "description": "Pattern id from suggest_patterns (e.g. anime-shinkai-emotional-landscape)."],
+                    "project_dir": ["type": "string", "description": "Optional pipeline data root; omit to use the open project."],
+                ],
+                required: ["id"]
+            )
         ),
         AgentTool(
             name: .initProject,

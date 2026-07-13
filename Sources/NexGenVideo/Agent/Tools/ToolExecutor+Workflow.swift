@@ -89,6 +89,41 @@ extension ToolExecutor {
         return try jsonResult(NativeCockpitReader.costDictionary(dataRoot: root, activePack: activePluginFor(dataRoot: root)))
     }
 
+    // MARK: - Director patterns (#185) — the agent-callable path to the pack's pattern library.
+
+    func suggestPatternsTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
+        let provider = try patternProvider(args, editor: editor)
+        let data = try provider.suggest(
+            visualMedium: args["visual_medium"] as? String,
+            mood: args["mood"] as? String,
+            perceivedBPM: args["perceived_bpm"] as? Double,
+            concept: args["concept"] as? String,
+            figures: args["figures"] as? String,
+            aspect: args["aspect"] as? String,
+            maxResults: (args["top"] as? Int) ?? 5,
+            allowGenreCross: (args["allow_genre_cross"] as? Bool) ?? false)
+        return .ok(String(decoding: data, as: UTF8.self))
+    }
+
+    func getPatternTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
+        let provider = try patternProvider(args, editor: editor)
+        let id = try args.requireString("id")
+        guard let data = try provider.get(id: id) else {
+            throw ToolError("No director pattern with id \"\(id)\". Call suggest_patterns to discover valid ids.")
+        }
+        return .ok(String(decoding: data, as: UTF8.self))
+    }
+
+    /// The active pack's pattern provider, or an actionable error when this pack ships none.
+    private func patternProvider(_ args: [String: Any], editor: EditorViewModel) throws -> any PatternProviding {
+        let root = try resolveDataRoot(args, editor: editor)
+        guard let provider = PackCatalog.registry(activePack: activePluginFor(dataRoot: root)).patternProvider else {
+            throw ToolError("This project's format pack has no director patterns "
+                + "(suggest_patterns/get_pattern are a musicvideo feature).")
+        }
+        return provider
+    }
+
     func getLedgerTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
         let root = try resolveDataRoot(args, editor: editor)
         let data = try NativeCockpitReader.ledgerJSON(dataRoot: root)

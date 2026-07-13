@@ -123,6 +123,8 @@ final class ToolExecutor {
         case .listPhases:           return try listPhasesTool(editor, args)
         case .getBible:             return try getBible(editor, args)
         case .runSanity:            return try runSanityTool(editor, args)
+        case .suggestPatterns:      return try suggestPatternsTool(editor, args)
+        case .getPattern:           return try getPatternTool(editor, args)
         case .initProject:          return try initProjectTool(editor, args)
         case .approveGate:          return try approveGateTool(editor, args)
         case .rewind:               return try rewindTool(editor, args)
