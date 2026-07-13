@@ -53,7 +53,19 @@ def main() -> int:
         return 2
     sys.path.insert(0, str(repo))
 
+    # BTC's utils/hparams.py calls yaml.load(f) without a Loader (removed in PyYAML 6). Shim it to a
+    # safe default so a fresh clone loads its run_config.yaml regardless of PyYAML version.
+    import yaml  # noqa: E402
+    _orig_yaml_load = yaml.load
+    yaml.load = lambda stream, Loader=None: _orig_yaml_load(stream, Loader=Loader or yaml.FullLoader)
+
     import numpy as np  # noqa: E402
+    # BTC uses numpy aliases removed in numpy>=1.24 (np.float/np.int/np.bool/np.object). Restore them so
+    # the repo's transformer_modules / audio helpers import unmodified.
+    for _alias, _builtin in {"float": float, "int": int, "bool": bool, "object": object}.items():
+        if not hasattr(np, _alias):
+            setattr(np, _alias, _builtin)
+
     import torch  # noqa: E402
     from nnAudio.features.cqt import CQT1992v2  # type: ignore  # noqa: E402
     from btc_model import BTC_model  # type: ignore  # noqa: E402
@@ -82,8 +94,14 @@ def main() -> int:
     num_chords = int(config.model["num_chords"])
     assert len(vocab_list) == num_chords, f"vocab {len(vocab_list)} != num_chords {num_chords}"
 
+    # probs_out=True makes SoftmaxOutputLayer return per-frame LOGITS [B,T,num_chords]; the default
+    # (False) returns arg-max indices [B,T]. The provider wants logits (it arg-maxes + decodes), so
+    # export the logits path. Weights are identical either way — this only selects the forward branch.
+    config.model["probs_out"] = True
     model = BTC_model(config=config.model)
-    checkpoint = torch.load(str(ckpt_path), map_location="cpu")
+    # weights_only=False: the checkpoint stores numpy scalars (mean/std) alongside the state dict, and
+    # torch>=2.6 defaults weights_only=True. Safe here — the checkpoint is the MIT repo's own file.
+    checkpoint = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
     mean = float(checkpoint["mean"])
     std = float(checkpoint["std"])
     model.load_state_dict(checkpoint["model"])
@@ -124,18 +142,27 @@ def main() -> int:
             feat = (feat - self.mean) / self.std
             feat = feat[:, :timestep, :]                              # exactly one 108-frame instance
             attn, _ = self.m.self_attn_layers(feat)
-            logits, _ = self.m.output_layer(attn)                     # [B, T, num_chords]
+            logits = self.m.output_layer(attn)                        # [B, T, num_chords] (probs_out=True)
             return logits
 
     dummy = torch.zeros(1, samples_per_window, dtype=torch.float32)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     onnx_path = args.out_dir / "btc_chord.onnx"
+    # dynamo=False: the legacy TorchScript exporter serializes BTC's positional-encoding buffer cleanly;
+    # the dynamo path lifts it to a FakeTensor and fails to save. This model has no dynamo-only ops.
     torch.onnx.export(
         BTCWithFrontend(model), dummy, str(onnx_path),
         input_names=["audio"], output_names=["logits"],
         dynamic_axes={"audio": {0: "batch"}, "logits": {0: "batch"}},
-        opset_version=17,
+        opset_version=17, dynamo=False,
     )
+    # The legacy exporter may spill weights into a `.onnx.data` sidecar; consolidate into one
+    # self-contained file so the app hosts/loads a single URL (HFModelStore expects one file).
+    import onnx  # noqa: E402
+    onnx.save_model(onnx.load(str(onnx_path)), str(onnx_path), save_as_external_data=False)
+    sidecar = onnx_path.with_suffix(".onnx.data")
+    if sidecar.exists():
+        sidecar.unlink()
 
     meta = {
         "model": "BTC-ISMIR19",

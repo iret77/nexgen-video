@@ -92,6 +92,16 @@ librosa's — the parity check (and eval on the repo's `example.mp3`, whose `.la
 - **`scripts/export_btc_chord_onnx.py`** — produces `btc_chord.onnx` (audio → logits, CQT baked in) +
   `btc_chord_meta.json` (vocabulary/geometry), with the librosa parity check.
 
+### Validation (run on devhost, py3.11 + torch 2.13 CPU + nnAudio + librosa)
+
+The export + baked front-end were run and validated against BTC's own reference inference:
+
+- **CQT parity** — nnAudio `CQT1992v2` vs `librosa.cqt` log-magnitude on `example.mp3`: **MAE 0.037** over 108 frames (threshold 0.5).
+- **End-to-end** — exported ONNX (raw audio → baked nnAudio CQT → logits, arg-max) vs BTC's reference path (librosa CQT → normalize → transformer → prediction): **98.3% per-frame chord agreement** over 2808 frames. The ~1.7% delta is the tiny CQT difference at frame boundaries.
+- **Artifacts** — single self-contained `btc_chord.onnx` (49 MB) + `btc_chord_meta.json` (vocabulary = 12 maj + 12 min + `N`, `num_chords=25`, `mean=-2.2279`, `std=1.7191`, `timestep=108`). Output shape `[batch, 108, 25]`, input `audio [1, 220500]` — exactly what `ChordRecognizer.swift` consumes.
+
+This confirms the baked-CQT design is faithful to BTC before any Swift on-device run.
+
 ### Remaining (single device/model step)
 
 Run the export script on a machine with torch+nnAudio+librosa, confirm the parity check + `example.mp3`
