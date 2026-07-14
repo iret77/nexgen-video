@@ -13,7 +13,6 @@ struct ProvidersPane: View {
     @State private var localEnabled: [String: Bool] = [:]
     @State private var signingIn: String?
     @State private var errorText: [String: String] = [:]
-    @State private var showAdvanced: Set<String> = []
     @State private var oauth = ProviderOAuth()
     @FocusState private var focusedProvider: String?
 
@@ -69,7 +68,7 @@ struct ProvidersPane: View {
         switch p.mcpCapability?.auth {
         case .oauth: return .oauth
         case .localApp: return .localApp
-        case .forwardsAPIKey, .none: return .apiKey
+        case .none: return .apiKey
         }
     }
 
@@ -150,25 +149,7 @@ struct ProvidersPane: View {
                         .buttonStyle(.capsule(.prominent, size: .regular))
                 }
             }
-            // Higgsfield also has a direct API key (pay-per-call) as an alternative to the subscription.
-            if provider.supportsDirectAPI {
-                advancedAPIKey(provider)
-            }
         }
-    }
-
-    @ViewBuilder
-    private func advancedAPIKey(_ provider: GenerationProvider) -> some View {
-        let shown = showAdvanced.contains(provider.id)
-        Button(action: { toggleAdvanced(provider) }) {
-            HStack(spacing: 2) {
-                Image(systemName: shown ? "chevron.down" : "chevron.right").font(.system(size: AppTheme.FontSize.xs))
-                Text("Use an API key instead (pay-per-call)")
-            }
-            .font(.system(size: AppTheme.FontSize.sm)).foregroundStyle(AppTheme.Text.secondaryColor)
-        }
-        .buttonStyle(.plain)
-        if shown { keyField(provider) }
     }
 
     // MARK: - Local-app control (ACE Studio)
@@ -209,10 +190,6 @@ struct ProvidersPane: View {
                         focusedProvider == provider.id ? AppTheme.Border.primaryColor : AppTheme.Border.subtleColor,
                         lineWidth: AppTheme.BorderWidth.thin))
                 trailingControl(provider)
-            }
-            if provider.mcpCapability?.auth == .forwardsAPIKey {
-                Text("Also available over MCP — this key unlocks both.")
-                    .font(.system(size: AppTheme.FontSize.xs)).foregroundStyle(AppTheme.Text.tertiaryColor)
             }
         }
     }
@@ -257,10 +234,6 @@ struct ProvidersPane: View {
             signingIn = nil
             refresh()
         }
-    }
-
-    private func toggleAdvanced(_ provider: GenerationProvider) {
-        if showAdvanced.contains(provider.id) { showAdvanced.remove(provider.id) } else { showAdvanced.insert(provider.id) }
     }
 
     private func placeholder(_ provider: GenerationProvider) -> String {

@@ -3,11 +3,9 @@ import Foundation
 /// How a provider's MCP server authenticates — grounded in each service's real, documented setup, so
 /// Settings only ever offers a method the provider actually supports (no dead fields).
 enum MCPAuthMethod: Equatable, Sendable {
-    /// The provider's own API key is forwarded as the MCP bearer (fal, Runway) — no separate sign-in;
-    /// the API key configured above unlocks the MCP transport too.
-    case forwardsAPIKey
-    /// OAuth sign-in against the provider's hosted MCP (Higgsfield, OpenArt) — a browser login, no
-    /// pasted key. Handled by `ProviderOAuth`.
+    /// OAuth sign-in against the provider's hosted MCP (Higgsfield, OpenArt): a one-click browser login
+    /// on the user's account — no key, no URL. Higgsfield's own docs: "No API keys to manage or
+    /// configure." Handled by `ProviderOAuth`.
     case oauth
     /// A local MCP bridge the provider's desktop app exposes (ACE Studio on localhost) — no key, but
     /// the app must be running.
@@ -28,14 +26,6 @@ extension GenerationProvider {
     /// documented endpoints — pre-filled so the user activates with one action, never URL-typing.
     var mcpCapability: MCPCapability? {
         switch self {
-        case .fal:
-            return MCPCapability(defaultURL: URL(string: "https://mcp.fal.ai/mcp")!,
-                                 auth: .forwardsAPIKey,
-                                 note: "Run fal models on your fal subscription via MCP — uses your API key.")
-        case .runway:
-            return MCPCapability(defaultURL: URL(string: "https://mcp.runwayml.com/mcp")!,
-                                 auth: .forwardsAPIKey,
-                                 note: "Runway over MCP — uses your API key.")
         case .higgsfield:
             return MCPCapability(defaultURL: URL(string: "https://mcp.higgsfield.ai/mcp")!,
                                  auth: .oauth,
@@ -48,9 +38,12 @@ extension GenerationProvider {
             return MCPCapability(defaultURL: URL(string: "http://localhost:21572/mcp")!,
                                  auth: .localApp,
                                  note: "Singing-voice synthesis — requires the ACE Studio app running on this Mac.")
-        case .elevenlabs, .marble:
-            // API only — no hosted MCP server to offer (ElevenLabs' MCP is a local stdio tool; Marble
-            // is REST-only). Showing an MCP field here would be a dead field.
+        case .fal, .runway, .elevenlabs, .marble:
+            // API only for our purposes — verified against the live endpoints. fal has a hosted MCP
+            // (mcp.fal.ai/mcp, 200 with `Authorization: Key`) but it adds nothing over the REST key and
+            // is pay-per-call; Runway's MCP (mcp.runwayml.com/mcp) rejected the REST key (401) so it is
+            // NOT key-forwarding; ElevenLabs' MCP is a local stdio tool; Marble is REST-only. Showing an
+            // MCP field for any of these would be a dead/misleading affordance — they use the API key.
             return nil
         }
     }

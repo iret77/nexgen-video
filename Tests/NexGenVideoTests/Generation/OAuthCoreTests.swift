@@ -88,27 +88,28 @@ struct OAuthCoreTests {
 
     // MARK: - Provider auth capability model (grounded in real service auth)
 
-    @Test("each provider offers only the auth methods it actually supports")
+    @Test("each provider offers only the auth methods it actually supports (verified against live endpoints)")
     func capabilityModel() {
-        // OAuth providers.
+        // OAuth-only MCP providers — no API key at all (Higgsfield: 'No API keys to manage or configure').
         #expect(GenerationProvider.higgsfield.mcpCapability?.auth == .oauth)
         #expect(GenerationProvider.higgsfield.mcpCapability?.defaultURL.absoluteString == "https://mcp.higgsfield.ai/mcp")
+        #expect(GenerationProvider.higgsfield.supportsDirectAPI == false)   // no API-key field
         #expect(GenerationProvider.openart.mcpCapability?.auth == .oauth)
-        #expect(GenerationProvider.openart.supportsDirectAPI == false)   // MCP-only, no key field
-        // API-key providers that also expose an MCP (forwards the key).
-        #expect(GenerationProvider.fal.mcpCapability?.auth == .forwardsAPIKey)
-        #expect(GenerationProvider.runway.mcpCapability?.auth == .forwardsAPIKey)
+        #expect(GenerationProvider.openart.supportsDirectAPI == false)
         // Local-app bridge.
         #expect(GenerationProvider.ace.mcpCapability?.auth == .localApp)
-        // API-only — no MCP field at all.
-        #expect(GenerationProvider.marble.mcpCapability == nil)
-        #expect(GenerationProvider.elevenlabs.mcpCapability == nil)
+        // API-key providers — no MCP surfaced (fal's MCP adds nothing; Runway's rejects the REST key;
+        // ElevenLabs/Marble have no hosted MCP). One honest control: the API key.
+        for p in [GenerationProvider.fal, .runway, .marble, .elevenlabs] {
+            #expect(p.mcpCapability == nil)
+            #expect(p.supportsDirectAPI == true)
+        }
     }
 
-    @Test("forwardsAPIKey MCP never separately activates (avoids mis-routing as a free subscription)")
-    func forwardsAPIKeyDoesNotDoubleActivate() {
-        // fal/Runway activation is the API key alone (.api); their MCP transport must not register a
-        // separate .mcp binding, which the resolver would wrongly prefer as a free subscription.
+    @Test("API-key providers never activate a separate .mcp binding (no mis-routing)")
+    func apiKeyProvidersDoNotActivateMCP() {
+        // fal/Runway are used over their REST key (.api); with no mcpCapability they can't register a
+        // .mcp binding the resolver would wrongly prefer.
         #expect(ProviderMCP.hasConfig(.fal) == false)
         #expect(ProviderMCP.hasConfig(.runway) == false)
     }

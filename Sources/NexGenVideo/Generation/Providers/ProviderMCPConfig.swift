@@ -22,16 +22,15 @@ enum ProviderMCP {
     }
 
     /// Whether the provider's `.mcp` transport is ACTIVE — i.e. the user has done what it needs:
-    /// OAuth sign-in (subscription/credits), or opting into a local-app bridge. `forwardsAPIKey`
-    /// providers (fal, Runway) deliberately DON'T activate a separate `.mcp` binding: it's the same
-    /// key, same models, same pay-per-call as `.api`, so it adds nothing and would mis-route as a free
-    /// subscription. A capability-less provider still honors a manually-set endpoint (legacy).
+    /// OAuth sign-in (subscription/credits), or opting into a local-app bridge. API-key providers
+    /// (fal, Runway, Marble, ElevenLabs) have no `mcpCapability`, so they never register a separate
+    /// `.mcp` binding — they're used over their REST key (`.api`). A capability-less provider still
+    /// honors a manually-set endpoint (legacy).
     static func hasConfig(_ p: GenerationProvider) -> Bool {
         guard let cap = p.mcpCapability else { return configuredEndpoint(p) != nil }
         switch cap.auth {
         case .oauth: return ProviderOAuthStore.isConnected(p)
         case .localApp: return configuredEndpoint(p) != nil
-        case .forwardsAPIKey: return false
         }
     }
 
@@ -43,7 +42,6 @@ enum ProviderMCP {
         guard let cap = p.mcpCapability else { return token(p) }
         switch cap.auth {
         case .oauth: return await ProviderOAuthStore.validAccessToken(p)
-        case .forwardsAPIKey: return ProviderKeychain.load(p)
         case .localApp: return nil
         }
     }
