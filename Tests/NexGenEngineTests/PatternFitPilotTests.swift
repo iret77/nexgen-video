@@ -42,11 +42,12 @@ struct PatternFitPilotTests {
         #expect(profile.patternId == pilotId)
         #expect(PatternFitLibrary.validate(profile, expectedId: pilotId).isEmpty)
 
-        // Re-encode and compare structurally (key order is not meaningful; NSNumber equates 72 and 72.0).
+        // Encode → decode is identity (a true lossless round-trip). We don't byte-compare against the
+        // source: the encoder omits nil-valued optionals (e.g. an adaptation's `threshold: null`), which
+        // decode back to the same nil — semantically identical, not textually.
         let reencoded = try PatternFitLibrary.canonicalJSON(profile)
-        let a = try #require(JSONSerialization.jsonObject(with: raw) as? NSDictionary)
-        let b = try #require(JSONSerialization.jsonObject(with: reencoded) as? NSDictionary)
-        #expect(a.isEqual(b), "pilot profile must round-trip without loss")
+        let roundTripped = try JSONDecoder().decode(PatternFitProfile.self, from: reencoded)
+        #expect(roundTripped == profile, "pilot profile must round-trip without loss")
     }
 
     @Test("the embedded YAML fit_profile equals the standalone pilot JSON")
