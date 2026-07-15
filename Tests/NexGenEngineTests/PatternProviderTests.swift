@@ -35,13 +35,19 @@ struct PatternProviderTests {
 
         let recommendations = try #require(object["recommendations"] as? [String: Any])
         let results = try #require(recommendations["results"] as? [[String: Any]])
-        #expect(results.count == 1, "the pilot is ranked rather than withheld")
-        #expect(results.first?["pattern_id"] as? String == "wong-kar-wai-doyle-neon-dream")
+        #expect(!results.isEmpty, "the scored pattern is ranked rather than withheld")
+        #expect(results.contains { $0["pattern_id"] as? String == "wong-kar-wai-doyle-neon-dream" })
 
+        // Coverage is a RELATIONSHIP, never a fixed count: the library grows over time (1, 5, 22,
+        // 145 — the code ranks whatever is authored). Pinning a number here would turn every new
+        // pattern into a red test.
         let coverage = try #require(object["library_coverage"] as? [String: Any])
-        #expect(coverage["total"] as? Int == 23)
-        #expect((coverage["scored"] as? [String])?.count == 1)
-        #expect((coverage["unscored"] as? [String])?.count == 22)
+        let scored = try #require(coverage["scored"] as? [String])
+        let unscored = try #require(coverage["unscored"] as? [String])
+        #expect(scored.contains("wong-kar-wai-doyle-neon-dream"))
+        #expect(!unscored.contains("wong-kar-wai-doyle-neon-dream"))
+        #expect(coverage["total"] as? Int == scored.count + unscored.count)
+        #expect(results.count == scored.count, "every scored pattern is ranked")
         #expect(object["invalid_profiles"] == nil, "nothing is broken, so nothing is reported broken")
     }
 

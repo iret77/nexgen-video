@@ -64,15 +64,18 @@ struct PatternFitPilotTests {
     /// Ranking the pilot answers the only question that matters ("does it fit?") just as well with
     /// 1 profile as with 23; withholding it would deny a working answer over a pattern nobody has
     /// to take.
-    @Test("the scored pilot is rankable while the other 22 are simply not candidates")
+    /// No count is asserted on purpose. Nobody says the library ends at 23 — it grows as profiles
+    /// get authored, and the code simply ranks whatever is there. A pinned number would make every
+    /// new pattern a failing test.
+    @Test("whatever carries a valid profile is rankable; the rest are simply not candidates")
     func coverageRanksWhatExists() throws {
         let (library, coverage) = try PatternFitLibrary.loadRecommendableLibrary()
-        #expect(library.count == 1, "the pilot is scorable today")
-        #expect(coverage.scored == [pilotId])
-        #expect(coverage.unscored.count == 22)
+        #expect(coverage.scored.contains(pilotId), "the pilot is scorable today")
         #expect(!coverage.unscored.contains(pilotId))
+        #expect(library.count == coverage.scored.count, "every scored pattern is a candidate")
         #expect(coverage.invalid.isEmpty, "a present-but-broken profile would be a real defect")
-        #expect(coverage.total == 23)
+        #expect(coverage.total == coverage.scored.count + coverage.unscored.count)
+        #expect(coverage.total == (try Patterns.loadAllPatterns().count), "coverage spans the library")
     }
 
     // MARK: Deterministic scoring
