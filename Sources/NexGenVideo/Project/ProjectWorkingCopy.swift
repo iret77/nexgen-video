@@ -32,9 +32,30 @@ enum ProjectWorkingCopy {
         let marker = home(key).appendingPathComponent(pipelineDir)
             .appendingPathComponent(DataRootResolver.projectMarker)
         if fm.fileExists(atPath: sentinel.path), fm.fileExists(atPath: marker.path) {
+            migrateSchemas(in: home(key))
             return OpenResult(home: home(key), recoveredUnsaved: true)
         }
-        return OpenResult(home: try materialize(key: key, packageURL: packageURL), recoveredUnsaved: false)
+        let materialized = try materialize(key: key, packageURL: packageURL)
+        migrateSchemas(in: materialized)
+        return OpenResult(home: materialized, recoveredUnsaved: false)
+    }
+
+    /// Lift the project's artifacts to the current schema — the storage model's auto-migrate mandate
+    /// (#202). Deliberately on the WORKING COPY: the package stays untouched until ⌘S, so a migration
+    /// the user never saves is simply discarded with the copy, and a recovered copy gets migrated too.
+    /// Never blocks opening — an artifact the migrator can't lift is rejected loudly by its own reader.
+    private static func migrateSchemas(in home: URL) {
+        let dataRoot = home.appendingPathComponent(pipelineDir)
+        guard FileManager.default.fileExists(
+            atPath: dataRoot.appendingPathComponent(DataRootResolver.projectMarker).path) else { return }
+        do {
+            for result in try SchemaMigrator.migrateProject(dataRoot: dataRoot) {
+                Log.project.notice(
+                    "migrated \(result.artifact): \(result.from) -> \(result.to) (backup: \(result.backup?.lastPathComponent ?? "-"))")
+            }
+        } catch {
+            Log.project.error("schema migration skipped: \(String(describing: error))")
+        }
     }
 
     /// Throw away any working copy and re-materialize from the package (the "discard unsaved" path).
