@@ -13,20 +13,16 @@ enum DenoiseKernel {
     /// - Parameters:
     ///   - luma: master strength, 0 = off.
     ///   - chromaBias: extra chroma smoothing over luma (chroma noise needs more).
-    ///   - detail: raises the bar for what counts as noise, so fine texture survives.
+    ///   - detail: protects fine texture by tightening the kernel's edge threshold.
     static func apply(
         _ image: CIImage, extent: CGRect, luma: Double, chromaBias: Double, detail: Double
     ) -> CIImage {
         guard let kernel, luma > 0, extent.width > 0, extent.height > 0 else { return image }
-        // Deliberately small: this is a denoise, not a blur. The radius is the neighbourhood the
-        // local mean is taken over — grow it and flat areas go plastic.
-        let radius = 1.0 + luma * 1.5
-        let blurred = image.clampedToExtent()
-            .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
-            .cropped(to: extent)
         let chroma = min(1.0, luma * (1.0 + chromaBias))
         return kernel.apply(
-            extent: extent, roiCallback: { _, rect in rect },
-            arguments: [image, blurred, Float(luma), Float(chroma), Float(detail)]) ?? image
+            extent: extent,
+            // The kernel reads a 5×5 neighbourhood, so it needs 2px around each output pixel.
+            roiCallback: { _, rect in rect.insetBy(dx: -2, dy: -2) },
+            arguments: [image.clampedToExtent(), Float(luma), Float(chroma), Float(detail)]) ?? image
     }
 }
