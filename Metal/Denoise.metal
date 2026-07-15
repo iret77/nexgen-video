@@ -27,8 +27,9 @@ static inline float3 ycbcrToRGB(float3 v) {
     return float3(r, g, b);
 }
 
-extern "C" float4 denoiseEdgeAware(coreimage::sampler img, float luma, float chroma, float detail) {
-    float2 dc = coreimage::destCoord();
+extern "C" float4 denoiseEdgeAware(coreimage::sampler img, float luma, float chroma, float detail,
+                                   coreimage::destination dest) {
+    float2 dc = dest.coord();
     float4 centre = img.sample(img.transform(dc));
     float3 c = rgbToYCbCr(centre.rgb);
 
