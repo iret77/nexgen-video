@@ -28,7 +28,8 @@ struct BudgetStopTests {
             type: .performance, description: "d", visualPrompt: "p", mood: "m")
         let song = try Song(title: "t", audioPath: "a.wav", analysisPath: "an.json", bpm: 120.0, durationS: 10.0)
         return try Shotlist(
-            schema_: shotlistSchemaVersion, mode: .section, project: "demo", song: song, shots: [shot])
+            schema_: shotlistSchemaVersion, mode: .section, project: "demo", song: song,
+            generated: "2026-01-01", generator: "test", shots: [shot])
     }
 
     private func writeBrief(stop: Double?, to dataRoot: URL) throws {
@@ -37,7 +38,7 @@ struct BudgetStopTests {
             aspectRatio: .landscape16x9, projectMode: "beat", budgetStopEur: stop,
             conceptType: .abstract, visualMedium: .liveActionRealistic, figures: .none,
             lyricsIntegration: .ignored)
-        try YAMLArtifactStore(dataRoot: dataRoot).save(brief, at: PipelineLayout.briefFile)
+        try YAMLArtifactStore(dataRoot: dataRoot).save(brief, to: PipelineLayout.briefFile)
     }
 
     /// The default. No limit stated → the shot is handed out, whatever it costs.
