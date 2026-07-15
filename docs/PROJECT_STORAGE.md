@@ -72,3 +72,22 @@ inspects a source path, so a file the user merely moved is never mistaken for de
   projects folder by older builds.
 - Drop the vestigial home-level `inbox` / `review` / `final` user dirs (the app never used
   them).
+
+### Artifact schemas
+
+Layout is not the only thing that ages. `SchemaMigrator` lifts a project's artifacts to the
+schema the engine writes today (`bible/v4 → v5`, `shotlist/v1|v2 → v3`), driven by the
+`SchemaVersions` matrix. It runs on the **working copy**, so the `.ngv` package is untouched
+until ⌘S — a migration the user never saves is discarded with the copy.
+
+- **Idempotent.** An artifact already on the current schema is not read, written, or backed up.
+- **Backed up.** The pre-migration file stays beside the original as
+  `<name>.pre-<old-schema>.<timestamp>.yaml`, stamped with the version left behind.
+- **Validated by construction.** A migration is decode → re-stamp → `validate()` → encode: the
+  readers already decode older versions tolerantly (new fields default to empty) and the writers
+  emit the current shape, so a file the reader would reject can never be written. As in the Python
+  original, no heuristics — fields a newer schema added stay empty and the sanity pass asks the
+  user to fill them.
+- **Never migrates down.** A project written by a NEWER engine is a hard stop
+  (`projectAheadOfEngine`); the file is left alone rather than stripped of fields this build
+  doesn't know.

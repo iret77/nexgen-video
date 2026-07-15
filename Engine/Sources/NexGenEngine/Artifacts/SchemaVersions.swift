@@ -76,8 +76,8 @@ public enum SchemaVersions {
         if supported.contains(projectVersion) {
             return (
                 .behind,
-                "Projekt auf '\(projectVersion)', Skill aktuell '\(current)'. "
-                    + "Migration empfohlen (siehe `<modul> migrate`)."
+                "Projekt auf '\(projectVersion)', Engine aktuell '\(current)'. "
+                    + "Wird beim Öffnen automatisch migriert (`SchemaMigrator`)."
             )
         }
         let p = parseVersion(projectVersion)
@@ -112,16 +112,27 @@ public enum SchemaVersions {
     /// Mapping of project file path (relative to the data root) -> schema key.
     /// Does not find `frame_audit/*.yaml` files automatically — those are
     /// written per-render and only appear dynamically; their schema stays v1.
-    static let artifacts: [(path: String, schemaKey: String)] = [
-        ("bible/bible.yaml", "bible"),
-        ("shotlist/current.yaml", "shotlist"),
-        ("brief.yaml", "brief"),
-        ("storyboard/current.yaml", "storyboard"),
-    ]
+    ///
+    /// The shotlist path is resolved per project: unlike storyboard/treatment it has NO
+    /// `current.yaml` mirror (see `saveShotlist`), it lives as `shotlist/vN.yaml` and the highest N
+    /// wins on load. A fixed `shotlist/current.yaml` here meant the check never found a shotlist and
+    /// reported `.missing` forever — so a shotlist could never be seen as behind, let alone migrated.
+    /// Note the filename's N is a DOCUMENT revision, unrelated to the `schema:` field inside it.
+    static func artifacts(dataRoot: URL) -> [(path: String, schemaKey: String)] {
+        let shotlistPath = latestShotlistVersion(dataRoot: dataRoot).map(PipelineLayout.shotlistVersionFile)
+        return [
+            ("bible/bible.yaml", "bible"),
+            // No shotlist yet → name the path the next save would write, so the finding reads `.missing`
+            // instead of vanishing from the report.
+            (shotlistPath ?? PipelineLayout.shotlistVersionFile(1), "shotlist"),
+            ("brief.yaml", "brief"),
+            ("storyboard/current.yaml", "storyboard"),
+        ]
+    }
 
     /// Check all known project artifacts against the skill matrix.
     public static func checkProjectVersions(dataRoot: URL) -> [Finding] {
-        artifacts.map { entry in
+        artifacts(dataRoot: dataRoot).map { entry in
             let url = dataRoot.appendingPathComponent(entry.path)
             let projectVersion = readSchemaField(at: url)
             let (status, message) = classify(projectVersion: projectVersion, schemaKey: entry.schemaKey)
