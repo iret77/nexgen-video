@@ -238,15 +238,17 @@ enum EffectRegistry {
         ),
         EffectDescriptor(
             id: "blur.noiseReduction", displayName: "Noise Reduction", category: "Blur & Sharpen",
-            params: [EffectParamSpec(key: "amount", label: "Noise Reduction", range: 0...1,
-                                     defaultValue: 0, unit: "")],
+            params: [
+                EffectParamSpec(key: "amount", label: "Noise Reduction", range: 0...1,
+                                defaultValue: 0, unit: ""),
+                EffectParamSpec(key: "chroma", label: "Chroma", range: 0...1,
+                                defaultValue: 0.6, unit: ""),
+                EffectParamSpec(key: "detail", label: "Detail", range: 0...1,
+                                defaultValue: 0.5, unit: ""),
+            ],
             apply: { image, p, _ in
-                let amount = p.value("amount")
-                guard amount > 0 else { return image }
-                return image.applyingFilter("CINoiseReduction", parameters: [
-                    "inputNoiseLevel": amount * 0.1,
-                    "inputSharpness": 0.4,
-                ])
+                DenoiseKernel.apply(image, extent: image.extent, luma: p.value("amount"),
+                                    chromaBias: p.value("chroma"), detail: p.value("detail"))
             }
         ),
         EffectDescriptor(
