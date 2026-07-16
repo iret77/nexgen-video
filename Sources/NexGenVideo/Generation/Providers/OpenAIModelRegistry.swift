@@ -53,8 +53,11 @@ enum OpenAIModelRegistry {
         }
     }
 
-    static func model(forAPIModel apiModel: String) -> OpenAIImageModel? {
-        models.first { $0.apiModelCandidates.contains(apiModel) }
+    /// The model behind a dispatch reference — the resolved `providerRef` (OpenAI's model string) or
+    /// the catalog id. See the Google registry's note: the fallback path passes the catalog id, and it
+    /// must still resolve so the user gets "add an OpenAI API key" rather than "unsupported model".
+    static func model(for ref: String) -> OpenAIImageModel? {
+        models.first { $0.apiModelCandidates.contains(ref) || $0.entry.id == ref }
     }
 
     /// OpenAI's `size` for an NGV aspect label, or nil when the model doesn't render that shape.

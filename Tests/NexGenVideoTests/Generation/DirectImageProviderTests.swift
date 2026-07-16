@@ -107,6 +107,34 @@ struct DirectImageProviderTests {
             effectiveCost: ProviderManifest.effectiveCost) == nil)
     }
 
+    // MARK: - The not-activated fallback tells the truth
+
+    @Test("an unactivated OpenAI model falls back to OpenAI, not to fal")
+    func nominalProviderKnowsDirectPrefixes() {
+        // Nothing activated → no binding resolves → dispatch falls back to nominalProvider. Landing on
+        // .fal here would tell the user to add a *fal* key for an OpenAI model.
+        #expect(ProviderManifest.nominalProvider(forModelId: "openai/gpt-image-1") == .openai)
+        #expect(ProviderManifest.nominalProvider(forModelId: "google/some-image") == .google)
+        // A model sharing the fal id is a fal model by default — falling back to fal is correct.
+        #expect(ProviderManifest.nominalProvider(forModelId: "fal-ai/imagen4") == .fal)
+    }
+
+    @Test("the registry lookup resolves both the API model string and the catalog id")
+    func lookupAcceptsEitherReference() throws {
+        // Dispatch passes the resolved providerRef (API model) normally, and the catalog id on the
+        // not-activated fallback — both must find the model, or that path reports "unsupported model"
+        // instead of "add a key".
+        let openai = try #require(OpenAIModelRegistry.models.first)
+        #expect(OpenAIModelRegistry.model(for: "gpt-image-1") != nil)
+        #expect(OpenAIModelRegistry.model(for: openai.entry.id) != nil)
+        #expect(OpenAIModelRegistry.model(for: "nope") == nil)
+
+        let google = try #require(GoogleModelRegistry.models.first)
+        #expect(GoogleModelRegistry.model(for: try #require(google.apiModelCandidates.first)) != nil)
+        #expect(GoogleModelRegistry.model(for: google.entry.id) != nil)
+        #expect(GoogleModelRegistry.model(for: "nope") == nil)
+    }
+
     // MARK: - Honest capabilities
 
     @Test("gpt-image-1 advertises only the ratios it really renders — no 16:9")

@@ -394,7 +394,7 @@ final class GenerationService {
                            onFailure)
         case .google:
             guard case .image(let p) = params,
-                  let model = GoogleModelRegistry.model(forAPIModel: endpoint) else {
+                  let model = GoogleModelRegistry.model(for: endpoint) else {
                 return failJob(placeholders, "Unsupported Google AI request for model: \(endpoint)", onFailure)
             }
             await runGoogleImageJob(
@@ -403,7 +403,7 @@ final class GenerationService {
             return
         case .openai:
             guard case .image(let p) = params,
-                  let model = OpenAIModelRegistry.model(forAPIModel: endpoint) else {
+                  let model = OpenAIModelRegistry.model(for: endpoint) else {
                 return failJob(placeholders, "Unsupported OpenAI request for model: \(endpoint)", onFailure)
             }
             await runOpenAIImageJob(

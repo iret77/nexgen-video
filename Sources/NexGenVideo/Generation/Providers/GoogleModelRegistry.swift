@@ -71,8 +71,11 @@ enum GoogleModelRegistry {
         }
     }
 
-    /// The model backing a resolved Google `providerRef` (the API model string).
-    static func model(forAPIModel apiModel: String) -> GoogleImageModel? {
-        models.first { $0.apiModelCandidates.contains(apiModel) }
+    /// The model behind a dispatch reference — either the resolved `providerRef` (Google's own model
+    /// string) or the catalog id. Both, because dispatch passes the API model when a binding resolved
+    /// and falls back to the catalog id when the provider isn't activated; matching only the former
+    /// would answer that case with "unsupported model" instead of "add a Google AI API key".
+    static func model(for ref: String) -> GoogleImageModel? {
+        models.first { $0.apiModelCandidates.contains(ref) || $0.entry.id == ref }
     }
 }
