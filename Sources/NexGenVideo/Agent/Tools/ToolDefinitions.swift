@@ -56,6 +56,7 @@ enum ToolName: String, CaseIterable, Sendable {
     case showArtifact = "show_artifact"
     case runPhase = "run_phase"
     case suggestPatterns = "suggest_patterns"
+    case recordAffect = "record_affect"
     case getPattern = "get_pattern"
     case attachSong = "attach_song"
     case nextRenderShot = "next_render_shot"
@@ -82,7 +83,7 @@ enum ToolName: String, CaseIterable, Sendable {
     /// so the document must be marked edited to prompt a save.
     var isPipelineWrite: Bool {
         switch self {
-        case .initProject, .approveGate, .rewind, .runPhase, .recordRender, .saveFrameAudit,
+        case .initProject, .approveGate, .rewind, .runPhase, .recordRender, .recordAffect, .saveFrameAudit,
              .setLedgerAttribute, .lockLedgerAttribute, .removeLedgerAttribute, .setGateState,
              .attachSong, .copyProjectFile, .extractScene3dPovs:
             return true
@@ -213,14 +214,14 @@ enum ToolDefinitions {
         ),
         AgentTool(
             name: .compilePrompt,
-            description: "MANDATORY before any generate_* call: compiles user/agent intent into the final model prompt. NGV never sends raw prompts to content models — several cheap LLM turns are cheaper than one failed render. YOUR part of the contract before calling: translate the intent to English, resolve contradictions, and if essential information is missing (subject, style, format), ASK THE USER FIRST — never guess and spend money. The tool merges the project's locked ledger directives, enforces the model's prompt limits, and returns { compiledPrompt, compileToken, notes }. Pass compiledPrompt AND compileToken to the generate tool unchanged. When compiling a shotlist shot (from next_render_shot), pass its shotId: the shot's declared camera and framing are then projected into the prompt deterministically and a compliance drift check runs, surfacing any camera/framing/gaze/setting mismatch in notes.",
+            description: "MANDATORY before any generate_* call: compiles user/agent intent into the final model prompt. NGV never sends raw prompts to content models — several cheap LLM turns are cheaper than one failed render. YOUR part of the contract before calling: translate the intent to English, resolve contradictions, and if essential information is missing (subject, style, format), ASK THE USER FIRST — never guess and spend money. The tool merges the project's locked ledger directives, enforces the model's prompt limits, and returns { compiledPrompt, compileToken, notes }. Pass compiledPrompt AND compileToken to the generate tool unchanged. shotId is REQUIRED and has no default: pass the shotlist shot id when compiling a shot (from next_render_shot), or the literal \"none\" when this prompt genuinely belongs to no shot (a cover, a bible sheet, a free request). A real shot id projects the shot's declared camera and framing into the prompt from the spec and runs the compliance drift check; \"none\" compiles free intent with neither. Choose deliberately — passing \"none\" for a shot silently throws away its camera projection and its drift check.",
             inputSchema: objectSchema(
                 properties: [
                     "intent": ["type": "string", "description": "The prepared, English, contradiction-free generation intent."],
                     "model": ["type": "string", "description": "Target model id from list_models — limits and dialect are model-specific."],
-                    "shotId": ["type": "string", "description": "Optional. The shotlist shot being rendered (e.g. 's003'). Projects the shot's structured camera + framing into the prompt from the spec and runs the compliance drift linter against it."],
+                    "shotId": ["type": "string", "description": "REQUIRED. The shotlist shot being rendered (e.g. 's003'), or \"none\" when this prompt belongs to no shot. A shot id projects the shot's structured camera + framing into the prompt from the spec and runs the compliance drift linter; \"none\" does neither."],
                 ],
-                required: ["intent", "model"]
+                required: ["intent", "model", "shotId"]
             )
         ),
         AgentTool(
@@ -966,6 +967,44 @@ enum ToolDefinitions {
                     "top": ["type": "integer", "description": "How many results to return (default 5)."],
                     "project_dir": ["type": "string", "description": "Optional pipeline data root; omit to use the open project."],
                 ]
+            )
+        ),
+        AgentTool(
+            name: .recordAffect,
+            description: "Record the track's emotional register (affect) that YOU read from the audio analysis (BPM, key/mode, energy curve, section dynamics — already computed) plus the lyrics. This answers the pattern-fit `affect_energy` axis from the signal and the text, NOT from a keyword table — so do the reading yourself, don't match trigger words. `detected` is your automatic read; pass `override` ONLY to record a deliberate user correction, including a purposely contrary mood (a happy song cut dark) — a legitimate directing choice the detection can't anticipate. When you set an override, show the user 'detected X → set Y' so the choice stays legible. Call this once affect is knowable (after analysis, with lyrics if present) and before suggest_patterns, which consumes it. WRITES.",
+            inputSchema: objectSchema(
+                properties: [
+                    "detected": [
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "Weighted affect tags you inferred from audio + lyrics. Weights need not sum to 1; they are relative.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "tag": ["type": "string", "enum": AffectTagVocabulary.all,
+                                        "description": "One affect from the fixed vocabulary."],
+                                "weight": ["type": "number", "description": "Relative strength of this affect (default 1)."],
+                            ],
+                            "required": ["tag"],
+                        ],
+                    ],
+                    "override": [
+                        "type": "array",
+                        "description": "The user's deliberate override, same shape as detected. Omit unless the user corrected or deliberately contradicted the detection.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "tag": ["type": "string", "enum": AffectTagVocabulary.all],
+                                "weight": ["type": "number"],
+                            ],
+                            "required": ["tag"],
+                        ],
+                    ],
+                    "rationale": ["type": "string", "description": "One line on the audio + lyric evidence behind the read (kept for later legibility)."],
+                    "basis": ["type": "string", "enum": ["measured", "documented", "inferred"], "description": "measured when the read leans on the DSP analysis, inferred when on lyrics/context (default inferred)."],
+                    "project_dir": ["type": "string", "description": "Optional pipeline data root; omit to use the open project."],
+                ],
+                required: ["detected"]
             )
         ),
         AgentTool(

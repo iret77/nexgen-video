@@ -17,6 +17,8 @@ public struct MusicvideoPatternProvider: PatternProviding {
         var matchMode: FitMatchMode?
         var excludedPatternIds: [String]?
         var maxResults: Int?
+        // #214: the recorded affect detection/override, forwarded by the host from analysis/affect.json.
+        var affectProfile: AffectProfile?
 
         private enum CodingKeys: String, CodingKey {
             case projectProfile = "project_profile"
@@ -24,6 +26,7 @@ public struct MusicvideoPatternProvider: PatternProviding {
             case matchMode = "match_mode"
             case excludedPatternIds = "excluded_pattern_ids"
             case maxResults = "max_results"
+            case affectProfile = "affect_profile"
         }
 
         init(from decoder: Decoder) throws {
@@ -33,6 +36,7 @@ public struct MusicvideoPatternProvider: PatternProviding {
             matchMode = try c.decodeIfPresent(FitMatchMode.self, forKey: .matchMode)
             excludedPatternIds = try c.decodeIfPresent([String].self, forKey: .excludedPatternIds)
             maxResults = try c.decodeIfPresent(Int.self, forKey: .maxResults)
+            affectProfile = try c.decodeIfPresent(AffectProfile.self, forKey: .affectProfile)
         }
     }
 
@@ -44,7 +48,7 @@ public struct MusicvideoPatternProvider: PatternProviding {
             let (set, coverage) = try PatternFitLibrary.recommend(
                 brief: brief, projectOverride: options.projectProfile, perceivedBpm: options.perceivedBpm,
                 matchMode: options.matchMode ?? .balanced, excludedPatternIds: options.excludedPatternIds ?? [],
-                maxResults: options.maxResults)
+                maxResults: options.maxResults, affectProfile: options.affectProfile)
             return try rankedEnvelope(set: set, coverage: coverage)
         } catch PatternFitError.noProjectInput {
             return try envelope([

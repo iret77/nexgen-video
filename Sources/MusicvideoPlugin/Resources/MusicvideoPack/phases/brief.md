@@ -298,10 +298,21 @@ at that point; keep the answers in `brief.yaml` as they're settled.
     `PATTERN_DRIFT` (warn) mirrors the real framing distribution against
     the pattern.
 
-    a) **Generate suggestions** from the pack's pattern library, scored
-       by the brief context: `visual_medium`, mood (heuristic from the
-       tone tags in question 10), perceived BPM (from analysis),
-       concept type, figures, aspect ratio. Take the top 2-3.
+    a) **Read the affect first, then generate suggestions.** Before
+       `suggest_patterns`, determine the track's emotional register
+       yourself from the **audio analysis** (BPM, key/mode, energy
+       curve, section dynamics — already computed) and the **lyrics**
+       (if present). Do NOT match trigger words over the tone tags —
+       that keyword heuristic is exactly what the deterministic
+       pattern-fit contract retired. Record it with
+       `record_affect(detected=[{tag, weight}, …], rationale=…)`; it
+       answers the `affect_energy` axis for the ranking. If the user
+       wants a **deliberately contrary mood** (a happy song cut dark)
+       or the read is wrong, record it as `override` and show them
+       "detected X → set Y". Then **generate suggestions** from the
+       pattern library, scored by the brief context: `visual_medium`,
+       the recorded affect, perceived BPM (from analysis), concept type,
+       figures, aspect ratio. Take the top 2-3.
 
     b) **show_dialog** with the suggestions — for each pattern show
        the name + description + director references with source URLs.

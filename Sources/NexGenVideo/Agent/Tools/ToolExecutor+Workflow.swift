@@ -105,9 +105,76 @@ extension ToolExecutor {
         if let mode = args["match_mode"] as? String { options["match_mode"] = mode }
         if let excluded = args["excluded_pattern_ids"] as? [String] { options["excluded_pattern_ids"] = excluded }
         if let top = args["top"] as? Int { options["max_results"] = top }
+        // #214: forward the recorded affect detection/override so the affect axis comes from audio +
+        // lyrics, not the brief tone-tag map. Pure passthrough — the host never interprets the affect
+        // vocabulary (a pack concern); it hands the pack the bytes it wrote. Absent → assembler falls back.
+        if let affectData = try? Data(contentsOf: PipelineLayout.url(Self.affectFile, in: root)),
+           let affectObj = try? JSONSerialization.jsonObject(with: affectData) {
+            options["affect_profile"] = affectObj
+        }
         let optionsJSON = try JSONSerialization.data(withJSONObject: options)
         let data = try provider.recommend(briefJSON: briefJSON, optionsJSON: optionsJSON)
         return .ok(String(decoding: data, as: UTF8.self))
+    }
+
+    /// The recorded affect detection/override — a pack artifact, but the host only reads/writes the
+    /// bytes; the affect vocabulary and its validation live in the tool schema (enum-constrained) and
+    /// the pack. Kept next to `analysis/` the pack owns.
+    static let affectFile = "analysis/affect.json"
+
+    /// #214 — persist the affect the agent read from the audio analysis + lyrics, so the pattern-fit
+    /// `affect_energy` axis comes from the signal and the text, not the brief's tone-tag lookup. `detected`
+    /// is the automatic read; `override` is the user's deliberate correction (kept alongside, never erasing
+    /// the detection — a deliberately contrary mood is a legitimate directing choice). The agent does the
+    /// inference; this tool only records it, schema-validated against the affect vocabulary.
+    func recordAffectTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
+        let root = try resolveDataRoot(args, editor: editor)
+
+        // A tag carries signal only with a positive weight (the affect axis is a weighted mean), so a
+        // zero/negative-weight entry is rejected rather than persisted — it would otherwise count as a
+        // present-but-unscorable affect and shadow the tone-tag fallback.
+        func weighted(_ key: String) throws -> [[String: Any]] {
+            guard let raw = args[key] as? [[String: Any]] else { return [] }
+            var out: [[String: Any]] = []
+            for entry in raw {
+                guard let tag = entry["tag"] as? String, !tag.isEmpty else {
+                    throw ToolError("Each \(key) entry needs a 'tag' (an affect from the enum).")
+                }
+                let weight = (entry["weight"] as? Double) ?? (entry["weight"] as? Int).map(Double.init) ?? 1.0
+                guard weight > 0 else {
+                    throw ToolError("\(key) tag '\(tag)' has weight \(weight) — weights must be positive (they are relative strengths).")
+                }
+                out.append(["value": tag, "weight": weight])
+            }
+            return out
+        }
+
+        let detected = try weighted("detected")
+        guard !detected.isEmpty else {
+            throw ToolError("record_affect needs at least one 'detected' affect {tag, weight}.")
+        }
+        var profile: [String: Any] = [
+            "detected": detected,
+            "rationale": args.string("rationale") ?? "",
+            "basis": args.string("basis") ?? "inferred",
+        ]
+        // An empty override is not a correction — omit it so it never reads as one.
+        let override = try weighted("override")
+        if !override.isEmpty { profile["override"] = override }
+
+        let data = try JSONSerialization.data(withJSONObject: profile, options: [.prettyPrinted, .sortedKeys])
+        let url = PipelineLayout.url(Self.affectFile, in: root)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url, options: .atomic)
+
+        let overrode = profile["override"] != nil
+        return try jsonResult([
+            "recorded": true,
+            "overridden": overrode,
+            "note": overrode
+                ? "Override recorded — pattern-fit will use the set affect, not the detected one. Show the user 'detected X → set Y' so the choice stays legible."
+                : "Detection recorded — it answers the affect_energy axis for suggest_patterns. The user can override it.",
+        ])
     }
 
     func getPatternTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
@@ -543,6 +610,12 @@ extension ToolExecutor {
         }
         var manifest = (try? loadRenderManifest(dataRoot: root, phase: phase)) ?? RenderManifest(project: "", phase: phase)
         record(&manifest, shotId: shotId, output: output, costEur: costEur, status: status, phase: phase)
+        // #231: stamp what this render was ACTUALLY conditioned on, so `plan_adherence` can audit it
+        // against what `next_render_shot` planned. Read off the submitted GenerationInput — the record
+        // of the real submission — not off the agent's say-so.
+        if status == .rendered, let output, !output.isEmpty {
+            stampRenderInputs(&manifest, shotId: shotId, output: output, editor: editor, dataRoot: root)
+        }
         do {
             try saveRenderManifest(manifest, dataRoot: root)
         } catch {
@@ -1130,6 +1203,53 @@ extension ToolExecutor {
             ?? FramesManifest(project: FrameInventory.projectName(of: dataRoot) ?? "", generated: currentTimestamp()))
             .upserting(shotId: shotId, keyframeStrategy: ks, frame: entry)
         try? saveFramesManifest(manifest, dataRoot: dataRoot)
+    }
+
+    /// #231 — record the render's actual conditioning (start frame + image references) on the manifest
+    /// entry, as project-home-relative paths, so a pure file-level check can compare them against the
+    /// deterministic plan. Read off the submitted `GenerationInput` — the record of the real submission.
+    ///
+    /// `imageURLAssetIds` is overloaded across the three submission shapes, so it cannot be read
+    /// blindly: only text-to-video puts frame slots there. Getting this wrong doesn't lose the audit, it
+    /// INVERTS it — a render that used every planned reference would be stamped as having used none and
+    /// then reported as ignoring the plan. Silent on any miss: the audit trail must never break
+    /// recording a render.
+    private func stampRenderInputs(
+        _ manifest: inout RenderManifest, shotId: String, output: String, editor: EditorViewModel,
+        dataRoot: URL
+    ) {
+        guard var entry = manifest.entries[shotId],
+              let asset = resolveRenderedAsset(output, editor: editor, dataRoot: dataRoot),
+              let gi = asset.generationInput else { return }
+        let home = FrameInventory.projectHome(of: dataRoot)
+        func paths(_ assetIds: [String]) -> [String] {
+            assetIds.compactMap { id in
+                editor.mediaAssets.first { $0.id == id }
+                    .map { FrameInventory.relativePath(of: $0.url, to: home) }
+            }
+        }
+        let imageURLIds = gi.imageURLAssetIds ?? []
+        // Branch on the MODEL, never on whether `referenceImageAssetIds` happens to be nil: it is nil
+        // both for a source-video edit AND for a text-to-video render that simply had no refs, and those
+        // two need opposite readings of `imageURLAssetIds`.
+        switch VideoModelConfig.allModels.first(where: { $0.id == gi.model }) {
+        case .some(let model) where model.requiresSourceVideo:
+            // Edit / v2v: `imageURLAssetIds` is [sourceVideo] + imageRefs. The source video is not a
+            // start frame — stamping it as one would mis-fire the chain check too.
+            entry.startFramePath = nil
+            entry.referencePaths = paths(Array(imageURLIds.dropFirst()))
+        case .some:
+            // Text-to-video / image-to-video: `imageURLAssetIds` is the frame slots, start frame first;
+            // image refs are kept separate.
+            entry.startFramePath = paths(Array(imageURLIds.prefix(1))).first
+            entry.referencePaths = paths(gi.referenceImageAssetIds ?? [])
+        case .none:
+            // Not a video model → image generation (`ImageGenerationSubmission.make`), i.e. the `frames`
+            // phase: every reference rides in `imageURLAssetIds`, and there is no start frame.
+            entry.startFramePath = nil
+            entry.referencePaths = paths(imageURLIds)
+        }
+        manifest.entries[shotId] = entry
     }
 
     /// #196 — when the next shot in render order chains off this one, extract this rendered clip's last

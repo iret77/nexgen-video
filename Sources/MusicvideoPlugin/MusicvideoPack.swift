@@ -104,6 +104,7 @@ public struct MusicvideoPack: Pack {
         registry.registerSanityCheck("frame_ratio", MusicvideoChecks.frameRatioCheck)
         registry.registerSanityCheck("frame_size", MusicvideoChecks.frameSizeCheck)
         registry.registerSanityCheck("builder_bypass", MusicvideoChecks.builderBypassCheck)
+        registry.registerSanityCheck("plan_adherence", MusicvideoChecks.planAdherenceCheck)
         registry.registerSanityCheck("handle_discipline", MusicvideoChecks.handleDisciplineCheck)
         registry.registerSanityCheck("frame_audit_bridge", MusicvideoChecks.frameAuditBridgeCheck)
         // The runner resolves the audio decoder from the registry at run time
