@@ -202,7 +202,11 @@ struct DirectImageProviderTests {
         #expect(GenerationProvider.google.supportsDirectAPI)
         #expect(GenerationProvider.openai.supportsDirectAPI)
         // Settings renders a key field off this — a shipped client backs both (no dead field).
-        #expect(DirectImageDiscovery.providers == [.google, .openai])
+        // Asserted as membership, not as the whole set: the discovery list grows (Runway joined it for
+        // its sunset-prone Aleph line), and pinning the exact set would turn red on every addition
+        // rather than on a real defect.
+        #expect(DirectImageDiscovery.providers.contains(.google))
+        #expect(DirectImageDiscovery.providers.contains(.openai))
     }
 
     @Test("the LLM sees provider-neutral logical ids")
