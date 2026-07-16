@@ -74,12 +74,27 @@ enum PromptComposer {
         aspectRatio: String = "",
         durationSeconds: Double? = nil,
         projectDir: URL?,
-        shot: ShotProjection? = nil
+        shot: ShotProjection? = nil,
+        preserveComposition: Bool = false
     ) async throws -> Composition {
         let trimmed = normalize(intent)
         guard !trimmed.isEmpty else { throw ComposeError.emptyIntent }
 
-        let directives = await lockedProjectDirectives(projectDir: projectDir)
+        // #223: a composition-preserving pass (video-to-video restyle) is the OPPOSITE of a generation
+        // — it must invent nothing. Refuse an intent that asks it to before any money is spent; the
+        // model would otherwise either ignore the ask or silently break the one guarantee it makes.
+        if preserveComposition, let violation = RestylePrompt.lintIntent(trimmed).first {
+            throw ComposeError.lintBlocked(code: violation.code, message: violation.message)
+        }
+
+        var directives = await lockedProjectDirectives(projectDir: projectDir)
+        // The preservation clause is COMPOSED IN, not asked for: it rides as a directive so it survives
+        // into the built prompt deterministically, exactly like a locked ledger directive.
+        if preserveComposition {
+            directives = ProjectDirectives(
+                all: directives.all + [RestylePrompt.preservationClause],
+                locked: directives.locked + [RestylePrompt.preservationClause])
+        }
 
         let composed: String
         var notes: [String] = []

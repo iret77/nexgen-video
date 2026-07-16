@@ -56,12 +56,22 @@ enum PromptCompiler {
             aspectRatio: aspectRatio,
             durationSeconds: durationSeconds,
             projectDir: editor?.workingRoot,
-            shot: shot
+            shot: shot,
+            preserveComposition: preservesComposition(modelId: modelId)
         )
         return CompiledPrompt(
             text: composed.text,
             token: token(for: composed.text, modelId: modelId),
             notes: composed.notes)
+    }
+
+    /// #223 — a video model that consumes a SOURCE VIDEO is a composition-preserving pass (restyle):
+    /// it re-renders footage that already exists, so the prompt must invent nothing. Derived from the
+    /// model rather than asked for as a tool argument — the gate then applies itself, and there is no
+    /// new knob for the agent to forget or misuse.
+    @MainActor
+    static func preservesComposition(modelId: String) -> Bool {
+        VideoModelConfig.allModels.first { $0.id == modelId }?.requiresSourceVideo == true
     }
 
     /// Resolve a model id to its composition modality (the `compile_prompt` tool only receives a model

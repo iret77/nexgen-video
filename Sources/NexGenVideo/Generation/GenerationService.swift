@@ -582,6 +582,17 @@ final class GenerationService {
             let client = RunwayClient(apiKey: apiKey)
             let urls: [String]
             switch params {
+            case .video(let p) where RunwayModelRegistry.requiresSourceVideo(model):
+                // #223 — the restyle pass: re-render an existing clip. No duration (the output follows
+                // the source) and no reference image; the source clip IS the input.
+                guard let source = p.sourceVideoURL else {
+                    return failJob(placeholders,
+                                   "\(model.entry.displayName) restyles an existing clip — pass the source video.",
+                                   onFailure)
+                }
+                urls = try await client.videoToVideo(
+                    model: model.apiModel, videoUri: source, promptText: p.prompt,
+                    ratio: RunwayModelRegistry.videoRatio(for: p.aspectRatio))
             case .video(let p):
                 guard let image = p.referenceImageURLs.first ?? p.startFrameURL else {
                     return failJob(placeholders,

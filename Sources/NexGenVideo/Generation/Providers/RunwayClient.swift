@@ -31,6 +31,21 @@ actor RunwayClient {
         return try await waitForOutput(taskId: taskId)
     }
 
+    /// POST /v1/video_to_video — Gen-4 Aleph's restyle pass (#223). `videoUri` is the source clip;
+    /// the model re-renders it under `promptText`. Same task+poll flow as every other Runway call.
+    /// Required fields per the API reference: model, videoUri, promptText, ratio.
+    func videoToVideo(
+        model: String, videoUri: String, promptText: String, ratio: String
+    ) async throws -> [String] {
+        let taskId = try await createTask(path: "video_to_video", body: [
+            "model": model,
+            "videoUri": videoUri,
+            "promptText": promptText,
+            "ratio": ratio,
+        ])
+        return try await waitForOutput(taskId: taskId)
+    }
+
     /// POST /v1/text_to_image.
     func textToImage(model: String, promptText: String, ratio: String) async throws -> [String] {
         let taskId = try await createTask(path: "text_to_image", body: [
