@@ -300,8 +300,10 @@ public struct Location: Codable, Sendable, Equatable {
     public var floorplan: String
     public var zones: [Zone]
     public var proportionAnchorShot: String?
-    /// Scene3D (Marble + Re-Style) build metadata — free-form string map.
-    public var scene3d: [String: String]
+    /// The location's persistent 3D reference (#166) — the panorama every view is cut from, plus that
+    /// POV set's geometry. Typed: it used to be a free-form string map of which only `panorama` was
+    /// ever read, so the geometry lived only as filenames on disk.
+    public var scene3d: Scene3D
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -322,7 +324,7 @@ public struct Location: Codable, Sendable, Equatable {
         id: String, name: String, visualPrompt: String, attributes: [String: String] = [:],
         hardRecognitionTrait: String = "", referenceImages: [String] = [], sheets: [String: String] = [:],
         viewPurpose: [String: String] = [:], floorplan: String = "", zones: [Zone] = [],
-        proportionAnchorShot: String? = nil, scene3d: [String: String] = [:]
+        proportionAnchorShot: String? = nil, scene3d: Scene3D = Scene3D()
     ) throws {
         self.id = id
         self.name = name
@@ -353,7 +355,9 @@ public struct Location: Codable, Sendable, Equatable {
         floorplan = try container.decodeIfPresent(String.self, forKey: .floorplan) ?? ""
         zones = try container.decodeIfPresent([Zone].self, forKey: .zones) ?? []
         proportionAnchorShot = try container.decodeIfPresent(String.self, forKey: .proportionAnchorShot)
-        scene3d = try container.decodeIfPresent([String: String].self, forKey: .scene3d) ?? [:]
+        // Tolerant of the old free-form map: it only ever carried `panorama`, which `Scene3D` decodes
+        // under the same key — so an existing bible needs no migration.
+        scene3d = try container.decodeIfPresent(Scene3D.self, forKey: .scene3d) ?? Scene3D()
         try validate()
     }
 

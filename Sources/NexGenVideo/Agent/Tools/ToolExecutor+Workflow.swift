@@ -818,12 +818,54 @@ extension ToolExecutor {
         } catch {
             throw ToolError("extract_scene3d_povs failed: \(error.localizedDescription)")
         }
-        return try jsonResult([
+        // The geometry, not just the files: the POV set as data, ready to be recorded on the
+        // location's `scene3d`. `scene3d_geometry` warns if it never gets there, so this can't quietly
+        // stay filenames-on-disk the way the old free-form map did (#166).
+        let specs = povs ?? defaultFourWallPovs
+        let extracted = specs.filter { written[$0.name] != nil }
+        let panoramaRel = FrameInventory.relativePath(of: panorama, to: home)
+
+        // #223's profile, reused exactly as intended — built once, used twice. The clay POV is
+        // style-neutral; restyling it into the project's look is a COMPOSITION-PRESERVING pass (the
+        // room's geometry is the whole point of having cut it from one panorama), so the instruction is
+        // composed here rather than left to the agent to phrase.
+        let style = args.string("style")?.trimmingCharacters(in: .whitespaces).nilIfEmpty
+            ?? bibleLookStyle(dataRoot: root)
+        var body: [String: Any] = [
             "location_id": locationId,
-            "panorama": FrameInventory.relativePath(of: panorama, to: home),
+            "panorama": panoramaRel,
             "povs": written.mapValues { FrameInventory.relativePath(of: $0, to: home) },
             "size": ["width": width, "height": height],
-        ])
+            // Record THIS verbatim as the location's scene3d in the bible.
+            "scene3d": [
+                "panorama": panoramaRel,
+                "provider": "marble",
+                "povs": extracted.map { [
+                    "name": $0.name, "yaw": $0.yawDegrees,
+                    "pitch": $0.pitchDegrees, "fov": $0.fovHorizontalDegrees,
+                ] },
+            ],
+        ]
+        if let style {
+            body["restyle"] = [
+                "style": style,
+                "instruction": RestylePrompt.instruction(style: style),
+                "note": "Each POV is a style-NEUTRAL clay view cut from one panorama — that shared origin "
+                    + "is what keeps the room's geometry identical across angles. Restyle each one with "
+                    + "this instruction as the intent (it already carries the preservation rule), passing "
+                    + "the clay POV as the reference image, then record the result as "
+                    + "Location.sheets[<pov name>]. Never regenerate a view from scratch: that throws the "
+                    + "geometry away and the walls stop agreeing.",
+            ]
+        }
+        return try jsonResult(body)
+    }
+
+    /// The project's look style — the restyle target for a clay POV. nil when there's no bible/look yet.
+    private func bibleLookStyle(dataRoot: URL) -> String? {
+        let store = YAMLArtifactStore(dataRoot: dataRoot)
+        guard let bible = try? store.load(Bible.self, at: PipelineLayout.bibleFile) else { return nil }
+        return bible.look.style.trimmingCharacters(in: .whitespaces).nilIfEmpty
     }
 
     /// The location's recorded `scene3d.panorama`, if the Bible carries one.
@@ -832,8 +874,7 @@ extension ToolExecutor {
         guard let bible = try? store.load(Bible.self, at: PipelineLayout.bibleFile),
               let location = bible.locations.first(where: { $0.id == locationId })
         else { return nil }
-        let panorama = location.scene3d["panorama"]?.trimmingCharacters(in: .whitespaces)
-        return (panorama?.isEmpty == false) ? panorama : nil
+        return location.scene3d.panorama.trimmingCharacters(in: .whitespaces).nilIfEmpty
     }
 
     /// Custom camera set from the tool args; nil → the four cardinal walls.
@@ -1579,4 +1620,9 @@ extension ToolExecutor {
             return isFile && AudioProjectLayout.audioExtensions.contains($0.pathExtension.lowercased())
         }
     }
+}
+
+extension String {
+    /// nil for an empty string — so an absent value and a blank one are the same absence.
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

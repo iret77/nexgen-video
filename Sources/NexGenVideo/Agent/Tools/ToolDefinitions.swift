@@ -1208,6 +1208,7 @@ enum ToolDefinitions {
                     "project_dir": projectDirProperty,
                     "location_id": ["type": "string", "description": "Bible location id the views belong to."],
                     "panorama": ["type": "string", "description": "Equirectangular panorama (home-relative or absolute). Omit to use the location's recorded scene3d.panorama."],
+                    "style": ["type": "string", "description": "Restyle target for the clay POVs. Omit to use the bible's look.style. The response's `restyle.instruction` is the ready composition-preserving prompt — use it as-is."],
                     "povs": [
                         "type": "array",
                         "description": "Custom camera set. Omit for the four cardinal walls.",
