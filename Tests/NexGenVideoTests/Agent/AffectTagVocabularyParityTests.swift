@@ -13,8 +13,10 @@ struct AffectTagVocabularyParityTests {
     func parity() {
         let pack = Set(AffectTag.allCases.map(\.rawValue))
         let host = Set(AffectTagVocabulary.all)
-        #expect(host == pack, "record_affect vocabulary drifted from AffectTag: "
-            + "missing \(pack.subtracting(host)), extra \(host.subtracting(pack))")
+        let missing = pack.subtracting(host)
+        let extra = host.subtracting(pack)
+        #expect(missing.isEmpty, "record_affect vocabulary is missing affect tags present in AffectTag")
+        #expect(extra.isEmpty, "record_affect vocabulary has tags absent from AffectTag")
         // No duplicates crept into the hand-maintained list.
         #expect(AffectTagVocabulary.all.count == Set(AffectTagVocabulary.all).count)
     }
