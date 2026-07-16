@@ -13,12 +13,18 @@ import Foundation
 /// still pass (#166) share this discipline exactly.
 public enum RestylePrompt {
     /// The preservation clause, composed into every restyle prompt DETERMINISTICALLY — the engine
-    /// states it, rather than asking the agent to remember to. Byte-faithful to the Python template's
-    /// discipline: what may change, what must not, and the explicit no-invention rule.
+    /// states it, rather than asking the agent to remember to.
+    ///
+    /// The Python template ends "Do not add, remove, move, or duplicate any element." The DISCIPLINE
+    /// ports; that phrasing does not. This engine holds — on evidence, which is why `PositivePhrasing`
+    /// and the Seedance builder's positive constraints exist — that negations weaken a prompt, and
+    /// `PROMPT_CONTAINS_NEGATION` flags them. Porting the words literally would import a practice this
+    /// codebase deliberately rejects AND fire a false lint on every single restyle. So the no-invention
+    /// rule is stated positively, which says exactly the same thing to the model.
     public static let preservationClause =
         "Apply the style to surfaces, lighting, and colour only. Keep the perspective, camera angle, "
-        + "composition, and the EXACT position of every element 1:1 from the input. "
-        + "Do not add, remove, move, or duplicate any element."
+        + "composition, and the EXACT position of every element 1:1 from the input. Every element in "
+        + "the output is one that already exists in the input, in the same place and the same count."
 
     /// Compose a restyle instruction from the desired style. The style is the ONLY free variable; the
     /// preservation clause is fixed.
@@ -29,11 +35,14 @@ public enum RestylePrompt {
     }
 
     /// Verbs that ask the model to CHANGE THE FILM rather than its look. In a generation prompt these
-    /// are ordinary; in a restyle they contradict the one guarantee the pass makes, so they are an
-    /// ERROR — caught before the render, not after it has quietly re-staged the shot.
+    /// are ordinary; in a restyle they contradict the one guarantee the pass makes, so they block —
+    /// caught before the render, not after it has quietly re-staged the shot.
     ///
-    /// Matched as whole words so "added detail" or "remove noise" style phrasings about SURFACES don't
-    /// dominate the check; the accompanying message names the tension and lets the author rephrase.
+    /// Whole-word matched, so "additional grain" passes. It is deliberately blunt about intent, not
+    /// target: "remove grain" is a SURFACE ask and still trips, because distinguishing it from "remove
+    /// the lamp" needs to understand the noun, and guessing there would let real re-staging through.
+    /// The finding names the way out, and it is the way the house wants it written anyway — state the
+    /// result positively ("clean, grain-free surfaces"), not as a removal.
     static let inventionVerbs = [
         "add", "adds", "adding", "insert", "inserts", "inserting",
         "remove", "removes", "removing", "delete", "deletes", "deleting",
@@ -68,8 +77,10 @@ public enum RestylePrompt {
             out.append(Finding(
                 code: "RESTYLE_ASKS_INVENTION",
                 message: "a restyle changes the LOOK, not the film — \"\(verb)\" asks it to change what "
-                    + "is in the shot. Restyle preserves every element's identity and position 1:1; to "
-                    + "add, remove, move or replace something, use an edit/inpaint pass instead."))
+                    + "is in the shot, and this pass keeps every element's identity and position 1:1. "
+                    + "If you meant a SURFACE (\"\(verb) grain\"), say the result instead: "
+                    + "\"clean, grain-free surfaces\". If you really meant the shot's contents, that's "
+                    + "an edit/inpaint pass, not a restyle."))
         }
         if let phrase = recompositionPhrases.first(where: { lower.contains($0) }) {
             out.append(Finding(

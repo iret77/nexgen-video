@@ -21,8 +21,21 @@ struct RestylePromptTests {
         #expect(clause.contains("perspective"))
         #expect(clause.contains("camera angle"))
         #expect(clause.contains("composition"))
-        // The explicit no-invention rule.
-        #expect(clause.contains("do not add, remove, move, or duplicate"))
+        // The no-invention rule — stated POSITIVELY, because this engine treats negations as prompt
+        // weakeners (PositivePhrasing) and PROMPT_CONTAINS_NEGATION would otherwise fire on every
+        // restyle. Same constraint, phrasing the house actually endorses.
+        #expect(clause.contains("already exists in the input"))
+        #expect(clause.contains("same place and the same count"))
+    }
+
+    @Test("the clause carries no negation — it would trip PROMPT_CONTAINS_NEGATION on every restyle")
+    func clauseIsPositivelyPhrased() {
+        let findings = PromptLinter.lintPrompt(
+            // Pad past the min-length floor so we isolate the negation rule.
+            RestylePrompt.instruction(style: "charcoal drawing with heavy paper grain and muted tones"))
+        #expect(!findings.contains { $0.code == "PROMPT_CONTAINS_NEGATION" })
+        // And nothing in the clause blocks a render.
+        #expect(!findings.contains { $0.severity == .error })
     }
 
     @Test("the instruction carries the style and always keeps the clause")
@@ -76,11 +89,20 @@ struct RestylePromptTests {
 
     @Test("whole-word matching — a style word that merely contains a verb doesn't trip the lint")
     func wholeWordMatching() {
-        // "additional"/"addition" contain "add"; "removed" is a real verb form and SHOULD trip.
+        // "additional" contains "add" but isn't the verb.
         #expect(RestylePrompt.lintIntent("additional grain and paper texture").isEmpty)
         #expect(!RestylePrompt.lintIntent("remove the lamp").isEmpty)
         #expect(RestylePrompt.containsWord("add a sign", "add"))
         #expect(!RestylePrompt.containsWord("additional grain", "add"))
+    }
+
+    @Test("a surface ask phrased as a removal still trips — and the message says how to rephrase")
+    func surfaceRemovalTripsWithAWayOut() throws {
+        // Deliberate: telling "remove grain" from "remove the lamp" needs the noun, and guessing there
+        // would let real re-staging through. Blunt, but the finding must offer the escape.
+        let finding = try #require(RestylePrompt.lintIntent("remove the grain").first)
+        #expect(finding.code == "RESTYLE_ASKS_INVENTION")
+        #expect(finding.message.contains("grain-free"))
     }
 
     @Test("the lint is case-insensitive")
