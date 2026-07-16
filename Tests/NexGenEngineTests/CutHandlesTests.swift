@@ -27,7 +27,7 @@ struct CutHandlesTests {
 
     @Test("a hard-cut shot carries no handle: gross equals net")
     func hardCutNoHandle() throws {
-        let s = try Self.shot("s1")
+        let s = try Self.shot("s001")
         let h = CutHandles.handles(for: s, forceAll: false)
         #expect(h.pre == 0 && h.post == 0)
         #expect(CutHandles.grossDuration(for: s, forceAll: false) == 4)
@@ -36,7 +36,7 @@ struct CutHandlesTests {
 
     @Test("a fade side gets a handle on that side only")
     func fadeSideGetsHandle() throws {
-        let s = try Self.shot("s1", tout: .fade)
+        let s = try Self.shot("s001", tout: .fade)
         let h = CutHandles.handles(for: s, forceAll: false)
         #expect(h.pre == 0)
         #expect(h.post == CutHandles.handleSeconds)
@@ -45,14 +45,14 @@ struct CutHandlesTests {
 
     @Test("crossfade on both sides handles both")
     func crossfadeBothSides() throws {
-        let s = try Self.shot("s1", tin: .crossfade, tout: .crossfade)
+        let s = try Self.shot("s001", tin: .crossfade, tout: .crossfade)
         let h = CutHandles.handles(for: s, forceAll: false)
         #expect(h.pre == CutHandles.handleSeconds && h.post == CutHandles.handleSeconds)
     }
 
     @Test("the global override forces handles on a hard-cut shot")
     func globalOverrideForcesHandles() throws {
-        let s = try Self.shot("s1")  // hard cut both sides
+        let s = try Self.shot("s001")  // hard cut both sides
         let h = CutHandles.handles(for: s, forceAll: true)
         #expect(h.pre == CutHandles.handleSeconds && h.post == CutHandles.handleSeconds)
         #expect(CutHandles.grossDuration(for: s, forceAll: true) == 4 + 2 * CutHandles.handleSeconds)
@@ -62,7 +62,7 @@ struct CutHandlesTests {
 
     @Test("temporal structure describes a held pre-beat and post-hold for a handled shot")
     func temporalStructureContent() throws {
-        let s = try Self.shot("s1", tin: .fade, tout: .fade)
+        let s = try Self.shot("s001", tin: .fade, tout: .fade)
         let text = try #require(CutHandles.temporalStructure(for: s, forceAll: false))
         #expect(text.lowercased().contains("micro-motion"))
         #expect(text.contains("action"))
@@ -73,8 +73,8 @@ struct CutHandlesTests {
 
     @Test("estimate feeds the gross duration into billing — handled bills at least as much as plain")
     func estimateBillsGross() throws {
-        let plain = try Self.shotlist([try Self.shot("s1")])
-        let handled = try Self.shotlist([try Self.shot("s1", tout: .fade)])
+        let plain = try Self.shotlist([try Self.shot("s001")])
+        let handled = try Self.shotlist([try Self.shot("s001", tout: .fade)])
         let costs = CostsConfig.bundledDefault
         let ePlain = estimate(shotlist: plain, costs: costs, phase: .final)
         let eHandled = estimate(shotlist: handled, costs: costs, phase: .final)
@@ -86,7 +86,7 @@ struct CutHandlesTests {
 
     @Test("forceHandles feeds a larger gross into billing than the un-forced pass")
     func estimateForceHandles() throws {
-        let sl = try Self.shotlist([try Self.shot("s1")])
+        let sl = try Self.shotlist([try Self.shot("s001")])
         let costs = CostsConfig.bundledDefault
         let plain = estimate(shotlist: sl, costs: costs, phase: .final, forceHandles: false)
         let forced = estimate(shotlist: sl, costs: costs, phase: .final, forceHandles: true)
@@ -98,16 +98,16 @@ struct CutHandlesTests {
     @Test("flags a handled shot whose motion can't hold at the edge")
     func handleDisciplineFlagsUnholdable() throws {
         let ctx = AuditContext(shotlist: try Self.shotlist([
-            try Self.shot("s1", tout: .fade, motion: "a fast whip pan across the room"),
+            try Self.shot("s001", tout: .fade, motion: "a fast whip pan across the room"),
         ]))
         let findings = try MusicvideoChecks.handleDisciplineCheck(ctx)
-        #expect(findings.contains { $0.code == "HANDLE_HOLD_IMPLAUSIBLE" && $0.shotId == "s1" })
+        #expect(findings.contains { $0.code == "HANDLE_HOLD_IMPLAUSIBLE" && $0.shotId == "s001" })
     }
 
     @Test("does not flag a hard-cut shot even with unholdable motion (no handle rendered)")
     func handleDisciplineIgnoresHardCut() throws {
         let ctx = AuditContext(shotlist: try Self.shotlist([
-            try Self.shot("s1", motion: "a violent whip pan"),
+            try Self.shot("s001", motion: "a violent whip pan"),
         ]))
         #expect(try MusicvideoChecks.handleDisciplineCheck(ctx).isEmpty)
     }
@@ -115,7 +115,7 @@ struct CutHandlesTests {
     @Test("does not flag a handled shot that can hold")
     func handleDisciplinePassesHoldable() throws {
         let ctx = AuditContext(shotlist: try Self.shotlist([
-            try Self.shot("s1", tout: .fade, motion: "a slow drift toward the window"),
+            try Self.shot("s001", tout: .fade, motion: "a slow drift toward the window"),
         ]))
         #expect(try MusicvideoChecks.handleDisciplineCheck(ctx).isEmpty)
     }
@@ -125,7 +125,7 @@ struct CutHandlesTests {
     @Test("a shotlist shot without transition fields decodes as hard cut")
     func decodeDefaultsHardCut() throws {
         let json = """
-        {"id":"s1","time_start":0,"time_end":4,"duration_s":4,"type":"performance",
+        {"id":"s001","time_start":0,"time_end":4,"duration_s":4,"type":"performance",
          "description":"d","visual_prompt":"p","mood":"m"}
         """
         let shot = try JSONDecoder().decode(Shot.self, from: Data(json.utf8))
