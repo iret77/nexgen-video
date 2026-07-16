@@ -5,8 +5,10 @@ import Testing
 
 /// plan_adherence (#231) — the check that compares what the consistency machinery PLANNED against what
 /// the render manifests recorded. Fixtures write real manifests to a temp data root; no bible is
-/// staged, so the reference planner returns no plan and PLAN_REFS_IGNORED stays silent — that half is
-/// covered by its own degradation test.
+/// staged, so the reference planner returns no plan and PLAN_REFS_IGNORED stays silent.
+///
+/// The `compile_prompt` half is NOT audited: it is prevented at the tool contract (`shotId` required,
+/// `"none"` explicit), so there is nothing left to infer — see CompilePromptShotIdTests.
 @Suite("plan_adherence")
 struct PlanAdherenceCheckTests {
     static func tempRoot() -> URL {
@@ -34,58 +36,6 @@ struct PlanAdherenceCheckTests {
     }
 
     static let camera = CameraSetup(height: .low, angle: .threeQuarterLeft, lensHint: .wide)
-
-    /// The exact prose the builder would emit for `camera` — the check reproduces this transform.
-    static var cameraProse: String { SlopStripper.strip(camera.promptProse()) }
-
-    // MARK: - SHOT_PROJECTION_MISSING (compile_prompt ran without shotId)
-
-    @Test("flags a frame whose provider prompt carries none of the shot's declared camera")
-    func projectionMissing() throws {
-        let root = Self.tempRoot(); defer { try? FileManager.default.removeItem(at: root) }
-        try saveFramesManifest(FramesManifest(project: "p", generated: "t", shots: [
-            // s001 compiled free-intent: the agent's own phrasing, no projected camera.
-            ShotFrames(shotId: "s001", keyframeStrategy: "start", frames: [
-                FrameEntry(role: "start", path: "frames/s001/start.png",
-                           providerPrompt: "a singer on a rooftop, moody light")]),
-            // s002 compiled with shotId: the projected camera survived into the prompt.
-            ShotFrames(shotId: "s002", keyframeStrategy: "start", frames: [
-                FrameEntry(role: "start", path: "frames/s002/start.png",
-                           providerPrompt: "a singer on a rooftop. \(Self.cameraProse). moody light")]),
-        ]), dataRoot: root)
-
-        let findings = try MusicvideoChecks.planAdherenceCheck(try Self.ctx([
-            try Self.shot("s001", at: 0, camera: Self.camera),
-            try Self.shot("s002", at: 4, camera: Self.camera),
-        ], root: root))
-
-        #expect(findings.contains { $0.code == "SHOT_PROJECTION_MISSING" && $0.shotId == "s001" })
-        #expect(!findings.contains { $0.shotId == "s002" })
-    }
-
-    @Test("a shot without a declared camera has nothing to project, so it is never flagged")
-    func noCameraSpecNoFinding() throws {
-        let root = Self.tempRoot(); defer { try? FileManager.default.removeItem(at: root) }
-        try saveFramesManifest(FramesManifest(project: "p", generated: "t", shots: [
-            ShotFrames(shotId: "s001", keyframeStrategy: "start", frames: [
-                FrameEntry(role: "start", path: "frames/s001/start.png", providerPrompt: "anything at all")]),
-        ]), dataRoot: root)
-        let findings = try MusicvideoChecks.planAdherenceCheck(
-            try Self.ctx([try Self.shot("s001", at: 0)], root: root))
-        #expect(findings.isEmpty)
-    }
-
-    @Test("an empty provider prompt is builder_bypass's finding, not double-reported here")
-    func emptyPromptNotDoubleReported() throws {
-        let root = Self.tempRoot(); defer { try? FileManager.default.removeItem(at: root) }
-        try saveFramesManifest(FramesManifest(project: "p", generated: "t", shots: [
-            ShotFrames(shotId: "s001", keyframeStrategy: "start", frames: [
-                FrameEntry(role: "start", path: "frames/s001/start.png", providerPrompt: "")]),
-        ]), dataRoot: root)
-        let findings = try MusicvideoChecks.planAdherenceCheck(
-            try Self.ctx([try Self.shot("s001", at: 0, camera: Self.camera)], root: root))
-        #expect(!findings.contains { $0.code == "SHOT_PROJECTION_MISSING" })
-    }
 
     // MARK: - CHAIN_START_FRAME_IGNORED (#196 chain start frame not used)
 
@@ -129,6 +79,31 @@ struct PlanAdherenceCheckTests {
     func chainHonored() throws {
         let root = Self.tempRoot(); defer { try? FileManager.default.removeItem(at: root) }
         try Self.chainManifest(startFrame: "media/s001.last_frame.png", root: root)
+        let findings = try MusicvideoChecks.planAdherenceCheck(try Self.ctx([
+            try Self.shot("s001", at: 0),
+            try Self.shot("s002", at: 4, chained: true),
+        ], root: root))
+        #expect(!findings.contains { $0.code == "CHAIN_START_FRAME_IGNORED" })
+    }
+
+    @Test("path matching is component-anchored: a similarly-named file is not accepted as the frame")
+    func pathMatchingIsComponentAnchored() throws {
+        let root = Self.tempRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        // A byte-level hasSuffix would call this a match ("xs001.last_frame.png".hasSuffix("s001…")),
+        // silently accepting a different file and hiding a real chain break.
+        try Self.chainManifest(startFrame: "media/xs001.last_frame.png", root: root)
+        let findings = try MusicvideoChecks.planAdherenceCheck(try Self.ctx([
+            try Self.shot("s001", at: 0),
+            try Self.shot("s002", at: 4, chained: true),
+        ], root: root))
+        #expect(findings.contains { $0.code == "CHAIN_START_FRAME_IGNORED" })
+    }
+
+    @Test("the same file in different coordinate systems still matches")
+    func differentCoordinateSystemsMatch() throws {
+        let root = Self.tempRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        // Recorded paths are project-home-relative, planned/extracted ones may carry a prefix.
+        try Self.chainManifest(startFrame: "pipeline/media/s001.last_frame.png", root: root)
         let findings = try MusicvideoChecks.planAdherenceCheck(try Self.ctx([
             try Self.shot("s001", at: 0),
             try Self.shot("s002", at: 4, chained: true),

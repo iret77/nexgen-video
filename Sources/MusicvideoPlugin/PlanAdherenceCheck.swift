@@ -1,25 +1,39 @@
 import Foundation
 import NexGenEngine
 
-/// #231 — the consistency levers of #195/#196/#197 all end in JSON handed to the LLM, and until now
-/// nothing compared the plan with the render. `next_render_shot` *offers* the reference plan and the
-/// chain start frame; `render.md` *asks* the agent to pass them on; `compile_prompt`'s `shotId` is
-/// optional and, when omitted, degrades silently to a free-intent compile (no camera projection, no
-/// drift lint). This audits the result instead of trusting the request.
+/// #231 — the consistency levers of #195/#196 end in JSON handed to the LLM, and nothing compared the
+/// plan with the render. `next_render_shot` *offers* the reference plan and the chain start frame;
+/// `render.md` *asks* the agent to pass them on. This audits the result instead of trusting the request.
 ///
 /// Same seam and same shape as `builderBypassCheck`: re-run the deterministic machinery at audit time
 /// and compare it against what the manifests recorded. Every planner involved is pure, so the plan a
 /// check reconstructs is the plan `next_render_shot` handed out. Degrades to no findings whenever the
 /// data root, a manifest, or the recorded conditioning is absent — an un-rendered project is not a
 /// violation, and entries written before the audit fields existed carry nil, not a false accusation.
+///
+/// The third silent degradation (#197, `compile_prompt` without a `shotId`) is NOT audited here: it is
+/// prevented at the tool contract instead — `shotId` is required and `"none"` is an explicit choice, so
+/// the mistake can no longer be made by omission. Inferring it from prompt text was tried and dropped:
+/// an agent that omits `shotId` but happens to phrase the camera the same way would pass the audit, so
+/// the check could be satisfied by accident — the same "please" it set out to replace.
 extension MusicvideoChecks {
-    /// PLAN_REFS_IGNORED / CHAIN_START_FRAME_IGNORED / SHOT_PROJECTION_MISSING.
+    /// PLAN_REFS_IGNORED / CHAIN_START_FRAME_IGNORED.
     public static let planAdherenceCheck: SanityCheck = { ctx in
         guard let root = ctx.extra?["data_root"] else { return [] }
         let dataRoot = URL(fileURLWithPath: root)
+        let planner = MusicvideoReferencePlanProvider()
+        // One shot renders in at most one phase per project state, but several phase manifests coexist
+        // on disk (a `videos_preview` and a `videos_final` both linger). Dedupe by finding identity so a
+        // single underlying violation is reported once, not once per manifest.
+        var seen = Set<String>()
         var out: [Finding] = []
-        out.append(contentsOf: referenceAndChainAdherence(ctx, dataRoot: dataRoot))
-        out.append(contentsOf: shotProjectionAdherence(ctx, dataRoot: dataRoot))
+        for phase in renderPhases(dataRoot: dataRoot) {
+            guard let manifest = try? loadRenderManifest(dataRoot: dataRoot, phase: phase) else { continue }
+            for finding in adherence(ctx, dataRoot: dataRoot, manifest: manifest, planner: planner) {
+                let key = "\(finding.code)|\(finding.shotId ?? "")|\(finding.message)"
+                if seen.insert(key).inserted { out.append(finding) }
+            }
+        }
         return out
     }
 
@@ -36,19 +50,22 @@ extension MusicvideoChecks {
         }.sorted()
     }
 
-    /// The two render-manifest halves: did the shot render with the planned references, and did a
-    /// chained shot start on its predecessor's extracted last frame.
-    private static func referenceAndChainAdherence(_ ctx: AuditContext, dataRoot: URL) -> [Finding] {
-        renderPhases(dataRoot: dataRoot).flatMap { phase -> [Finding] in
-            guard let manifest = try? loadRenderManifest(dataRoot: dataRoot, phase: phase) else { return [] }
-            return adherence(ctx, dataRoot: dataRoot, manifest: manifest)
-        }
+    /// Do two recorded/planned paths name the same file? They arrive in different coordinate systems —
+    /// planned paths are project-relative, recorded ones are project-home-relative — so one may carry a
+    /// prefix the other doesn't. Match on whole path COMPONENTS: a bare `hasSuffix` is byte-level, and
+    /// would call `banana.png` a match for `a.png`, hiding a genuinely missing reference.
+    private static func samePath(_ a: String, _ b: String) -> Bool {
+        let x = (a as NSString).pathComponents, y = (b as NSString).pathComponents
+        guard let shorter = [x, y].min(by: { $0.count < $1.count }),
+              let longer = [x, y].max(by: { $0.count < $1.count }),
+              !shorter.isEmpty else { return false }
+        return Array(longer.suffix(shorter.count)) == shorter
     }
 
     private static func adherence(
-        _ ctx: AuditContext, dataRoot: URL, manifest: RenderManifest
+        _ ctx: AuditContext, dataRoot: URL, manifest: RenderManifest,
+        planner: MusicvideoReferencePlanProvider
     ) -> [Finding] {
-        let planner = MusicvideoReferencePlanProvider()
         var out: [Finding] = []
 
         for shot in ctx.shotlist.shots {
@@ -59,7 +76,7 @@ extension MusicvideoChecks {
             if let recorded = entry.referencePaths,
                let plan = planner.planReferences(dataRoot: dataRoot, shotId: shot.id), !plan.refs.isEmpty {
                 let planned = plan.refs.map(\.path)
-                let missing = planned.filter { p in !recorded.contains { $0.hasSuffix(p) || p.hasSuffix($0) } }
+                let missing = planned.filter { p in !recorded.contains { samePath($0, p) } }
                 if !missing.isEmpty {
                     out.append(Finding(
                         level: .warn, code: "PLAN_REFS_IGNORED", shotId: shot.id,
@@ -77,7 +94,7 @@ extension MusicvideoChecks {
                   let predId = ChainContinuity.chainPredecessor(ctx.shotlist, shotId: shot.id),
                   let expected = manifest.entries[predId]?.lastFramePath,
                   let actual = entry.startFramePath else { continue }
-            if !(actual.hasSuffix(expected) || expected.hasSuffix(actual)) {
+            if !samePath(actual, expected) {
                 out.append(Finding(
                     level: .warn, code: "CHAIN_START_FRAME_IGNORED", shotId: shot.id,
                     message: "shot \(shot.id) declares chain_with_previous_end but started on '\(actual)' "
@@ -85,40 +102,6 @@ extension MusicvideoChecks {
                         + "will jump — anchor-and-extend only holds when the successor starts on the exact "
                         + "frame the predecessor ended on. Re-render it with next_render_shot's "
                         + "chain_start_frame_media_ref as startFrameMediaRef."))
-            }
-        }
-        return out
-    }
-
-    /// The `compile_prompt(shotId:)` half: a shot compiled without its id degrades silently to a
-    /// free-intent compile — `PromptComposer` then leaves `payload.camera` empty and skips the drift
-    /// lint. The frames manifest records the exact provider prompt, so the degradation is visible after
-    /// the fact: the builder puts the shot's camera prose through `SlopStripper.strip` verbatim, so
-    /// re-running that same pure transform reproduces exactly what a projected compile would have
-    /// emitted. Absent from the prompt ⇒ the projection never ran.
-    private static func shotProjectionAdherence(_ ctx: AuditContext, dataRoot: URL) -> [Finding] {
-        guard let manifest = try? loadFramesManifest(dataRoot: dataRoot) else { return [] }
-        let camera = Dictionary(
-            uniqueKeysWithValues: ctx.shotlist.shots.compactMap { shot -> (String, String)? in
-                guard let prose = shot.cameraSetup?.promptProse() else { return nil }
-                let stripped = SlopStripper.strip(prose)
-                return stripped.isEmpty ? nil : (shot.id, stripped)
-            })
-        var out: [Finding] = []
-        for sf in manifest.shots {
-            guard let expected = camera[sf.shotId] else { continue }
-            for frame in sf.frames {
-                let prompt = frame.providerPrompt
-                // An empty provider prompt is builder_bypass's finding, not this one — don't double-report.
-                guard !prompt.trimmingCharacters(in: .whitespaces).isEmpty,
-                      !prompt.contains(expected) else { continue }
-                out.append(Finding(
-                    level: .warn, code: "SHOT_PROJECTION_MISSING", shotId: sf.shotId,
-                    message: "frame \(sf.shotId)-\(frame.role) was compiled without shotId: its provider "
-                        + "prompt carries none of the shot's declared camera (\"\(expected)\"), so "
-                        + "compile_prompt degraded to a free-intent compile — the camera came from the "
-                        + "agent's phrasing, not the shot spec, and the drift linter never ran. "
-                        + "Recompile with compile_prompt(intent, model, shotId: \"\(sf.shotId)\")."))
             }
         }
         return out
