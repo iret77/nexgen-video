@@ -20,6 +20,9 @@ enum RunwayModelRegistry {
         video("runway/gen4.5", "Runway Gen-4.5 (image)", apiModel: "gen4.5", durations: [4, 6, 8, 10]),
         video("runway/gen4_turbo", "Runway Gen-4 Turbo (image)", apiModel: "gen4_turbo", durations: [5, 10]),
         image("runway/gen4_image", "Runway Gen-4 Image", apiModel: "gen4_image"),
+        // #223 — the restyle pass. The FIRST model on the source-video edit path: `generateVideoEdit`
+        // and the submission's edit branch already existed but nothing routed to them until now.
+        videoEdit("runway/gen4_aleph", "Runway Gen-4 Aleph (restyle)", apiModel: "gen4_aleph"),
     ]
 
     static let entries: [CatalogEntry] = models.map { model in
@@ -32,6 +35,13 @@ enum RunwayModelRegistry {
         Dictionary(models.map { ($0.entry.id, $0) }, uniquingKeysWith: { a, _ in a })
 
     static func model(for id: String) -> RunwayModel? { byId[id] }
+
+    /// Whether this Runway model consumes a source video (the restyle path) rather than an image.
+    /// Read off the catalog caps, so the registry stays the single place that decides it.
+    static func requiresSourceVideo(_ model: RunwayModel) -> Bool {
+        guard case .video(let caps) = model.entry.uiCapabilities else { return false }
+        return caps.requiresSourceVideo
+    }
 
     // MARK: - Ratio mapping (NGV aspect label → Runway ratio string)
 
@@ -72,6 +82,32 @@ enum RunwayModelRegistry {
                     maxCombinedVideoRefSeconds: nil, maxCombinedAudioRefSeconds: nil,
                     framesAndReferencesExclusive: false, referenceTagNoun: "image",
                     requiresSourceVideo: false, requiresReferenceImage: true
+                ))
+            ),
+            apiModel: apiModel
+        )
+    }
+
+    /// A source-video edit model: it consumes a clip and re-renders it. `requiresSourceVideo` is what
+    /// routes it to the edit path — and what makes `PromptCompiler` apply the composition-preserving
+    /// prompt profile, so a restyle can never be compiled like a generation.
+    ///
+    /// No durations: the output follows the SOURCE clip's length, so a duration would be a knob that
+    /// does nothing. Aspect likewise follows the source — the ratio is derived from it at dispatch.
+    private static func videoEdit(_ id: String, _ name: String, apiModel: String) -> RunwayModel {
+        RunwayModel(
+            entry: CatalogEntry(
+                id: id, kind: .video, displayName: name,
+                allowedEndpoints: [id], responseShape: .video,
+                uiCapabilities: .video(VideoCaps(
+                    durations: [], resolutions: nil,
+                    aspectRatios: ["16:9", "9:16", "1:1"],
+                    supportsFirstFrame: false, supportsLastFrame: false,
+                    maxReferenceImages: 0, maxReferenceVideos: 0, maxReferenceAudios: 0,
+                    maxTotalReferences: 0,
+                    maxCombinedVideoRefSeconds: nil, maxCombinedAudioRefSeconds: nil,
+                    framesAndReferencesExclusive: false, referenceTagNoun: "image",
+                    requiresSourceVideo: true, requiresReferenceImage: false
                 ))
             ),
             apiModel: apiModel
