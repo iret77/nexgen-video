@@ -102,13 +102,17 @@ struct Scene3DGeometryCheckTests {
         try Bible(project: "p", generated: "t", generator: "g", locations: locations)
     }
 
+    /// A shotlist is only a carrier here — the check reads the bible's locations, not the shots. It
+    /// still needs one shot, because an empty shotlist is invalid by construction (`.emptyShots`).
     static func ctx(_ bible: Bible) throws -> AuditContext {
         AuditContext(
             shotlist: try Shotlist(
                 schema_: shotlistSchemaVersion, mode: .beat, project: "p",
                 song: try Song(title: "t", audioPath: "a.wav", analysisPath: "a.json",
                                bpm: 120, tempoMultiplier: 1, durationS: 180),
-                generated: "t", generator: "g", shots: []),
+                generated: "t", generator: "g",
+                shots: [try Shot(id: "s001", timeStart: 0, timeEnd: 4, durationS: 4, type: .performance,
+                                 description: "d", visualPrompt: "p", mood: "m")]),
             bible: bible)
     }
 
