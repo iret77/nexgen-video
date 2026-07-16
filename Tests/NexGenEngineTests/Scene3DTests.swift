@@ -111,8 +111,8 @@ struct Scene3DGeometryCheckTests {
                 song: try Song(title: "t", audioPath: "a.wav", analysisPath: "a.json",
                                bpm: 120, tempoMultiplier: 1, durationS: 180),
                 generated: "t", generator: "g",
-                shots: [try Shot(id: "s001", timeStart: 0, timeEnd: 4, durationS: 4, type: .performance,
-                                 description: "d", visualPrompt: "p", mood: "m")]),
+                shots: [try Shot(id: "s001", section: "verse", timeStart: 0, timeEnd: 4, durationS: 4,
+                                 type: .performance, description: "d", visualPrompt: "p", mood: "m")]),
             bible: bible)
     }
 
