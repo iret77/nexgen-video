@@ -403,7 +403,10 @@ extension ToolExecutor {
               let root = editor.workingRoot.flatMap({ DataRootResolver.dataRoot(of: $0) }),
               let shotlist = (try? loadShotlist(dataRoot: root)) ?? nil,
               let shot = shotlist.shots.first(where: { $0.id == shotId }) else { return nil }
-        return PromptComposer.ShotProjection(shot)
+        // #213: the global cut-handle override — the user forcing overlap material on every shot.
+        let forceHandles = (try? YAMLArtifactStore(dataRoot: root).load(Brief.self, at: PipelineLayout.briefFile))?
+            .cutHandlesMode == .withOverlap
+        return PromptComposer.ShotProjection(shot, forceHandles: forceHandles)
     }
 
     func generateAudio(_ editor: EditorViewModel, _ args: [String: Any]) async throws -> ToolResult {

@@ -46,15 +46,13 @@ public struct ProjectEstimate: Sendable, Equatable {
     }
 }
 
-/// Effective render duration sent to Seedance/Runway. Port of
-/// `render/costs.py::_seedance_render_duration`.
-///
-/// Bug 28 (v0.11.11): the padded overlap seconds are no longer added here —
-/// Seedance gets the core `duration_s`; pre/post handles are appended
-/// deterministically in post (`mv-render handles`, ffmpeg tpad). `costs`/`mode`
-/// stay in the signature to mirror the Python arity even though they're unused.
-func seedanceRenderDuration(_ shot: Shot, costs: CostsConfig, mode: Mode) -> Double {
-    shot.durationS
+/// Effective render duration ordered from the model — and billed. #213 reverses the old post-padding
+/// model (freeze frames via `ffmpeg tpad`, rejected as slop): cut handles are now CONTENT the model
+/// renders, so a handled shot orders its GROSS duration (net + pre/post handle seconds) and pays for it.
+/// A shot with no planned transition and no global override is unchanged (gross == net). `costs` stays
+/// in the signature to mirror the Python arity.
+func seedanceRenderDuration(_ shot: Shot, costs: CostsConfig, mode: Mode, forceHandles: Bool) -> Double {
+    CutHandles.grossDuration(for: shot, forceAll: forceHandles)
 }
 
 /// Port of `render/costs.py::_stitched_segments` (`max(1, ceil(total/limit))`).
@@ -91,7 +89,8 @@ func resolutionForPhase(
 /// 720p ($0.30/s) vs 1080p ($0.68/s) is a 2.3x factor, so the estimate must
 /// reflect it.
 public func estimate(
-    shotlist: Shotlist, costs: CostsConfig, phase: Phase, finalResolution: String = "1080p"
+    shotlist: Shotlist, costs: CostsConfig, phase: Phase, finalResolution: String = "1080p",
+    forceHandles: Bool = false
 ) -> ProjectEstimate {
     var estimates: [ShotEstimate] = []
     for shot in shotlist.shots {
@@ -119,7 +118,7 @@ public func estimate(
         )
         let eurPerSecond = pricing.eurPerSecond(for: resolution)
 
-        let rawDuration = seedanceRenderDuration(shot, costs: costs, mode: shotlist.mode)
+        let rawDuration = seedanceRenderDuration(shot, costs: costs, mode: shotlist.mode, forceHandles: forceHandles)
         var truncated = false
         var padded = false
         let billableS: Double
