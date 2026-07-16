@@ -67,6 +67,12 @@ public struct Scene3D: Codable, Sendable, Equatable {
 
     /// Every field optional on the wire: a bible written before the POV set was recorded carries only
     /// `panorama`, and must keep decoding.
+    ///
+    /// ⚠️ Unknown keys are IGNORED, not preserved. The free-form map this replaced round-tripped any
+    /// key it was given (`mesh`, `splats`, …); this type keeps only what it declares. Harmless today —
+    /// nothing in the app WRITES the bible, so no decode→encode round-trip happens on a user's file —
+    /// but the moment a bible writer exists, re-saving an old bible would silently drop keys it didn't
+    /// know. Add those keys here (or an explicit preserve-unknowns pass) BEFORE writing bibles.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         panorama = try c.decodeIfPresent(String.self, forKey: .panorama) ?? ""
