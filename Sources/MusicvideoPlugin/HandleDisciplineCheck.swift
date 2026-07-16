@@ -24,12 +24,40 @@ extension MusicvideoChecks {
             guard h.pre > 0 || h.post > 0 else { continue }
             let text = (shot.visualPrompt + " " + (shot.motion ?? "")).lowercased()
             guard let hit = unholdableMotion.first(where: { text.contains($0) }) else { continue }
+            // A shot's handle is forced by the global override only when its own transition wouldn't ask
+            // for it — the remedy differs, so name it correctly rather than advising a no-op.
+            let forced = forceAll && !shot.transitionIn.needsHandle && !shot.transitionOut.needsHandle
+            let remedy = forced
+                ? "This handle is forced by cut_handles_mode=with_overlap, so a hard cut won't remove it — "
+                    + "turn the global override off, or soften the motion at the edge."
+                : "Either drop the transition to a hard cut (no handle) or soften the motion at that edge."
             out.append(Finding(
                 level: .warn, code: "HANDLE_HOLD_IMPLAUSIBLE", shotId: shot.id,
-                message: "shot \(shot.id) renders cut-handle material for a planned fade/crossfade, but its "
-                    + "motion (\"\(hit)\") peaks at the edge and can't hold a still beat there — the handle "
-                    + "frames won't blend and you'll pay for unusable overlap. Either drop the transition to a "
-                    + "hard cut (no handle) or soften the motion at that edge."))
+                message: "shot \(shot.id) renders cut-handle material, but its motion (\"\(hit)\") peaks at "
+                    + "the edge and can't hold a still beat there — the handle frames won't blend and you'll "
+                    + "pay for unusable overlap. " + remedy))
+        }
+        out.append(contentsOf: boundaryConsistency(ctx.shotlist))
+        return out
+    }
+
+    /// HANDLE_BOUNDARY_MISMATCH — a fade/crossfade needs overlap material on BOTH sides of the cut. When
+    /// one shot declares a transition out that its successor doesn't declare in (or vice versa), only one
+    /// side renders a handle and the blend is starved. Walk adjacent shots in timeline order.
+    private static func boundaryConsistency(_ shotlist: Shotlist) -> [Finding] {
+        let shots = shotlist.shots
+        guard shots.count > 1 else { return [] }
+        var out: [Finding] = []
+        for i in 0..<(shots.count - 1) {
+            let a = shots[i], b = shots[i + 1]
+            if a.transitionOut.needsHandle != b.transitionIn.needsHandle {
+                out.append(Finding(
+                    level: .warn, code: "HANDLE_BOUNDARY_MISMATCH", shotId: a.id,
+                    message: "the cut between \(a.id) (transition_out: \(a.transitionOut.rawValue)) and "
+                        + "\(b.id) (transition_in: \(b.transitionIn.rawValue)) is a "
+                        + "fade/crossfade on one side only — the blend needs overlap material on BOTH shots. "
+                        + "Set the matching transition on the other side, or make it a hard cut on both."))
+            }
         }
         return out
     }

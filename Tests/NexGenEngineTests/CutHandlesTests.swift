@@ -23,6 +23,13 @@ struct CutHandlesTests {
                      generated: "t", generator: "g", shots: shots)
     }
 
+    static func brief(cutHandles: CutHandlesMode) throws -> Brief {
+        try Brief(project: "p", generated: "t", mission: .demo, targetPlatform: "web",
+                  aspectRatio: .landscape16x9, projectMode: "beat", conceptType: .abstract,
+                  visualMedium: .liveActionRealistic, figures: .none, lyricsIntegration: .ignored,
+                  cutHandlesMode: cutHandles)
+    }
+
     // MARK: - Derivation
 
     @Test("a hard-cut shot carries no handle: gross equals net")
@@ -118,6 +125,36 @@ struct CutHandlesTests {
             try Self.shot("s001", tout: .fade, motion: "a slow drift toward the window"),
         ]))
         #expect(try MusicvideoChecks.handleDisciplineCheck(ctx).isEmpty)
+    }
+
+    @Test("flags a one-sided fade/crossfade boundary between adjacent shots")
+    func handleBoundaryMismatch() throws {
+        // s001 fades out, but s002 comes in on a hard cut — the blend is starved on s002's side.
+        let ctx = AuditContext(shotlist: try Self.shotlist([
+            try Self.shot("s001", tout: .crossfade),
+            try Self.shot("s002"),
+        ]))
+        let findings = try MusicvideoChecks.handleDisciplineCheck(ctx)
+        #expect(findings.contains { $0.code == "HANDLE_BOUNDARY_MISMATCH" && $0.shotId == "s001" })
+    }
+
+    @Test("a matched crossfade boundary is not flagged")
+    func handleBoundaryMatched() throws {
+        let ctx = AuditContext(shotlist: try Self.shotlist([
+            try Self.shot("s001", tout: .crossfade),
+            try Self.shot("s002", tin: .crossfade),
+        ]))
+        #expect(!(try MusicvideoChecks.handleDisciplineCheck(ctx)).contains { $0.code == "HANDLE_BOUNDARY_MISMATCH" })
+    }
+
+    @Test("under the global override, a forced hard-cut shot's warning names the override, not a no-op")
+    func forcedHandleMessageNamesOverride() throws {
+        let ctx = AuditContext(
+            shotlist: try Self.shotlist([try Self.shot("s001", motion: "a violent whip pan")]),
+            brief: try Self.brief(cutHandles: .withOverlap))
+        let findings = try MusicvideoChecks.handleDisciplineCheck(ctx)
+        let hold = try #require(findings.first { $0.code == "HANDLE_HOLD_IMPLAUSIBLE" })
+        #expect(hold.message.contains("with_overlap"))
     }
 
     // MARK: - Backward compatibility

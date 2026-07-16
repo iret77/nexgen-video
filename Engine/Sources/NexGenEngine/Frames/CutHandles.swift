@@ -13,9 +13,11 @@ import Foundation
 /// in/out; the gross duration (net + handles) is what the model is asked for and what is billed. This
 /// is deterministic — derived from the shot's planned transitions, never left to agent discipline.
 public enum CutHandles {
-    /// Seconds of overlap material rendered on a handled side. A held beat of micro-motion — long
-    /// enough to blend a fade and to re-cut by a few frames, short enough not to dominate the order.
-    public static let handleSeconds = 0.75
+    /// Seconds of overlap material rendered on a handled side. A whole second — a held beat of
+    /// micro-motion, long enough to blend a fade and re-cut by a few frames. Kept integer on purpose:
+    /// video models order discrete whole-second durations, so a fractional handle would make the gross
+    /// duration unorderable. The agent still rounds the gross up to the model's nearest valid duration.
+    public static let handleSeconds = 1.0
 
     /// The pre/post handle seconds for a shot. A side is handled when its planned transition needs one
     /// (`fade`/`crossfade`), or when `forceAll` is set (the global override — the user keeps every shot's
