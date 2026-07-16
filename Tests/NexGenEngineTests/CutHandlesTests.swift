@@ -108,6 +108,29 @@ struct CutHandlesTests {
         #expect(eHandled.shotEstimates[0].durationS >= ePlain.shotEstimates[0].durationS)
     }
 
+    @Test("a handled shot is priced at exactly the whole second the agent is told to order")
+    func pricesTheOrderedDuration() throws {
+        // Fractional net + a fade handle: ordered = ceil(3.5 + 1) = 5s. Pricing the raw 4.5 would
+        // under-estimate, and the budget stop (#198) is pre-flight — an under-estimate lets spend
+        // through that the user's limit should have blocked. Asserted on the pricing input directly, so
+        // it holds regardless of the provider's own min/max clamp.
+        let handled = try Self.shot("s001", duration: 3.5, tout: .fade)
+        let priced = seedanceRenderDuration(
+            handled, costs: CostsConfig.bundledDefault, mode: .beat, forceHandles: false)
+        #expect(priced == 5)
+        #expect(priced == Double(CutHandles.orderableGrossDuration(for: handled, forceAll: false)))
+    }
+
+    @Test("an unhandled shot's pricing is untouched by #213")
+    func unhandledPricingUnchanged() throws {
+        // No handle → the shot's own (possibly fractional) duration reaches pricing exactly as before.
+        // What the agent rounds a bare fractional net to is a separate, pre-existing question.
+        let plain = try Self.shot("s001", duration: 3.5)
+        let priced = seedanceRenderDuration(
+            plain, costs: CostsConfig.bundledDefault, mode: .beat, forceHandles: false)
+        #expect(priced == 3.5)
+    }
+
     @Test("forceHandles feeds a larger gross into billing than the un-forced pass")
     func estimateForceHandles() throws {
         let sl = try Self.shotlist([try Self.shot("s001")])

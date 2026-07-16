@@ -52,7 +52,16 @@ public struct ProjectEstimate: Sendable, Equatable {
 /// A shot with no planned transition and no global override is unchanged (gross == net). `costs` stays
 /// in the signature to mirror the Python arity.
 func seedanceRenderDuration(_ shot: Shot, costs: CostsConfig, mode: Mode, forceHandles: Bool) -> Double {
-    CutHandles.grossDuration(for: shot, forceAll: forceHandles)
+    let h = CutHandles.handles(for: shot, forceAll: forceHandles)
+    guard h.pre > 0 || h.post > 0 else {
+        // No handle → the pre-existing behavior exactly: price the shot's own duration. What the agent
+        // rounds a fractional net to when ordering is a separate, older question; not this change's.
+        return shot.durationS
+    }
+    // Handled → price EXACTLY what gets ordered. `next_render_shot` hands the agent the ceil'd whole
+    // second, so pricing the unrounded gross would under-estimate — and the budget stop (#198) is
+    // pre-flight, so an under-estimate lets spend through that the user's limit should have blocked.
+    return Double(CutHandles.orderableGrossDuration(for: shot, forceAll: forceHandles))
 }
 
 /// Port of `render/costs.py::_stitched_segments` (`max(1, ceil(total/limit))`).
