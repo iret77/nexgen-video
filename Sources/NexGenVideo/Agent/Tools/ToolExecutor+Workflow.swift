@@ -517,6 +517,12 @@ extension ToolExecutor {
         }
         var manifest = (try? loadRenderManifest(dataRoot: root, phase: phase)) ?? RenderManifest(project: "", phase: phase)
         record(&manifest, shotId: shotId, output: output, costEur: costEur, status: status, phase: phase)
+        // #231: stamp what this render was ACTUALLY conditioned on, so `plan_adherence` can audit it
+        // against what `next_render_shot` planned. Read off the submitted GenerationInput — the record
+        // of the real submission — not off the agent's say-so.
+        if status == .rendered, let output, !output.isEmpty {
+            stampRenderInputs(&manifest, shotId: shotId, output: output, editor: editor, dataRoot: root)
+        }
         do {
             try saveRenderManifest(manifest, dataRoot: root)
         } catch {
@@ -1103,6 +1109,28 @@ extension ToolExecutor {
             ?? FramesManifest(project: FrameInventory.projectName(of: dataRoot) ?? "", generated: currentTimestamp()))
             .upserting(shotId: shotId, keyframeStrategy: ks, frame: entry)
         try? saveFramesManifest(manifest, dataRoot: dataRoot)
+    }
+
+    /// #231 — record the render's actual conditioning (start frame + image references) on the manifest
+    /// entry, as project-home-relative paths. The submitted `GenerationInput` carries the asset ids that
+    /// were really sent (`imageURLAssetIds` = frame slots, start frame first; `referenceImageAssetIds` =
+    /// image refs); this resolves them back to paths so a pure, file-level check can compare them with
+    /// the deterministic plan. Silent on any miss: the audit trail must never break recording a render.
+    private func stampRenderInputs(
+        _ manifest: inout RenderManifest, shotId: String, output: String, editor: EditorViewModel,
+        dataRoot: URL
+    ) {
+        guard var entry = manifest.entries[shotId],
+              let asset = resolveRenderedAsset(output, editor: editor, dataRoot: dataRoot),
+              let gi = asset.generationInput else { return }
+        let home = FrameInventory.projectHome(of: dataRoot)
+        func path(_ assetId: String) -> String? {
+            editor.mediaAssets.first { $0.id == assetId }
+                .map { FrameInventory.relativePath(of: $0.url, to: home) }
+        }
+        entry.startFramePath = (gi.imageURLAssetIds ?? []).first.flatMap(path)
+        entry.referencePaths = (gi.referenceImageAssetIds ?? []).compactMap(path)
+        manifest.entries[shotId] = entry
     }
 
     /// #196 — when the next shot in render order chains off this one, extract this rendered clip's last
