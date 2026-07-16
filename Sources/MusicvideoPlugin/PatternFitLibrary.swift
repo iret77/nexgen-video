@@ -117,7 +117,8 @@ public enum PatternFitLibrary {
     /// error.
     public static func recommend(
         brief: Brief?, projectOverride: ProjectFitProfile? = nil, perceivedBpm: Double? = nil,
-        matchMode: FitMatchMode = .balanced, excludedPatternIds: [String] = [], maxResults: Int? = nil
+        matchMode: FitMatchMode = .balanced, excludedPatternIds: [String] = [], maxResults: Int? = nil,
+        affectProfile: AffectProfile? = nil
     ) throws -> (set: PatternRecommendationSet, coverage: LibraryCoverage) {
         let policy = try loadPolicy()
         let (library, coverage) = try loadRecommendableLibrary()
@@ -128,7 +129,7 @@ public enum PatternFitLibrary {
         } else if let brief {
             project = ProjectProfileAssembler.assemble(
                 brief: brief, perceivedBpm: perceivedBpm, matchMode: matchMode,
-                excludedPatternIds: excludedPatternIds)
+                excludedPatternIds: excludedPatternIds, affectProfile: affectProfile)
         } else {
             throw PatternFitError.noProjectInput
         }

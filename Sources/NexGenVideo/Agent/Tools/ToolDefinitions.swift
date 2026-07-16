@@ -56,6 +56,7 @@ enum ToolName: String, CaseIterable, Sendable {
     case showArtifact = "show_artifact"
     case runPhase = "run_phase"
     case suggestPatterns = "suggest_patterns"
+    case recordAffect = "record_affect"
     case getPattern = "get_pattern"
     case attachSong = "attach_song"
     case nextRenderShot = "next_render_shot"
@@ -82,7 +83,7 @@ enum ToolName: String, CaseIterable, Sendable {
     /// so the document must be marked edited to prompt a save.
     var isPipelineWrite: Bool {
         switch self {
-        case .initProject, .approveGate, .rewind, .runPhase, .recordRender, .saveFrameAudit,
+        case .initProject, .approveGate, .rewind, .runPhase, .recordRender, .recordAffect, .saveFrameAudit,
              .setLedgerAttribute, .lockLedgerAttribute, .removeLedgerAttribute, .setGateState,
              .attachSong, .copyProjectFile, .extractScene3dPovs:
             return true
@@ -966,6 +967,44 @@ enum ToolDefinitions {
                     "top": ["type": "integer", "description": "How many results to return (default 5)."],
                     "project_dir": ["type": "string", "description": "Optional pipeline data root; omit to use the open project."],
                 ]
+            )
+        ),
+        AgentTool(
+            name: .recordAffect,
+            description: "Record the track's emotional register (affect) that YOU read from the audio analysis (BPM, key/mode, energy curve, section dynamics — already computed) plus the lyrics. This answers the pattern-fit `affect_energy` axis from the signal and the text, NOT from a keyword table — so do the reading yourself, don't match trigger words. `detected` is your automatic read; pass `override` ONLY to record a deliberate user correction, including a purposely contrary mood (a happy song cut dark) — a legitimate directing choice the detection can't anticipate. When you set an override, show the user 'detected X → set Y' so the choice stays legible. Call this once affect is knowable (after analysis, with lyrics if present) and before suggest_patterns, which consumes it. WRITES.",
+            inputSchema: objectSchema(
+                properties: [
+                    "detected": [
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "Weighted affect tags you inferred from audio + lyrics. Weights need not sum to 1; they are relative.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "tag": ["type": "string", "enum": AffectTagVocabulary.all,
+                                        "description": "One affect from the fixed vocabulary."],
+                                "weight": ["type": "number", "description": "Relative strength of this affect (default 1)."],
+                            ],
+                            "required": ["tag"],
+                        ],
+                    ],
+                    "override": [
+                        "type": "array",
+                        "description": "The user's deliberate override, same shape as detected. Omit unless the user corrected or deliberately contradicted the detection.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "tag": ["type": "string", "enum": AffectTagVocabulary.all],
+                                "weight": ["type": "number"],
+                            ],
+                            "required": ["tag"],
+                        ],
+                    ],
+                    "rationale": ["type": "string", "description": "One line on the audio + lyric evidence behind the read (kept for later legibility)."],
+                    "basis": ["type": "string", "enum": ["measured", "documented", "inferred"], "description": "measured when the read leans on the DSP analysis, inferred when on lyrics/context (default inferred)."],
+                    "project_dir": ["type": "string", "description": "Optional pipeline data root; omit to use the open project."],
+                ],
+                required: ["detected"]
             )
         ),
         AgentTool(

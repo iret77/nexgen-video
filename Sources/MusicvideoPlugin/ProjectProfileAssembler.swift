@@ -28,17 +28,27 @@ public enum ProjectProfileAssembler {
     /// Confidence for an audio-analysis measurement (perceived BPM).
     static let audioConfidence = 0.9
 
+    /// Confidence for an agent-detected affect (audio analysis + lyrics), and for a user override.
+    static let agentAffectConfidence = 0.85
+    static let overrideConfidence = 1.0
+
     public static func assemble(
         brief: Brief, perceivedBpm: Double? = nil, matchMode: FitMatchMode = .balanced,
-        excludedPatternIds: [String] = []
+        excludedPatternIds: [String] = [], affectProfile: AffectProfile? = nil
     ) -> ProjectFitProfile {
-        // Brief tone → weighted affects (equal weights across the mapped tags).
-        var affects: FitInput<[WeightedAffect]>?
-        let mappedAffects = brief.tone.compactMap { toneToAffect[$0] }
-        if !mappedAffects.isEmpty {
-            let weight = 1.0 / Double(mappedAffects.count)
-            let weighted = mappedAffects.map { WeightedAffect(value: $0, weight: weight) }
-            affects = FitInput(value: weighted, source: .brief, confidence: affectConfidence, userConfirmed: true)
+        // Affect (#214): the agent's read of audio + lyrics is the primary source. Trigger words over
+        // the brief's tone tags are the exact heuristic the pattern-fit contract set out to retire, so
+        // the tone→affect map survives only as the fallback for a project with no detection recorded
+        // yet. A user override outranks the detection and carries full confidence — including a
+        // deliberately contrary mood (a happy song cut dark), which the map could never express.
+        var affects: FitInput<[WeightedAffect]>? = affectInput(from: affectProfile)
+        if affects == nil {
+            let mappedAffects = brief.tone.compactMap { toneToAffect[$0] }
+            if !mappedAffects.isEmpty {
+                let weight = 1.0 / Double(mappedAffects.count)
+                let weighted = mappedAffects.map { WeightedAffect(value: $0, weight: weight) }
+                affects = FitInput(value: weighted, source: .brief, confidence: affectConfidence, userConfirmed: true)
+            }
         }
 
         let creative = ProjectCreativeFit(
@@ -72,5 +82,18 @@ public enum ProjectProfileAssembler {
         return ProjectFitProfile(
             projectId: brief.project, matchMode: matchMode, audio: audio, creative: creative, visual: visual,
             production: production, excludedPatternIds: excluded)
+    }
+
+    /// The affect axis from a recorded detection/override, or nil when there is no usable weighted tag
+    /// (so the caller falls back to the tone map). A user override is `.user`-sourced, user-confirmed,
+    /// full confidence; a plain detection is `.agentInference`, not user-confirmed.
+    static func affectInput(from profile: AffectProfile?) -> FitInput<[WeightedAffect]>? {
+        guard let profile else { return nil }
+        let effective = profile.effective
+        guard !effective.isEmpty else { return nil }
+        if profile.isOverridden {
+            return FitInput(value: effective, source: .user, confidence: overrideConfidence, userConfirmed: true)
+        }
+        return FitInput(value: effective, source: .agentInference, confidence: agentAffectConfidence)
     }
 }
