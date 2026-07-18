@@ -68,6 +68,45 @@ public struct MusicvideoPack: Pack {
         )
     ]
 
+    /// A half-finished project must never be offered "begin by asking me for the track" — the track is
+    /// long since attached and analysed, and taking that chip sends the agent back to the start. Once
+    /// anything is approved the chip names the phase that is actually next.
+    public func starters(for progress: PackProgress) -> [PackStarter] {
+        guard progress.hasStarted else { return starters }
+        if let next = progress.nextPhase {
+            let label = Self.phaseLabel(next)
+            return [PackStarter(
+                id: "continue",
+                title: "Continue — next: \(label)",
+                prompt: "Let's pick up where we left off and carry on with the \(label) phase. The earlier phases are already approved, so leave those as they are."
+            )]
+        }
+        return [PackStarter(
+            id: "review",
+            title: "Every phase approved — what's left?",
+            prompt: "Every phase is approved. Show me where the project stands and what's left to do."
+        )]
+    }
+
+    /// Pipeline phase name → the wording this pack uses for it in the UI.
+    static func phaseLabel(_ phase: String) -> String {
+        switch phase {
+        case "project_init": return "Project Init"
+        case "analysis": return "Audio Analysis"
+        case "brief": return "Brief"
+        case "production_design": return "Production Design"
+        case "treatment": return "Treatment"
+        case "storyboard": return "Storyboard"
+        case "bible": return "Bible"
+        case "shotlist": return "Shot List"
+        case "sanity": return "Sanity Check"
+        case "frames": return "Frames"
+        case "render": return "Render"
+        default:
+            return phase.split(separator: "_").map(\.capitalized).joined(separator: " ")
+        }
+    }
+
     public init() {}
 
     public func register(_ registry: EngineRegistry) {

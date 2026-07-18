@@ -322,6 +322,30 @@ public struct PackStarter: Sendable, Equatable, Identifiable {
     }
 }
 
+/// How far a project has actually come, handed to a pack so its starter can speak to the real
+/// situation. Without it a pack can only ever offer "start from the beginning" — which is wrong, and
+/// actively harmful, for a project that is half-finished: the user reopens mid-pipeline and the one
+/// chip on offer tells the agent to begin again.
+public struct PackProgress: Sendable, Equatable {
+    /// First phase not yet approved, if any. Nil once every phase is approved.
+    public let nextPhase: String?
+    public let approvedPhases: Int
+    public let totalPhases: Int
+
+    public init(nextPhase: String?, approvedPhases: Int, totalPhases: Int) {
+        self.nextPhase = nextPhase
+        self.approvedPhases = approvedPhases
+        self.totalPhases = totalPhases
+    }
+
+    /// No project open, or nothing approved yet — the project is still at the starting line.
+    public static let untouched = PackProgress(nextPhase: nil, approvedPhases: 0, totalPhases: 0)
+
+    /// Whether anything has been approved. Drives "start" vs "continue".
+    public var hasStarted: Bool { approvedPhases > 0 }
+    public var isComplete: Bool { totalPhases > 0 && approvedPhases == totalPhases }
+}
+
 /// A format pack (e.g. musicvideo). Thin by contract: it registers only
 /// domain-specific behavior into the engine. Port of `pack.py::Pack`.
 public protocol Pack: Sendable {
@@ -329,10 +353,18 @@ public protocol Pack: Sendable {
     var version: String { get }
     /// Gallery/chip identity — the native successor to `ngv-plugin.json`.
     var manifest: PackManifest { get }
-    /// Agent-panel starter chips for the active pack (may be empty).
+    /// Agent-panel starter chips for a project that hasn't started — also the gallery's entry chip.
     var starters: [PackStarter] { get }
 
+    /// Starters for a project at `progress`. A pack that doesn't care keeps the default and behaves
+    /// exactly as before.
+    func starters(for progress: PackProgress) -> [PackStarter]
+
     func register(_ registry: EngineRegistry) -> Void
+}
+
+extension Pack {
+    public func starters(for progress: PackProgress) -> [PackStarter] { starters }
 }
 
 /// Loads packs and aggregates their contributions for the engine core. Port
