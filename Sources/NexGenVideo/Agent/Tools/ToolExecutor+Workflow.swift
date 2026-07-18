@@ -189,6 +189,7 @@ extension ToolExecutor {
 
         var payload: [String: Any] = [:]
         for field in BriefWriteContract.fields where args[field.key] != nil {
+            if let violation = briefEnumViolation(field, value: args[field.key]!) { throw ToolError(violation) }
             payload[field.key] = args[field.key]
         }
         payload["schema"] = briefSchemaVersion
@@ -1724,6 +1725,32 @@ private func briefDecodeViolation(_ error: DecodingError, args: [String: Any]) -
         return "field `\(key)`: \(ctx.debugDescription)"
     @unknown default:
         return "\(error)"
+    }
+}
+
+/// Enforce the contract's enum options in the EXECUTOR, not just in the advertised schema. The JSON
+/// schema's `enum` only tells the model what to send — nothing rejects a bad value on arrival. For most
+/// fields the `Brief` decoder catches it anyway (they decode into Swift enums), but `project_mode` and
+/// any future contract enum over a plain `String` property would sail straight through: `phrase` (which
+/// no phase can execute) and outright typos were persisted. Gate every enum field here so enforcement
+/// never depends on what the underlying stored type happens to be.
+private func briefEnumViolation(_ field: BriefWriteContract.Field, value: Any) -> String? {
+    guard let options = field.enumOptions else { return nil }
+    func bad(_ got: String) -> String {
+        "brief rejected — field `\(field.key)`: expected one of [\(options.joined(separator: ", "))], got `\(got)`. "
+            + "Nothing was written; fix and re-call."
+    }
+    switch value {
+    case let s as String:
+        return options.contains(s) ? nil : bad(s)
+    case let array as [Any]:
+        for element in array {
+            guard let s = element as? String else { return bad("\(element)") }
+            if !options.contains(s) { return bad(s) }
+        }
+        return nil
+    default:
+        return bad("\(value)")
     }
 }
 
