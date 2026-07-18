@@ -41,12 +41,14 @@ enum PluginCommandCatalog {
 
     /// Every native pack with its starters, gallery order. Reuses `PackCatalog` (NexGenEngine) so the
     /// same first-party pack list drives the gallery and the launcher.
-    static func discover() -> [PluginInfo] {
+    /// `progress` is the OPEN project's phase state; `.untouched` (the default) is the gallery case,
+    /// where no project exists yet and "start" is the only honest offer.
+    static func discover(progress: PackProgress = .untouched) -> [PluginInfo] {
         PackCatalog.all.map { pack in
             PluginInfo(
                 name: pack.name,
                 description: pack.manifest.displayName,
-                commands: pack.starters.map { starter in
+                commands: pack.starters(for: progress).map { starter in
                     PluginCommand(
                         command: starter.prompt,
                         title: starter.title,

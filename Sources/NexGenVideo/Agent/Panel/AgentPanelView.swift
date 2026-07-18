@@ -1,3 +1,4 @@
+import NexGenEngine
 import SwiftUI
 
 struct AgentPanelView: View {
@@ -86,12 +87,28 @@ struct AgentPanelView: View {
         // A pack activating AFTER the panel appeared (project open, Start production) must swap the
         // generic starters for the pack's own — otherwise the chips stay stale-generic.
         .onChange(of: editor.activePluginName) { _, _ in refreshDiscoveredPlugins() }
+        // The project state loads ASYNCHRONOUSLY after the panel appears — and again after every gate
+        // approval. Without this the chip is built while progress is still unknown and then never
+        // updated, so a reopened project keeps offering "start" for the rest of the session.
+        .onChange(of: packProgress) { _, _ in refreshDiscoveredPlugins() }
     }
 
     private func refreshDiscoveredPlugins() {
         // Installed ≠ active: chips and launcher surface only the project's ACTIVE pack. Native pack
         // starters are plain-text prompts, so they work under either backend (no runtime gate).
-        discoveredPlugins = PluginCommandCatalog.discover().filter { $0.name == editor.activePluginName }
+        // The pack gets the project's real progress so a reopened, half-finished project is offered
+        // "continue with <phase>" instead of a chip that restarts it.
+        discoveredPlugins = PluginCommandCatalog.discover(progress: packProgress)
+            .filter { $0.name == editor.activePluginName }
+    }
+
+    private var packProgress: PackProgress {
+        guard let state = editor.projectState else { return .untouched }
+        return PackProgress(
+            nextPhase: state.nextPhaseName,
+            approvedPhases: state.phases.filter(\.approved).count,
+            totalPhases: state.phases.count
+        )
     }
 
     private var floatingTabBar: some View {
