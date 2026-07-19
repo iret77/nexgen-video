@@ -1006,7 +1006,7 @@ struct GenerationView: View {
             case .image: assets = refImages
             case .video: assets = refVideos
             case .audio: assets = refAudios
-            case .text, .lottie: assets = []
+            case .text, .lottie, .document: assets = []
             }
             let noun = tagNoun(for: type)
             return assets.enumerated().map {
@@ -1020,7 +1020,7 @@ struct GenerationView: View {
         case .image: videoModel.maxReferenceImages
         case .video: videoModel.maxReferenceVideos
         case .audio: videoModel.maxReferenceAudios
-        case .text, .lottie: 0
+        case .text, .lottie, .document: 0
         }
     }
 
@@ -1029,7 +1029,7 @@ struct GenerationView: View {
         case .image: refImages.count
         case .video: refVideos.count
         case .audio: refAudios.count
-        case .text, .lottie: 0
+        case .text, .lottie, .document: 0
         }
     }
 
@@ -1057,7 +1057,7 @@ struct GenerationView: View {
         case .image: selection.imageRefs.append(asset)
         case .video: selection.videoRefs.append(asset)
         case .audio: selection.audioRefs.append(asset)
-        case .text, .lottie:
+        case .text, .lottie, .document:
             let supported = ClipType.allCases.filter { refCap(for: $0) > 0 }.map(\.rawValue).joined(separator: " and ")
             flashDropError("\(videoModel.displayName) only accepts \(supported) references.")
             return
@@ -1070,7 +1070,7 @@ struct GenerationView: View {
         case .image: refImages.append(asset)
         case .video: refVideos.append(asset)
         case .audio: refAudios.append(asset)
-        case .text, .lottie: break
+        case .text, .lottie, .document: break
         }
     }
 
@@ -1108,7 +1108,7 @@ struct GenerationView: View {
         case .image: refImages.removeAll { $0.id == id }
         case .video: refVideos.removeAll { $0.id == id }
         case .audio: refAudios.removeAll { $0.id == id }
-        case .text, .lottie: break
+        case .text, .lottie, .document: break
         }
     }
 

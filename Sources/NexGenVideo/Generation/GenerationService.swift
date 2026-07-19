@@ -329,6 +329,7 @@ final class GenerationService {
         case .video: ext = "mp4"
         case .audio: ext = "mp3"
         case .text, .lottie: ext = "bin"
+        case .document: ext = "txt"
         }
         let stem = url.deletingPathExtension().lastPathComponent
         return (stem.isEmpty ? "reference" : stem) + "." + ext
