@@ -39,10 +39,13 @@ struct InstalledPluginRecord: Identifiable, Equatable {
 
 /// Loads installed format packs at startup, enforcing the hard gate order:
 /// read Info.plist → id/version/entry well-formed → NGVMinAppVersion ≤ app
-/// version → code signature (same-developer trust chain, or ad-hoc only when the
-/// host is itself ad-hoc; indeterminate host fails closed) → `Bundle.load()` →
-/// instantiate the principal `PackEntry` → register the pack. An incompatible or
-/// unsigned pack yields a record with a reason — never a crash, never a silent skip.
+/// version → NGVEngineContract == the running engine's → code signature
+/// (same-developer trust chain, or ad-hoc only when the host is itself ad-hoc;
+/// indeterminate host fails closed) → `Bundle.load()` → instantiate the principal
+/// `PackEntry` → register the pack. Every gate reads the bundle's Info.plist ONLY —
+/// a pack that fails one is never mapped in and never dispatched into. An
+/// incompatible or unsigned pack yields a record with a reason — never a crash,
+/// never a silent skip.
 @MainActor
 enum PluginLoader {
     /// The most recent scan, for the picker. Empty until `loadInstalled()` runs.

@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 import Testing
 
 @testable import NexGenVideo
@@ -42,6 +43,8 @@ struct PluginGateTests {
 
     // MARK: - PluginGate
 
+    /// Stamped with the CURRENT engine contract so these cases exercise the version/metadata axes
+    /// alone — the contract axis has its own suite (`PluginEngineContractTests`).
     private func info(id: String = "musicvideo", version: String = "0.0.1",
                       minApp: String = "0.1.0", principal: String = "MusicvideoPackEntry") -> PluginBundleInfo {
         PluginBundleInfo(plist: [
@@ -49,6 +52,7 @@ struct PluginGateTests {
             PluginBundleInfo.Key.version: version,
             PluginBundleInfo.Key.minAppVersion: minApp,
             PluginBundleInfo.Key.principalClass: principal,
+            PluginBundleInfo.Key.engineContract: EngineContract.current,
             PluginBundleInfo.Key.displayName: "Music Video Studio",
             PluginBundleInfo.Key.tagline: "tag",
         ])
@@ -115,6 +119,7 @@ struct PluginGateTests {
             PluginBundleInfo.Key.version: "0.0.1",
             PluginBundleInfo.Key.minAppVersion: "0.1.0",
             PluginBundleInfo.Key.principalClass: "MusicvideoPackEntry",
+            PluginBundleInfo.Key.engineContract: EngineContract.current,
             PluginBundleInfo.Key.displayName: "Music Video Studio",
             PluginBundleInfo.Key.tagline: "structured music video",
         ]

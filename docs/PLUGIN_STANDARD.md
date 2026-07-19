@@ -58,8 +58,22 @@ musicvideo.ngvpack/
 | `NGVPackBenefit` | short benefit line under the headline (optional) |
 | `CFBundleShortVersionString` | the pack's own version |
 | `NGVMinAppVersion` | minimum NexGenVideo marketing version required |
+| `NGVEngineContract` | integer — the host↔pack binary contract the pack was BUILT against |
 | `NSPrincipalClass` | the `PackEntry` subclass' ObjC runtime name (entry point) |
 | `CFBundleExecutable` | the dylib filename in `Contents/MacOS/` |
+
+`NGVEngineContract` is stamped by `assemble_ngvpack.sh`, which reads
+`EngineContract.current` out of the engine SOURCE the pack is built with (a missing or
+unreadable constant fails the script — never a silent default). It must be baked into the
+bundle, not read from the engine at runtime: the pack links the shared
+`libNexGenEngine.dylib`, so at load time it would report the HOST's value and the check
+would always pass.
+
+**Bump `EngineContract.current` whenever anything crossing the binary boundary changes
+shape** — a `Pack` protocol requirement, a type in its signatures, `PackEntry`. A pack
+built against the old value has no witness-table entry for a requirement added since;
+dispatching into it jumps to address 0x0 and kills the app (this is exactly how adding
+`Pack.starters(for:)` crashed `PackCatalog.registry(activePack:)` on project open).
 
 The bundle is assembled and signed by `scripts/assemble_ngvpack.sh` from
 `plugins/<id>.json` (the pack's shipping metadata) and the SwiftPM build products
@@ -107,7 +121,11 @@ multiple packs never collide on a global symbol (as a `@_cdecl`/`dlsym` factory 
    `NGVMinAppVersion` reads as **incompatible**, never silently as compatible. Only a
    dev/CI *host* with no marketing version at all is treated as always-compatible
    (logged) — that leniency never extends to a malformed pack version.
-4. **Code signature — trust-chain, not self-DR.** The pack is validated against a real
+4. **Engine contract** — `NGVEngineContract == EngineContract.current`. Absent or not a
+   plist integer reads as `0` (pre-contract) and is refused; there is no leniency on this
+   axis, not even for a dev host. Read from the plist alone, so a pack that fails is never
+   mapped in and never dispatched into.
+5. **Code signature — trust-chain, not self-DR.** The pack is validated against a real
    `SecRequirement`, not merely `SecStaticCodeCheckValidity(code, [], nil)` (a
    self-signed bundle satisfies its OWN designated requirement, so a bare validity
    check plus a Team-ID string compare is **not** a trust check). The host's own signing
@@ -122,7 +140,7 @@ multiple packs never collide on a global symbol (as a `@_cdecl`/`dlsym` factory 
    - **Indeterminate** (any Security.framework error reading the host's state) → the
      pack is **rejected (fail closed)**. A transient failure in a signed production
      build can never fall through to the ad-hoc path. Every branch is logged.
-5. **Load** — `Bundle.load()`, resolve the principal class, instantiate, register.
+6. **Load** — `Bundle.load()`, resolve the principal class, instantiate, register.
 
 Incompatible / unsigned packs become a picker row with a calm reason (e.g.
 "Requires NexGenVideo 0.5.0 or newer") — never a crash, never a silent skip.
@@ -164,8 +182,14 @@ Incompatible / unsigned packs become a picker row with a calm reason (e.g.
   workflow), persisted as `activePlugin` in `<project>/ngv.json`. The active pack's
   `name` threads into the engine paths that consume it: `run_sanity` adds its checks,
   `get_ui_contract` overlays its entries, `init_project` creates its extra dirs, and
-  the agent context line names it. A project whose active pack isn't installed shows
-  an install hint instead of pretending.
+  the agent context line names it.
+- **Opening a project gates on its pack.** Before the document is loaded, `AppState`
+  reads `activePlugin` from `ngv.json` and checks it is actually live (`ProjectPackGate`).
+  If it isn't, the project **does not open**: an alert offers to install it (missing),
+  update it (installed but gate-blocked), or relaunch (staged update). Declining leaves
+  the project closed. Opening it degraded would come up on the generic phase set with the
+  pack's analysis and gates off — and a save would normalize the project to that shape.
+  A project arriving from another machine, or a fresh install, is the normal case here.
 
 ## The `Pack` protocol
 

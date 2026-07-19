@@ -45,7 +45,7 @@ struct MusicvideoPackTests {
     func packSatisfiesContract() {
         let pack: Pack = MusicvideoPack()
         #expect(pack.name == "musicvideo")
-        #expect(pack.version == "0.0.3")
+        #expect(pack.version == "0.0.4")
     }
 
     @Test("pack exposes gallery manifest and a starter")
