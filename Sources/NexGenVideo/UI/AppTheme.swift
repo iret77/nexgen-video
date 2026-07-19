@@ -393,6 +393,7 @@ extension ClipType {
         case .image: AppTheme.TrackColor.image
         case .text: AppTheme.TrackColor.text
         case .lottie: AppTheme.TrackColor.lottie
+        case .document: AppTheme.TrackColor.lottie
         }
     }
 }

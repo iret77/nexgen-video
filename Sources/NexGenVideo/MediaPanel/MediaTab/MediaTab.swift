@@ -748,7 +748,12 @@ struct MediaTab: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
         panel.message = "Select media files or folders to import"
-        var types: [UTType] = [.movie, .image, .audio, .json]
+        var types: [UTType] = [.movie, .image, .audio, .json, .plainText]
+        // Story scripts and outlines are source material the pipeline reads. `.plainText` doesn't
+        // cover Markdown/Fountain, so name those explicitly or the picker greys them out.
+        for ext in ["md", "markdown", "rtf", "fountain"] {
+            if let type = UTType(filenameExtension: ext) { types.append(type) }
+        }
         if let lottie = UTType(filenameExtension: "lottie") { types.append(lottie) }
         panel.allowedContentTypes = types
         panel.begin { response in

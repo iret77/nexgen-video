@@ -1041,6 +1041,7 @@ struct GenerationView: View {
         case .audio: "Audio"
         case .text: "Text"
         case .lottie: "Lottie"
+        case .document: "Document"
         }
     }
 
@@ -1120,7 +1121,7 @@ struct GenerationView: View {
     private var refCounterLabel: String {
         let total = totalRefCount
         if let cap = videoModel.maxTotalReferences {
-            let shortLabel: (ClipType) -> String = { switch $0 { case .image: "img"; case .video: "vid"; case .audio: "aud"; case .text: "txt"; case .lottie: "lot" } }
+            let shortLabel: (ClipType) -> String = { switch $0 { case .image: "img"; case .video: "vid"; case .audio: "aud"; case .text: "txt"; case .lottie: "lot"; case .document: "doc" } }
             let parts = ClipType.allCases
                 .filter { refCap(for: $0) > 0 }
                 .map { "\(refCount(for: $0)) \(shortLabel($0))" }
