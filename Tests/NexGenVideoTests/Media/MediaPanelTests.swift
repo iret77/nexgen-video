@@ -67,17 +67,20 @@ struct FolderReadTests {
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
         try Data().write(to: root.appendingPathComponent("root.mp4"))
         try Data().write(to: nested.appendingPathComponent("child.wav"))
-        try Data().write(to: nested.appendingPathComponent("ignored.txt"))
+        try Data().write(to: nested.appendingPathComponent("ignored.zip"))
+        // A story script inside an imported folder must come WITH it — silently dropping the user's
+        // script because it sat in a folder is the failure this guards.
+        try Data().write(to: nested.appendingPathComponent("script.md"))
 
         let summary = await e.importFinderItems([root], into: nil)
 
-        #expect(summary.assetCount == 2)
+        #expect(summary.assetCount == 3)
         #expect(summary.folderCount == 2)
         let rootFolder = try #require(e.folders.first { $0.name == root.lastPathComponent })
         let nestedFolder = try #require(e.folders.first { $0.name == "Nested" })
         #expect(nestedFolder.parentFolderId == rootFolder.id)
         #expect(e.assetsIn(folderId: rootFolder.id).map(\.name) == ["root"])
-        #expect(e.assetsIn(folderId: nestedFolder.id).map(\.name) == ["child"])
+        #expect(e.assetsIn(folderId: nestedFolder.id).map(\.name).sorted() == ["child", "script"])
     }
 
     @Test func importFinderItemsDoesNotCreateRootFolderWhenDirectoryCannotBeRead() async throws {
@@ -609,7 +612,7 @@ struct HandlePanelFinderDropTests {
 
     @Test func skipsUnsupportedFileExtensions() async {
         let e = editor()
-        let url = URL(fileURLWithPath: "/tmp/\(UUID().uuidString)-readme.txt")
+        let url = URL(fileURLWithPath: "/tmp/\(UUID().uuidString)-archive.zip")
 
         await MediaTab.handlePanelFinderDrop(urls: [url], into: nil, editor: e)
 
@@ -785,7 +788,7 @@ struct HandleClipboardPasteTests {
     @Test func fileURLWithUnsupportedExtensionIsNoOp() async {
         let e = editor()
         let pb = freshPasteboard()
-        pb.writeObjects([URL(fileURLWithPath: "/tmp/\(UUID().uuidString)-readme.txt") as NSURL])
+        pb.writeObjects([URL(fileURLWithPath: "/tmp/\(UUID().uuidString)-archive.zip") as NSURL])
 
         await MediaTab.handleClipboardPaste(pasteboard: pb, into: nil, editor: e)
 
