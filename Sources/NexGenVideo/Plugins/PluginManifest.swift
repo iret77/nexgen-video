@@ -1,4 +1,5 @@
 import Foundation
+import NexGenEngine
 
 /// Metadata read from an installed `.ngvpack`'s `Contents/Info.plist` — the
 /// values the load gate needs BEFORE any code is loaded.
@@ -17,6 +18,9 @@ struct PluginBundleInfo: Equatable {
     let version: String
     /// `NGVMinAppVersion` — minimum NexGenVideo marketing version required.
     let minAppVersion: String
+    /// `NGVEngineContract` — the host↔pack binary contract the pack was BUILT against, stamped by
+    /// `assemble_ngvpack.sh`. `0` = absent or unparseable, i.e. a pack that predates the check.
+    let engineContract: Int
     /// `NSPrincipalClass` — the `PackEntry` subclass the host instantiates.
     let principalClass: String
 
@@ -29,6 +33,7 @@ struct PluginBundleInfo: Equatable {
         static let benefit = "NGVPackBenefit"
         static let version = "CFBundleShortVersionString"
         static let minAppVersion = "NGVMinAppVersion"
+        static let engineContract = "NGVEngineContract"
         static let principalClass = "NSPrincipalClass"
     }
 
@@ -41,6 +46,9 @@ struct PluginBundleInfo: Equatable {
         benefit = (plist[Key.benefit] as? String) ?? ""
         version = (plist[Key.version] as? String) ?? ""
         minAppVersion = (plist[Key.minAppVersion] as? String) ?? ""
+        // Only a genuine plist integer counts — a string ("2") or a missing key reads as 0 and is
+        // refused, so an ambiguous stamp can never be mistaken for a matching contract.
+        engineContract = (plist[Key.engineContract] as? NSNumber)?.intValue ?? 0
         principalClass = (plist[Key.principalClass] as? String) ?? ""
     }
 
@@ -65,6 +73,9 @@ enum PluginIncompatibility: Equatable {
     case requiresAppVersion(String)
     /// Code signature missing, invalid, or not from the host's Team ID.
     case untrustedSignature(String)
+    /// `NGVEngineContract` ≠ the running engine's. The pack's witness tables don't match what the
+    /// host would dispatch through, so it is refused BEFORE any of its code is loaded.
+    case requiresEngineContract(pack: Int, app: Int)
 
     var reason: String {
         switch self {
@@ -74,6 +85,8 @@ enum PluginIncompatibility: Equatable {
             return "Requires NexGenVideo \(min) or newer."
         case .untrustedSignature(let detail):
             return "Signature check failed — \(detail)."
+        case .requiresEngineContract:
+            return "Built for a different version of NexGenVideo — update the pack."
         }
     }
 }
@@ -92,7 +105,22 @@ enum PluginGate {
         guard !info.principalClass.isEmpty else {
             return .malformedMetadata("no entry point declared")
         }
-        return versionCheck(minAppVersion: info.minAppVersion, appVersion: appVersion)
+        // Version first: when the app is simply too old, "Requires NexGenVideo X" is the more
+        // actionable reason than the contract mismatch that follows from it.
+        if let reason = versionCheck(minAppVersion: info.minAppVersion, appVersion: appVersion) {
+            return reason
+        }
+        return contractCheck(packContract: info.engineContract)
+    }
+
+    /// The binary-contract axis. A pack built against a different engine contract has no witness-table
+    /// entry for requirements added since — dispatching into it jumps to a null address and kills the
+    /// app. Refused on the plist alone, so nothing of the pack is ever loaded.
+    static func contractCheck(packContract: Int, engine: Int = EngineContract.current) -> PluginIncompatibility? {
+        guard packContract == engine else {
+            return .requiresEngineContract(pack: packContract, app: engine)
+        }
+        return nil
     }
 
     /// The version axis alone — reused by the picker to decide whether a catalog

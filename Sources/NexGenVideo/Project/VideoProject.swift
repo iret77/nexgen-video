@@ -108,6 +108,16 @@ final class VideoProject: NSDocument {
     }
 
     override func save(to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType, completionHandler: @escaping (Error?) -> Void) {
+        // Backstop for any path that reaches an open document without its format pack — the Home
+        // window and the Open panel are gated in `AppState`, but a Finder double-click goes straight
+        // through NSDocumentController. Without its pack the session runs on the GENERIC phase set
+        // (musicvideo's analysis phase simply absent), so writing that shape over the package would
+        // normalize a project the user can no longer tell was damaged. Refuse instead: the package on
+        // disk stays the last good one, and the banner already says the workflow is inactive.
+        if Thread.isMainThread, let blocked = MainActor.assumeIsolated({ packUnavailable(savingTo: url) }) {
+            completionHandler(blocked)
+            return
+        }
         if let date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate {
             fileModificationDate = date
         }
@@ -115,6 +125,22 @@ final class VideoProject: NSDocument {
         captureSaveSnapshot()
         snapshotSourceProjectURL = fileURL
         super.save(to: url, ofType: typeName, for: saveOperation, completionHandler: completionHandler)
+    }
+
+    /// The project's format pack must be ACTIVE before its package may be rewritten. Anything other
+    /// than `.satisfied` — not installed, refused by the load gate, or an update awaiting relaunch —
+    /// means the session is running on the generic phase set, and persisting that shape would quietly
+    /// reshape the project.
+    @MainActor
+    private func packUnavailable(savingTo url: URL) -> Error? {
+        switch ProjectPackGate.evaluate(projectURL: fileURL ?? url) {
+        case .satisfied:
+            return nil
+        case .missing(let id), .needsRestart(let id):
+            return PackUnavailableError(packID: id, detail: nil)
+        case .incompatible(let id, let reason):
+            return PackUnavailableError(packID: id, detail: reason)
+        }
     }
 
     override func write(to url: URL, ofType typeName: String) throws {

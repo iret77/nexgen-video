@@ -167,12 +167,17 @@ final class AppState {
         }
     }
 
+    /// Returns nil when the project's format pack isn't available and the user didn't install it —
+    /// the open is abandoned deliberately, so the caller must not treat it as an error.
     @discardableResult
-    private func openProjectAsync(at url: URL, register: Bool = true, options: ProjectOpenOptions = .init()) async throws -> VideoProject {
+    private func openProjectAsync(at url: URL, register: Bool = true, options: ProjectOpenOptions = .init()) async throws -> VideoProject? {
         let resolved = url.standardizedFileURL
         if let existing = showExistingProject(at: resolved, register: register, options: options) {
             return existing
         }
+        // Before the document exists: a pack project opened without its pack would come up generic
+        // and could be SAVED that way, normalizing it to the wrong shape.
+        guard await ensurePackAvailable(for: resolved) else { return nil }
         let doc = try await VideoProject.load(from: resolved)
         if let existing = showExistingProject(at: resolved, register: register, options: options) {
             return existing
@@ -202,6 +207,107 @@ final class AppState {
         if options.startTutorial {
             DispatchQueue.main.async { editor.tour.start(in: editor) }
         }
+    }
+
+    // MARK: - Format-pack gate
+
+    /// Make sure the project's declared pack is live, offering to fetch it when it isn't. Returns
+    /// false when the project must stay closed — declining is a plain choice, not an error.
+    private func ensurePackAvailable(for projectURL: URL) async -> Bool {
+        switch ProjectPackGate.evaluate(projectURL: projectURL) {
+        case .satisfied:
+            return true
+
+        case .needsRestart(let id):
+            offerRestart(id: id)
+            return false
+
+        case .missing(let id):
+            guard confirm(
+                message: "Install the “\(id)” format pack",
+                informative: "This project is built with the “\(id)” workflow. Opening it without that pack would fall back to the generic one — and saving would keep it there.",
+                action: "Install") else { return false }
+            return await installPack(id: id, for: projectURL)
+
+        case .incompatible(let id, let reason):
+            guard confirm(
+                message: "Update the “\(id)” format pack",
+                informative: "\(reason) This project is built with the “\(id)” workflow and stays closed until the pack runs on this build.",
+                action: "Update") else { return false }
+            return await installPack(id: id, for: projectURL)
+        }
+    }
+
+    /// Fetch + install the pack through the same catalog resolution the plugin picker uses, then
+    /// re-run the gate — an install that only lands on disk still can't open the project.
+    private func installPack(id: String, for projectURL: URL) async -> Bool {
+        let manager = PluginManager()
+        await manager.refresh()
+
+        guard let entry = Self.catalogEntry(id: id, rows: manager.rows(activePluginName: nil)) else {
+            notify(message: "Couldn't install the “\(id)” format pack",
+                   informative: manager.catalogState == .offline
+                       ? "The plugin library is unreachable. Reconnect, then open the project again."
+                       : "It isn't in the plugin library for this version of NexGenVideo.")
+            return false
+        }
+        guard await manager.install(entry) else {
+            notify(message: "Couldn't install the “\(id)” format pack",
+                   informative: manager.lastError ?? "The install didn't complete.")
+            return false
+        }
+
+        switch ProjectPackGate.evaluate(projectURL: projectURL) {
+        case .satisfied:
+            return true
+        case .needsRestart:
+            offerRestart(id: id)
+            return false
+        case .missing, .incompatible:
+            notify(message: "Couldn't install the “\(id)” format pack",
+                   informative: "It installed but didn't come online. Restart NexGenVideo and open the project again.")
+            return false
+        }
+    }
+
+    /// The catalog entry to install for `id`, reusing the picker's merged rows (version selection,
+    /// app-version gate, update detection) instead of re-deriving any of it.
+    private static func catalogEntry(id: String, rows: [PluginRow]) -> PluginCatalog.Entry? {
+        guard let status = rows.first(where: { $0.id == id })?.status else { return nil }
+        switch status {
+        case .available(let entry): return entry
+        case .incompatible(_, let reinstall): return reinstall
+        // Installed yet not live (the gate sent us here) — only a newer build can change that.
+        case .installed(_, let update): return update
+        case .updatePendingRestart, .unavailable: return nil
+        }
+    }
+
+    private func offerRestart(id: String) {
+        guard confirm(
+            message: "Restart NexGenVideo to load “\(id)”",
+            informative: "The pack is installed. A pack's code only goes live in a fresh process.",
+            action: "Restart") else { return }
+        AppRelaunch.now()
+    }
+
+    private func confirm(message: String, informative: String, action: String) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = message
+        alert.informativeText = informative
+        alert.addButton(withTitle: action)
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func notify(message: String, informative: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = message
+        alert.informativeText = informative
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func openProjectFromPanel() {

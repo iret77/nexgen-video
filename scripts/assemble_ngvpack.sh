@@ -15,7 +15,7 @@ set -euo pipefail
 # The pack carries: Contents/MacOS/<id> (the plugin dylib, renamed), the SwiftPM
 # resource bundle in Contents/Resources (PackKnowledge finds it there), and an
 # Info.plist with the NGV gate keys (NGVPackID / CFBundleShortVersionString /
-# NGVMinAppVersion / NSPrincipalClass). The plugin dylib keeps its
+# NGVMinAppVersion / NGVEngineContract / NSPrincipalClass). The plugin dylib keeps its
 # @rpath/libNexGenEngine.dylib dependency — dyld dedups it onto the host's copy.
 
 MANIFEST="${1:?manifest.json required}"
@@ -41,6 +41,22 @@ VERSION="$(read_field version)"
 MINAPP="$(read_field minAppVersion)"
 # Badge source, relative to the SwiftPM resource bundle (e.g. MusicvideoPack/badge.png).
 BADGE_SRC="$(read_optional badge)"
+
+# The host↔pack binary contract, BAKED into the bundle. Read from the engine SOURCE this pack was
+# built against — never from the engine at runtime: the pack links libNexGenEngine.dylib, so at load
+# time it would report the HOST's value and the check would always pass. No default: an unreadable
+# constant must fail the build, not silently stamp a pack that later reads as contract 0.
+CONTRACT_SRC="$ROOT/Engine/Sources/NexGenEngine/Packs/EngineContract.swift"
+[ -f "$CONTRACT_SRC" ] || { echo "!! missing engine contract source: $CONTRACT_SRC" >&2; exit 1; }
+# `|| true` so a no-match reaches the explicit check below with its message, rather than
+# aborting silently on `set -e` + `pipefail`.
+CONTRACT="$(grep -Eo '^[[:space:]]*public static let current = [0-9]+[[:space:]]*$' "$CONTRACT_SRC" \
+  | grep -Eo '[0-9]+' | head -1 || true)"
+[ -n "$CONTRACT" ] || {
+  echo "!! could not read EngineContract.current from $CONTRACT_SRC" >&2
+  echo "   expected a line exactly like: public static let current = <int>" >&2
+  exit 1
+}
 
 BINDIR="$(swift build -c "$CONFIG" --show-bin-path)"
 DYLIB="$BINDIR/lib${TARGET}.dylib"
@@ -68,6 +84,7 @@ install_name_tool -add_rpath "@executable_path/../Frameworks" "$PACK/Contents/Ma
 # Info.plist via plistlib — no shell-escaping hazards with the copy strings.
 NGV_ID="$ID" NGV_DISPLAY="$DISPLAY" NGV_TAGLINE="$TAGLINE" NGV_HEADLINE="$HEADLINE" \
 NGV_BENEFIT="$BENEFIT" NGV_VERSION="$VERSION" NGV_MINAPP="$MINAPP" NGV_PRINCIPAL="$PRINCIPAL" \
+NGV_CONTRACT="$CONTRACT" \
 python3 - "$PACK/Contents/Info.plist" <<'PY'
 import os, plistlib, sys
 info = {
@@ -84,6 +101,7 @@ info = {
     "NGVPackHeadline": os.environ["NGV_HEADLINE"],
     "NGVPackBenefit": os.environ["NGV_BENEFIT"],
     "NGVMinAppVersion": os.environ["NGV_MINAPP"],
+    "NGVEngineContract": int(os.environ["NGV_CONTRACT"]),
 }
 with open(sys.argv[1], "wb") as f:
     plistlib.dump(info, f)
@@ -148,5 +166,6 @@ with open(sys.argv[1], "w") as f:
 PY
 
 echo "==> Assembled $PACK"
-echo "    zip:    $ZIP"
-echo "    sha256: $SHA"
+echo "    zip:      $ZIP"
+echo "    sha256:   $SHA"
+echo "    contract: $CONTRACT"
