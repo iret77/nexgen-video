@@ -200,16 +200,7 @@ struct PipelinePanelView: View {
                 }
                 surfaceIcon(for: phase.phase)
                 if isNext {
-                    Text("NEXT")
-                        .font(.system(size: AppTheme.FontSize.micro, weight: .bold))
-                        .tracking(AppTheme.Tracking.wide)
-                        .foregroundStyle(AppTheme.Accent.timecodeColor)
-                        .padding(.horizontal, AppTheme.Spacing.sm)
-                        .padding(.vertical, AppTheme.Spacing.xxs)
-                        .background(
-                            RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
-                                .fill(AppTheme.Accent.timecodeColor.opacity(AppTheme.Opacity.faint))
-                        )
+                    approveButton(phase)
                 } else if phase.approved {
                     Text("Approved")
                         .font(.system(size: AppTheme.FontSize.xxs, weight: .medium))
@@ -222,6 +213,28 @@ struct PipelinePanelView: View {
                 Divider().overlay(AppTheme.Border.subtleColor)
             }
         }
+    }
+
+    /// Approving a phase is the one action the pipeline cannot advance without — it belongs in the row,
+    /// not behind an unlabeled “…”. The menu keeps the rarer siblings (send back, rewind).
+    private func approveButton(_ phase: ProjectPhase) -> some View {
+        Button {
+            apply { try NativeGateWriter.approve(projectDir: $0, phase: phase.phase,
+                                                 declaredPack: editor.activePluginName) }
+        } label: {
+            Text("Approve")
+                .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
+                .foregroundStyle(AppTheme.Accent.timecodeColor)
+                .padding(.horizontal, AppTheme.Spacing.sm)
+                .padding(.vertical, AppTheme.Spacing.xxs)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                        .fill(AppTheme.Accent.timecodeColor.opacity(AppTheme.Opacity.faint))
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(gateWriting)
+        .help("Approve \(PhaseDisplay.label(phase.phase)) and move to the next phase")
     }
 
     /// Direct gate controls (docs/UI_UX_CONCEPT.md §4) — approve / send back / rewind, wired to the
@@ -285,25 +298,32 @@ struct PipelinePanelView: View {
     /// Contract-driven routing (docs/UI_UX_CONCEPT.md §7): the phase's declared surface, clickable —
     /// review phases open Review, prose phases open Story.
     @ViewBuilder
+    /// The route to a phase's artifact. It carries a visible LABEL, not just an icon: this is the only
+    /// way to read what a gate is about to approve, and a bare glyph made it unfindable in the field.
+    /// A tooltip doesn't fix that — it appears on hover, so you must already suspect the control exists.
     private func surfaceIcon(for phase: String) -> some View {
         if let entry = editor.uiContract?.phases[phase] {
-            // The tooltip names the destination — the icon is the only route to the artifact.
-            let (icon, target, destination): (String, CockpitTab?, String) = switch entry.surface {
-            case "review": ("eye", .review, "Open in Review")
-            case "prose": ("text.cursor", .story, "Read it in Story")
-            case "choice": ("slider.horizontal.3", nil, "Answered in the chat")
-            default: ("questionmark", nil, "Surface: \(entry.surface)")
+            let (icon, target, label): (String, CockpitTab?, String) = switch entry.surface {
+            case "review": ("eye", .review, "Review")
+            case "prose": ("text.cursor", .story, "Story")
+            case "choice": ("slider.horizontal.3", nil, "In chat")
+            default: ("questionmark", nil, entry.surface)
             }
             Button {
                 if let target { editor.cockpitTab = target }
             } label: {
-                Image(systemName: icon)
-                    .font(.system(size: AppTheme.FontSize.xxs))
-                    .foregroundStyle(AppTheme.Text.mutedColor)
+                HStack(spacing: AppTheme.Spacing.xxs) {
+                    Image(systemName: icon)
+                    Text(label)
+                }
+                .font(.system(size: AppTheme.FontSize.xxs))
+                .foregroundStyle(target == nil ? AppTheme.Text.mutedColor : AppTheme.Text.secondaryColor)
             }
             .buttonStyle(.plain)
             .disabled(target == nil)
-            .help("\(destination) · compute: \(entry.taskClass)")
+            .help(target == nil
+                  ? "Answered in the chat · compute: \(entry.taskClass)"
+                  : "Open \(label) to read this phase's work · compute: \(entry.taskClass)")
         }
     }
 
