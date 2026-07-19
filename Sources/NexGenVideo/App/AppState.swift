@@ -225,14 +225,14 @@ final class AppState {
         case .missing(let id):
             guard confirm(
                 message: "Install the “\(id)” format pack",
-                informative: "This project is built with the “\(id)” workflow. Opening it without that pack would fall back to the generic one — and saving would keep it there.",
+                informative: "Opening this project without it falls back to the generic workflow — and saving would keep it there.",
                 action: "Install") else { return false }
             return await installPack(id: id, for: projectURL)
 
         case .incompatible(let id, let reason):
             guard confirm(
                 message: "Update the “\(id)” format pack",
-                informative: "\(reason) This project is built with the “\(id)” workflow and stays closed until the pack runs on this build.",
+                informative: "\(reason) The project stays closed until the pack runs on this build.",
                 action: "Update") else { return false }
             return await installPack(id: id, for: projectURL)
         }
@@ -295,17 +295,43 @@ final class AppState {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = message
-        alert.informativeText = informative
+        alert.accessoryView = Self.bodyText(informative)
         alert.addButton(withTitle: action)
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// The alert body as a label we own. `NSAlert.informativeText` hyphenates, which chops identifiers
+    /// mid-word ("musi-cvideo") — unacceptable for a name the user has to recognize and retype.
+    /// Hyphenation off, wrap on word boundaries only.
+    static func bodyText(_ text: String) -> NSView {
+        let width: CGFloat = 240
+        let style = NSMutableParagraphStyle()
+        style.hyphenationFactor = 0
+        style.lineBreakMode = .byWordWrapping
+        let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let attributed = NSAttributedString(string: text, attributes: [
+            .paragraphStyle: style,
+            .font: font,
+            .foregroundColor: NSColor.labelColor,
+        ])
+        let label = NSTextField(labelWithAttributedString: attributed)
+        label.lineBreakMode = .byWordWrapping
+        label.usesSingleLineMode = false
+        label.preferredMaxLayoutWidth = width
+        let height = attributed.boundingRect(
+            with: NSSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        ).height
+        label.frame = NSRect(x: 0, y: 0, width: width, height: ceil(height))
+        return label
     }
 
     private func notify(message: String, informative: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = message
-        alert.informativeText = informative
+        alert.accessoryView = Self.bodyText(informative)
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
