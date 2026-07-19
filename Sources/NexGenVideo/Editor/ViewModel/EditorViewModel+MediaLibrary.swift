@@ -141,7 +141,9 @@ extension EditorViewModel {
     func assetsFromDragPayload(_ payload: String) -> [MediaAsset] {
         payload.split(separator: "\n").compactMap { line in
             guard let id = MediaTab.assetId(fromDragString: String(line)) else { return nil }
-            return mediaAssets.first { $0.id == id }
+            // A document has no duration and nothing to draw — dropping one would make a clip no
+            // player can render. Filtered here so the timeline never even offers the drop.
+            return mediaAssets.first { $0.id == id && $0.type.isPlaceable }
         }
     }
 
@@ -626,7 +628,7 @@ extension EditorViewModel {
             mediaVisualCache.generateWaveform(for: asset)
         case .image:
             mediaVisualCache.generateImageThumbnail(for: asset)
-        case .text, .lottie:
+        case .text, .lottie, .document:
             break
         }
         Log.project.notice(

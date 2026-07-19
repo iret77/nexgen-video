@@ -323,6 +323,7 @@ extension ToolExecutor {
         case .video: return try await readVideo(editor: editor, asset: asset, args: args, mapping: mapping)
         case .audio: return try await readAudio(editor: editor, asset: asset, args: args, mapping: mapping)
         case .lottie: return try await readLottie(asset: asset, args: args)
+        case .document: return try readDocument(asset: asset)
         case .text: throw ToolError("Text clips are not stored as media assets.")
         }
     }
@@ -475,6 +476,30 @@ extension ToolExecutor {
         guard !frames.isEmpty else { throw ToolError("Failed to extract frames from \(name)") }
         return .frames(frames)
     }
+
+    /// A document's content IS its inspection — a story script the user put in the library is there to
+    /// be read. Bounded: the agent gets a prefix plus the true size, so a novel-length file can't
+    /// swamp the context window without the agent knowing it was cut.
+    private func readDocument(asset: MediaAsset) throws -> ToolResult {
+        guard let data = try? Data(contentsOf: asset.url) else {
+            throw ToolError("Couldn't read \(asset.name) — the file is missing or unreadable.")
+        }
+        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
+            throw ToolError("\(asset.name) isn't readable as text.")
+        }
+        let limit = Self.readDocumentMaxCharacters
+        let body = String(text.prefix(limit))
+        var meta = Self.baseMeta(for: asset)
+        meta["characters"] = text.count
+        meta["truncated"] = text.count > limit
+        if text.count > limit {
+            meta["note"] = "First \(limit) characters of \(text.count). Ask for a specific section if you need more."
+        }
+        guard let metaJSON = Self.jsonString(meta) else { throw ToolError("Failed to encode metadata") }
+        return ToolResult(content: [.text(body), .text(metaJSON)], isError: false)
+    }
+
+    private static let readDocumentMaxCharacters = 20_000
 
     private func readLottie(asset: MediaAsset, args: [String: Any]) async throws -> ToolResult {
         let count = max(1, min(args.int("maxFrames") ?? Self.defaultReadVideoFrames, Self.readVideoMaxFrames))

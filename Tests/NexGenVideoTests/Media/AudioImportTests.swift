@@ -21,7 +21,9 @@ struct AudioImportTests {
         #expect(ClipType(fileExtension: "aif") == .audio)
         #expect(ClipType(fileExtension: "aifc") == .audio)
         #expect(ClipType(fileExtension: "flac") == .audio)
-        #expect(ClipType(fileExtension: "txt") == nil)
+        // A genuinely unsupported kind — `.txt` now imports as a document, so it no longer
+        // demonstrates "not a media file".
+        #expect(ClipType(fileExtension: "zip") == nil)
     }
 
     @Test func importsAifcFromFolder() async throws {

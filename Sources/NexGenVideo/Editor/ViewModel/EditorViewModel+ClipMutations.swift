@@ -7,6 +7,11 @@ extension EditorViewModel {
     // MARK: - Add / move
 
     func addClips(assets: [MediaAsset], trackIndex: Int, startFrame: Int, linkedAudioTrackIndex: Int? = nil, segments: [String: ClosedRange<Double>] = [:]) {
+        // Every path that turns assets into clips lands here — drag, agent tool, paste. Documents are
+        // source material the pipeline READS; they have no duration and nothing to render, so they are
+        // dropped at the one choke point rather than guarded at each caller.
+        let assets = assets.filter(\.type.isPlaceable)
+        guard !assets.isEmpty else { return }
         guard timeline.tracks.indices.contains(trackIndex) else { return }
         // Pin by id: clearRegion's pruneEmptyTracks can shift indices.
         let visualTrackId = timeline.tracks[trackIndex].id
