@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 /// A generative dialog the agent presents via the `show_dialog` tool (Epic #98 / #96). Placement is
 /// the LOCKED architecture: rendered natively as a state of the composer dock — never a modal (it
@@ -293,5 +294,32 @@ struct AgentDialog: Identifiable, Equatable, Sendable {
         if let i = any as? Int { return i }
         if let d = any as? Double { return Int(d) }
         return nil
+    }
+}
+
+extension AgentDialog.FileIntake {
+    /// The UTTypes this intake accepts, resolved from its `accept` tokens. Empty ⇒ any file.
+    var allowedContentTypes: [UTType] {
+        var types: [UTType] = []
+        for token in accept {
+            switch token.lowercased() {
+            case "audio": types.append(.audio)
+            case "video", "movie": types.append(.movie)
+            case "image": types.append(.image)
+            case "text": types.append(contentsOf: [.plainText, .text])
+            default:
+                if let type = UTType(filenameExtension: token) { types.append(type) }
+            }
+        }
+        return types
+    }
+
+    /// Whether a file at `url` is one this intake accepts. The ONE match used by the drop well, the
+    /// native picker, and the in-card library picker — so all three agree on what counts.
+    func accepts(_ url: URL) -> Bool {
+        let allowed = allowedContentTypes
+        guard !allowed.isEmpty else { return true }
+        guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
+        return allowed.contains { type.conforms(to: $0) }
     }
 }

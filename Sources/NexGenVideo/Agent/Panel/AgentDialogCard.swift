@@ -18,6 +18,10 @@ struct AgentDialogCard: View {
     /// The active pack's brand accent, used to make a `fileIntake` well recognizably the pack's own
     /// (the upload step everything downstream depends on). Defaults to the host accent.
     var accent: Color = AppTheme.Accent.primary
+    /// Media-library assets the user can pick from within a `fileIntake` card, in addition to drop and
+    /// the native picker (#254 stage 2). The card filters these to the intake's accept types and routes
+    /// a tap through the SAME `pickedFiles` path as drop/choose — no second import logic.
+    var libraryAssets: [MediaAsset] = []
     let onSubmit: (AgentDialogResult) -> Void
     let onCancel: () -> Void
 
@@ -86,7 +90,7 @@ struct AgentDialogCard: View {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 guard let url, url.isFileURL else { return }
                 Task { @MainActor in
-                    guard accepts(url, intake) else { return }
+                    guard intake.accepts(url) else { return }
                     addPicked(url, intake)
                 }
             }
@@ -189,6 +193,26 @@ struct AgentDialogCard: View {
                     chooseButton(intake, label: "Add another…")
                 }
             }
+            libraryPicker(intake)
+        }
+    }
+
+    /// Library assets that fit this intake, offered for one-click picking below the drop well (#254
+    /// stage 2) — so a song already loaded into the library isn't chosen from disk a second time.
+    /// Hidden once a single-select intake has its file. A pick routes through `addPicked`, the SAME
+    /// path as drop/choose, so the answer lands in `pickedFiles` and flows out unchanged. Same picker
+    /// component as the composer's Reference button.
+    @ViewBuilder
+    private func libraryPicker(_ intake: AgentDialog.FileIntake) -> some View {
+        let picks = libraryAssets.filter { intake.accepts($0.url) && !pickedFiles.contains($0.url) }
+        if !picks.isEmpty, pickedFiles.isEmpty || intake.allowsMultiple {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                Text("From your library".uppercased())
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                    .tracking(AppTheme.Tracking.wide)
+                    .foregroundStyle(AppTheme.Text.mutedColor)
+                LibraryAssetPicker(assets: picks) { addPicked($0.url, intake) }
+            }
         }
     }
 
@@ -271,12 +295,12 @@ struct AgentDialogCard: View {
         panel.allowsMultipleSelection = intake.allowsMultiple
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
-        let types = allowedContentTypes(intake)
+        let types = intake.allowedContentTypes
         if !types.isEmpty { panel.allowedContentTypes = types }
         panel.prompt = "Choose"
         if let prompt = intake.prompt { panel.message = prompt }
         guard panel.runModal() == .OK else { return }
-        for url in panel.urls where accepts(url, intake) {
+        for url in panel.urls where intake.accepts(url) {
             addPicked(url, intake)
         }
     }
@@ -287,28 +311,6 @@ struct AgentDialogCard: View {
         } else {
             pickedFiles = [url]
         }
-    }
-
-    private func allowedContentTypes(_ intake: AgentDialog.FileIntake) -> [UTType] {
-        var types: [UTType] = []
-        for token in intake.accept {
-            switch token.lowercased() {
-            case "audio": types.append(.audio)
-            case "video", "movie": types.append(.movie)
-            case "image": types.append(.image)
-            case "text": types.append(contentsOf: [.plainText, .text])
-            default:
-                if let type = UTType(filenameExtension: token) { types.append(type) }
-            }
-        }
-        return types
-    }
-
-    private func accepts(_ url: URL, _ intake: AgentDialog.FileIntake) -> Bool {
-        let allowed = allowedContentTypes(intake)
-        guard !allowed.isEmpty else { return true }
-        guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
-        return allowed.contains { type.conforms(to: $0) }
     }
 
     private func fileSymbol(_ url: URL) -> String {
