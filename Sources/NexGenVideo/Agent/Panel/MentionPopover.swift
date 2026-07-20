@@ -1,7 +1,9 @@
 import SwiftUI
 
 enum MentionTab: CaseIterable, Hashable {
-    case all, video, image, audio
+    // `.document` is labeled "Text" — the file-backed text assets (scripts, lyrics, notes: .txt/.md/…).
+    // ClipType.text is a title clip, never a library asset, so it needs no tab.
+    case all, video, image, audio, document
 
     var label: String {
         switch self {
@@ -9,6 +11,7 @@ enum MentionTab: CaseIterable, Hashable {
         case .video: "Video"
         case .image: "Image"
         case .audio: "Audio"
+        case .document: "Text"
         }
     }
 
@@ -18,6 +21,7 @@ enum MentionTab: CaseIterable, Hashable {
         case .video: .video
         case .image: .image
         case .audio: .audio
+        case .document: .document
         }
     }
 
@@ -27,6 +31,7 @@ enum MentionTab: CaseIterable, Hashable {
         case .video: "No video clips"
         case .image: "No images"
         case .audio: "No audio"
+        case .document: "No text"
         }
     }
 }
@@ -89,7 +94,7 @@ struct MentionPopover: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(candidates.enumerated()), id: \.element.id) { index, asset in
-                            mentionRow(asset: asset, isHighlighted: index == highlightedIndex)
+                            AssetRow(asset: asset, isHighlighted: index == highlightedIndex)
                                 .contentShape(Rectangle())
                                 .onTapGesture { onPick(asset) }
                                 .onHover { hovering in if hovering { highlightedIndex = index } }
@@ -152,36 +157,4 @@ struct MentionPopover: View {
         .padding(AppTheme.Spacing.xs)
     }
 
-    private func mentionRow(asset: MediaAsset, isHighlighted: Bool) -> some View {
-        HStack(spacing: AppTheme.Spacing.sm) {
-            Group {
-                if let thumb = asset.thumbnail {
-                    Image(nsImage: thumb).resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    ZStack {
-                        Rectangle().fill(.quaternary)
-                        Image(systemName: asset.type.sfSymbolName)
-                            .font(.system(size: AppTheme.FontSize.xs))
-                            .foregroundStyle(AppTheme.Text.tertiaryColor)
-                    }
-                }
-            }
-            .frame(width: 28, height: 20)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(asset.mentionDisplayName)
-                    .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
-                    .foregroundStyle(AppTheme.Text.primaryColor)
-                    .lineLimit(1)
-                Text(asset.type.rawValue)
-                    .font(.system(size: AppTheme.FontSize.xxs))
-                    .foregroundStyle(AppTheme.Text.tertiaryColor)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, AppTheme.Spacing.sm)
-        .padding(.vertical, 4)
-        .background(isHighlighted ? AppTheme.Accent.primary.opacity(0.15) : .clear)
-    }
 }

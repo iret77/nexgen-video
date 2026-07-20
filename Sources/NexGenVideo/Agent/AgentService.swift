@@ -460,7 +460,13 @@ final class AgentService {
         guard let editor, !urls.isEmpty else { return [] }
         var mentions: [AgentMention] = []
         for url in urls {
-            guard let asset = editor.addMediaAsset(from: url) else { continue }
+            // A file PICKED from the library (the in-card picker) is already an asset — reuse it instead
+            // of importing a duplicate. Only a genuinely new file (drop / native picker) is imported.
+            let target = url.standardizedFileURL.resolvingSymlinksInPath()
+            let existing = editor.mediaAssets.first {
+                $0.url.standardizedFileURL.resolvingSymlinksInPath() == target
+            }
+            guard let asset = existing ?? editor.addMediaAsset(from: url) else { continue }
             let displayName = Self.disambiguatedMentionName(for: asset, existing: mentions)
             mentions.append(AgentMention(displayName: displayName, mediaRef: asset.id, type: asset.type))
         }
@@ -509,6 +515,13 @@ final class AgentService {
         if let dialog, dialog.purpose == .chatClarification {
             send(text: "Dismissed the \u{201C}\(dialog.title)\u{201D} dialog without answering — ask in prose or move on.", mentions: [])
         }
+    }
+
+    /// A card owns the composer dock — a pending dialog, a spend approval, or a gate approval — so the
+    /// input can't send. UI reads this to disable Send AND to hide the selection scope chip, which acts
+    /// only on a targeted instruction the user can't dispatch until the card is answered.
+    var isComposerBlocked: Bool {
+        pendingDialog != nil || pendingSpendApproval != nil || pendingGateApproval != nil
     }
 
     // MARK: - Spend approval (Cost-Guard, M7)

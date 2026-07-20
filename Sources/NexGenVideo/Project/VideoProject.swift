@@ -41,7 +41,9 @@ final class VideoProject: NSDocument {
 
     // MARK: - Persistence
 
-    override class var autosavesInPlace: Bool { true }
+    // Only ⌘S / the close+quit review writes the package (working-copy model, docs/PROJECT_STORAGE.md) —
+    // `true` silently rewrote it during editing AND suppressed the standard unsaved-changes prompt.
+    override class var autosavesInPlace: Bool { false }
 
     @MainActor
     static func load(from url: URL) async throws -> VideoProject {
