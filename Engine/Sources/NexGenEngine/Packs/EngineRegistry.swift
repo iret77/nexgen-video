@@ -37,6 +37,11 @@ public final class EngineRegistry: @unchecked Sendable {
     public private(set) var projectDirs: [String] = []
     public private(set) var uiContracts: [String: UIContract.Entry] = [:]
 
+    /// Cockpit surfaces a pack contributes — a persistent read-only home for measured/structured
+    /// artifacts the generic tabs can't hold (e.g. musicvideo's song analysis). The host renders each
+    /// via a fixed surface `kind` it owns; the pack only declares which kind + phase, keeping packs thin.
+    public private(set) var cockpitSurfaces: [CockpitSurface] = []
+
     /// Deterministic hard-gate preconditions, keyed by phase. A pack registers a check that throws
     /// `GateBlocked` when the phase's artifact isn't genuinely present (e.g. musicvideo's `analysis`
     /// requires a written artifact with real beats/downbeats). The approve paths consult this before
@@ -221,6 +226,33 @@ public final class EngineRegistry: @unchecked Sendable {
         let entry = try UIContract.validateEntry(phase: phase, surface: surface, taskClass: taskClass)
         uiContracts[phase] = entry
         return entry
+    }
+
+    /// Contribute a cockpit surface (see `cockpitSurfaces`). Re-registering the same `id` replaces it.
+    @discardableResult
+    public func registerCockpitSurface(_ surface: CockpitSurface) -> CockpitSurface {
+        cockpitSurfaces.removeAll { $0.id == surface.id }
+        cockpitSurfaces.append(surface)
+        return surface
+    }
+}
+
+/// A pack-contributed cockpit surface. `kind` selects the host renderer (e.g. "beatAnalysis"); `phase`
+/// ties it to the pipeline phase that produces its data; `symbol` is its SF-symbol in the tab bar. The
+/// host shows it as a contextual tab only once the surface has data.
+public struct CockpitSurface: Sendable, Equatable {
+    public let id: String
+    public let title: String
+    public let symbol: String
+    public let phase: String
+    public let kind: String
+
+    public init(id: String, title: String, symbol: String, phase: String, kind: String) {
+        self.id = id
+        self.title = title
+        self.symbol = symbol
+        self.phase = phase
+        self.kind = kind
     }
 }
 

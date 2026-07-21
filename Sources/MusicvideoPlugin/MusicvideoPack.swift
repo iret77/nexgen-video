@@ -190,6 +190,9 @@ public struct MusicvideoPack: Pack {
         registry.registerGateRequirement("render") { try MusicvideoGateChecks.requireRealRender(dataRoot: $0) }
         registry.registerGateRequirement("cover") { try MusicvideoGateChecks.requireRealCover(dataRoot: $0) }
         try? registry.registerUIContract(phase: "analysis", surface: "choice", taskClass: "classification")
+        registry.registerCockpitSurface(
+            CockpitSurface(id: "analysis", title: "Analysis", symbol: "waveform", phase: "analysis", kind: "beatAnalysis")
+        )
     }
 }
 
