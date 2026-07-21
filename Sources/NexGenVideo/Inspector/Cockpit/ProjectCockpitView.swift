@@ -1,20 +1,22 @@
 import AppKit
 import SwiftUI
 
-/// Tabs of the Project cockpit: Story (brief + treatment, the pipeline's front), Bible, Pipeline
-/// (incl. budget), Shotlist, Review (frames + sanity findings). `project` is the settings view,
-/// reached via the trailing gear, never a peer tab.
+/// Tabs of the Project cockpit. Pipeline (status + gates + budget) is the control room and leads as the
+/// default landing tab; the rest follow the production timeline left→right — Story (brief + treatment),
+/// Bible, Shotlist, Review (frames + sanity findings). `project` is the settings view, reached via the
+/// trailing gear, never a peer tab.
 enum CockpitTab: String, Hashable, CaseIterable {
+    case pipeline = "Pipeline"
     case story = "Story"
     case bible = "Bible"
-    case pipeline = "Pipeline"
     case shotlist = "Shotlist"
     case review = "Review"
     case project = "Project"
 
     // Tab budget stays ≤5 (Fable's width math): sanity findings live inside Review — both are
-    // quality-control surfaces over the same shots.
-    static let visibleTabs: [CockpitTab] = [.story, .bible, .pipeline, .shotlist, .review]
+    // quality-control surfaces over the same shots. Order: the control room first, then the artifacts
+    // in phase order (brief/treatment → bible → shotlist → frames/sanity).
+    static let visibleTabs: [CockpitTab] = [.pipeline, .story, .bible, .shotlist, .review]
 }
 
 /// The Project cockpit — the canonical home for project-level artifacts (the engine-read Bible /
@@ -24,31 +26,86 @@ enum CockpitTab: String, Hashable, CaseIterable {
 struct ProjectCockpitView: View {
     @Environment(EditorViewModel.self) private var editor
 
+    /// The active pack's cockpit surface, resolved only when it has data — the contextual tab shows just
+    /// then (never an empty tab). Nil for a generic project or before the surface's data exists.
+    @State private var packSurface: CockpitSurfaceData?
+
     var body: some View {
         @Bindable var editor = editor
-        VStack(spacing: 0) {
+        var titles = CockpitTab.visibleTabs.map(\.rawValue)
+        if let surface = packSurface { titles.insert(surface.title, at: min(1, titles.count)) }
+        let packSelected = editor.cockpitPackSurfaceID != nil && packSurface != nil
+        let selectedTitle = packSelected ? (packSurface?.title ?? "") : editor.cockpitTab.rawValue
+
+        return VStack(spacing: 0) {
             HStack(spacing: 0) {
                 SegmentedTabBar(
-                    titles: CockpitTab.visibleTabs.map(\.rawValue),
-                    selected: editor.cockpitTab.rawValue
+                    titles: titles,
+                    selected: selectedTitle,
+                    accentedTitles: packSurface.map { Set([$0.title]) } ?? [],
+                    accentColor: AppTheme.Accent.pack
                 ) { title in
-                    if let tab = CockpitTab(rawValue: title) { editor.cockpitTab = tab }
+                    if let surface = packSurface, title == surface.title {
+                        editor.cockpitPackSurfaceID = surface.id
+                    } else if let tab = CockpitTab(rawValue: title) {
+                        editor.cockpitTab = tab
+                        editor.cockpitPackSurfaceID = nil
+                    }
                 }
                 settingsButton
             }
             Group {
-                switch editor.cockpitTab {
-                case .story: StoryPanelView()
-                case .bible: BiblePanelView()
-                case .pipeline: PipelinePanelView()
-                case .shotlist: ShotlistPanelView()
-                case .review: ReviewPanelView()
-                case .project: ProjectSettingsView()
+                if packSelected, let surface = packSurface {
+                    packSurfaceView(surface)
+                } else {
+                    switch editor.cockpitTab {
+                    case .story: StoryPanelView()
+                    case .bible: BiblePanelView()
+                    case .pipeline: PipelinePanelView()
+                    case .shotlist: ShotlistPanelView()
+                    case .review: ReviewPanelView()
+                    case .project: ProjectSettingsView()
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .clipped()  // a panel may never paint over the cockpit tab bar
         }
+        .task(id: editor.projectURL) { await resolvePackSurface() }
+        .onChange(of: editor.engineStateRevision) { _, _ in Task { await resolvePackSurface() } }
+    }
+
+    /// Render a pack surface by its declared `kind`. Unknown kinds (a newer pack on an older app) show a
+    /// clear placeholder rather than a blank panel.
+    @ViewBuilder
+    private func packSurfaceView(_ surface: CockpitSurfaceData) -> some View {
+        switch surface.kind {
+        case "beatAnalysis":
+            AnalysisPanelView()
+        default:
+            CockpitStateView.empty(icon: "square.dashed", title: surface.title,
+                                   message: "This surface isn't supported by this version of the app.")
+        }
+    }
+
+    /// Show the pack tab only when a supported surface is declared AND its data exists — checked off the
+    /// main actor. If the selected surface goes away, fall back to the generic tabs.
+    private func resolvePackSurface() async {
+        let declared = editor.uiContract?.cockpitSurfaces.first { $0.kind == "beatAnalysis" }
+        guard let declared, let dir = editor.workingRoot else {
+            applyPackSurface(nil)
+            return
+        }
+        let hasData = await Task.detached { () -> Bool in
+            guard let root = NativeCockpitReader.dataRoot(of: dir) else { return false }
+            return AnalysisSurfaceData.artifactURL(dataRoot: root) != nil
+        }.value
+        applyPackSurface(hasData ? declared : nil)
+    }
+
+    private func applyPackSurface(_ surface: CockpitSurfaceData?) {
+        packSurface = surface
+        if surface == nil, editor.cockpitPackSurfaceID != nil { editor.cockpitPackSurfaceID = nil }
     }
 
     private var settingsButton: some View {

@@ -34,6 +34,7 @@ struct PackCatalogTests {
         #expect(registry.sanityChecks["coverage"] != nil)   // core still present
         #expect(registry.sanityChecks["tempo"] != nil)      // pack check added
         #expect(registry.uiContracts["analysis"] != nil)    // pack UI contract added
+        #expect(registry.cockpitSurfaces.contains { $0.id == "analysis" && $0.kind == "beatAnalysis" && $0.phase == "analysis" })
         let dirs = PackCatalog.projectDirs(activePack: "musicvideo")
         #expect(dirs.contains("audio"))
         #expect(dirs.contains("analysis"))

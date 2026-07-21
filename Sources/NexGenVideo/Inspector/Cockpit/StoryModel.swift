@@ -190,15 +190,39 @@ struct TreatmentData: Decodable, Sendable, Equatable {
     }
 }
 
-/// The per-phase UI contract (surface + task class) — drives phase routing in the Pipeline panel.
+/// The per-phase UI contract (surface + task class) — drives phase routing in the Pipeline panel —
+/// plus any pack-contributed cockpit surfaces.
 struct ContractData: Decodable, Sendable, Equatable {
     var phases: [String: ContractEntry]
+    var cockpitSurfaces: [CockpitSurfaceData]
 
-    enum CodingKeys: String, CodingKey { case phases }
+    enum CodingKeys: String, CodingKey { case phases; case cockpitSurfaces = "cockpit_surfaces" }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         phases = try c.decodeIfPresent([String: ContractEntry].self, forKey: .phases) ?? [:]
+        cockpitSurfaces = try c.decodeIfPresent([CockpitSurfaceData].self, forKey: .cockpitSurfaces) ?? []
+    }
+}
+
+/// A pack-contributed cockpit surface declaration (mirrors `NexGenEngine.CockpitSurface`). The host
+/// renders it via the named `kind`; the tab shows only once the surface's data exists.
+struct CockpitSurfaceData: Decodable, Sendable, Equatable, Identifiable {
+    var id: String
+    var title: String
+    var symbol: String
+    var phase: String
+    var kind: String
+
+    enum CodingKeys: String, CodingKey { case id, title, symbol, phase, kind }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        symbol = try c.decodeIfPresent(String.self, forKey: .symbol) ?? "square.dashed"
+        phase = try c.decodeIfPresent(String.self, forKey: .phase) ?? ""
+        kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? ""
     }
 }
 

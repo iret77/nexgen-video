@@ -54,13 +54,18 @@ enum NativeCockpitReader {
     /// `read.py` "contract": `{surfaces:[...], phases:{phase:{surface, task_class}}}`.
     /// `core.ui_contract.full_contract()` overlaid with the active pack's entries.
     static func contractJSON(activePack: String? = nil) throws -> Data {
-        let packEntries = PackCatalog.registry(activePack: activePack).uiContracts
-        let contract = UIContract.fullContract(packEntries: packEntries)
+        let registry = PackCatalog.registry(activePack: activePack)
+        let contract = UIContract.fullContract(packEntries: registry.uiContracts)
         var phases: [String: Any] = [:]
         for (phase, entry) in contract {
             phases[phase] = ["surface": entry.surface, "task_class": entry.taskClass]
         }
-        return try serialize(["surfaces": UIContract.surfaces, "phases": phases])
+        let cockpitSurfaces: [[String: Any]] = registry.cockpitSurfaces.map {
+            ["id": $0.id, "title": $0.title, "symbol": $0.symbol, "phase": $0.phase, "kind": $0.kind]
+        }
+        return try serialize([
+            "surfaces": UIContract.surfaces, "phases": phases, "cockpit_surfaces": cockpitSurfaces,
+        ])
     }
 
     /// `read.py` "router": `core.router.describe()` — `{tiers:{...}, task_classes:{name:{tier, effort}}}`.

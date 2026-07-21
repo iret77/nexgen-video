@@ -514,10 +514,15 @@ final class EditorViewModel {
     /// strip can deep-link into a specific panel (e.g. clicking it opens Project → Pipeline).
     var cockpitTab: CockpitTab = .pipeline
 
+    /// When non-nil, a pack-contributed cockpit surface (by id) is the active cockpit view, overriding
+    /// `cockpitTab`. Cleared when a generic tab is selected or the surface's data goes away.
+    var cockpitPackSurfaceID: String?
+
     /// Reveal the Project cockpit on a specific panel (title-bar capsule / cross-panel links). In Edit
     /// the cockpit lives under the sidebar's Project tab; in Produce it is already the center surface.
     func revealCockpit(_ tab: CockpitTab) {
         cockpitTab = tab
+        cockpitPackSurfaceID = nil
         if workspaceFocus == .edit { leftSidebarTab = .project }
     }
 

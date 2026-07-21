@@ -9,12 +9,19 @@ final class ToolExecutor {
     private let editorProvider: () -> EditorViewModel?
     var editor: EditorViewModel? { editorProvider() }
 
-    init(editor: EditorViewModel) {
+    /// The hard gate refuses a phase's work tool until every earlier gate is approved. ON by default so
+    /// EVERY production executor (agent + MCP runtime) enforces it; unit tests that exercise a tool in
+    /// isolation opt out (they scaffold minimal state and don't walk the gate chain).
+    private let enforceHardGates: Bool
+
+    init(editor: EditorViewModel, enforceHardGates: Bool = true) {
         self.editorProvider = { [weak editor] in editor }
+        self.enforceHardGates = enforceHardGates
     }
 
-    init(editorProvider: @escaping () -> EditorViewModel?) {
+    init(editorProvider: @escaping () -> EditorViewModel?, enforceHardGates: Bool = true) {
         self.editorProvider = editorProvider
+        self.enforceHardGates = enforceHardGates
     }
 
     private var agentUndoStack: [String] = []
@@ -35,6 +42,10 @@ final class ToolExecutor {
         )
         do {
             let resolved = try expandingIdPrefixes(in: args, editor: editor)
+            // HARD GATE: a tool that does phase-N work is refused until every earlier phase is approved.
+            if enforceHardGates, let phase = tool.advancingPhase(args: resolved) {
+                try guardFrontier(phase: phase, args: resolved, editor: editor)
+            }
             result = try await run(tool, editor, resolved)
             // Record any edit that actually changed the timeline so `undo` can revert it.
             if tool != .undo, !result.isError, editor.timeline != before,

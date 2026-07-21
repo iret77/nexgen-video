@@ -9,8 +9,10 @@ struct SegmentedTabBar: View {
     let titles: [String]
     let selected: String?
     var raisedBackground: Bool = false
-    /// Titles rendered with the AI accent gradient — declared by the caller, never inferred here.
+    /// Titles rendered with an accent — declared by the caller, never inferred here. By default the AI
+    /// accent gradient; `accentColor` overrides it with a solid color (e.g. a pack-scoped tab).
     var accentedTitles: Set<String> = []
+    var accentColor: Color? = nil
     let onSelect: (String) -> Void
 
     var body: some View {
@@ -18,9 +20,13 @@ struct SegmentedTabBar: View {
             ForEach(titles, id: \.self) { title in
                 let isActive = selected == title
                 let isAccented = accentedTitles.contains(title)
-                let foreground: AnyShapeStyle = isAccented
-                    ? AnyShapeStyle(AppTheme.aiGradient.opacity(isActive ? 1 : 0.6))
-                    : AnyShapeStyle(isActive ? AppTheme.Text.primaryColor : AppTheme.Text.tertiaryColor)
+                let foreground: AnyShapeStyle = {
+                    if isAccented {
+                        if let accentColor { return AnyShapeStyle(accentColor.opacity(isActive ? 1 : 0.6)) }
+                        return AnyShapeStyle(AppTheme.aiGradient.opacity(isActive ? 1 : 0.6))
+                    }
+                    return AnyShapeStyle(isActive ? AppTheme.Text.primaryColor : AppTheme.Text.tertiaryColor)
+                }()
                 Button {
                     onSelect(title)
                 } label: {

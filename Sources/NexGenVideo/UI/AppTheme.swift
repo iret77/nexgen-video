@@ -51,6 +51,10 @@ enum AppTheme {
         /// Warm off-white
         static let primary = Color(red: 0.961, green: 0.937, blue: 0.894)
 
+        /// Pack-scoped accent — marks a cockpit tab a format pack contributed, distinct from the
+        /// first-party generic tabs. (#c08bff)
+        static let pack = Color(red: 0.753, green: 0.545, blue: 1.0)
+
         /// Vibrant highlight used by the onboarding tour spotlight.
         static let spotlight = Color(red: 1.0, green: 0.27, blue: 0.27)
         static let spotlightGradient = LinearGradient(
