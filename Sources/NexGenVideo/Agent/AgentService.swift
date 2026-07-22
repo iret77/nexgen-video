@@ -218,14 +218,16 @@ final class AgentService {
         let content: String
         if let src = result.fileURLs.first {
             guard let text = try? String(contentsOf: src, encoding: .utf8) else {
-                send(text: "Couldn't read the \(kind) file — it isn't UTF-8 text. Ask the user for a .txt/.md.", mentions: [])
+                send(text: "Couldn't read the \(kind) file — it isn't UTF-8 text. Ask the user for a .txt/.md.",
+                     mentions: [], hidden: true)
                 return
             }
             content = text
         } else {
             let pasted = result.direction.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !pasted.isEmpty else {
-                send(text: "No \(kind) provided — the user skipped it. Proceed without \(kind).", mentions: [])
+                send(text: "No \(kind) provided — the user skipped it. Proceed without \(kind).",
+                     mentions: [], hidden: true)
                 return
             }
             content = pasted
@@ -240,11 +242,12 @@ final class AgentService {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             try content.write(to: dir.appendingPathComponent(filename), atomically: true, encoding: .utf8)
         } catch {
-            send(text: "Couldn't attach the \(kind): \(error.localizedDescription).", mentions: [])
+            send(text: "Couldn't attach the \(kind): \(error.localizedDescription).", mentions: [], hidden: true)
             return
         }
         editor.onPipelineChanged?()
-        send(text: sidecarBrief(kind, relPath: "\(relDir)/\(filename)", content: content), mentions: [])
+        send(text: sidecarBrief(kind, relPath: "\(relDir)/\(filename)", content: content),
+             mentions: [], hidden: true)
     }
 
     /// The agent-facing brief after a sidecar lands: what to do with it. Lyrics → label measured
@@ -283,7 +286,7 @@ final class AgentService {
         let slug = Self.identitySlug(name)
         guard !slug.isEmpty else {
             send(text: "Couldn't attach the \(kind) — no usable name was given. Ask the user for the "
-                + "\(kind)'s name, then re-present the dialog.", mentions: [])
+                + "\(kind)'s name, then re-present the dialog.", mentions: [], hidden: true)
             return
         }
         let category = kind == "location" ? "locations" : "characters"
@@ -292,14 +295,16 @@ final class AgentService {
         do {
             copied = try Self.copyFilesUniquely(result.fileURLs, into: dir)
         } catch {
-            send(text: "Couldn't attach the \(kind) \"\(name)\": \(error.localizedDescription).", mentions: [])
+            send(text: "Couldn't attach the \(kind) \"\(name)\": \(error.localizedDescription).",
+                 mentions: [], hidden: true)
             return
         }
         editor.onPipelineChanged?()
         let noun = kind == "location" ? "Location" : "Character"
         send(text: "\(noun) \"\(name)\" attached: \(copied.count) reference image\(copied.count == 1 ? "" : "s") "
             + "in import/\(category)/\(slug)/. This is a BROWNFIELD anchor — the bible-agent adopts it; "
-            + "keep this identity consistent across the pipeline and don't invent a different one.", mentions: [])
+            + "keep this identity consistent across the pipeline and don't invent a different one.",
+             mentions: [], hidden: true)
     }
 
     /// A filesystem-safe slug for an identity folder name: lowercased, non-alphanumerics collapsed to
@@ -331,7 +336,8 @@ final class AgentService {
             return
         }
         guard AudioProjectLayout.audioExtensions.contains(src.pathExtension.lowercased()) else {
-            send(text: "That isn't an audio file — the song must be .wav / .mp3 / .m4a / .aiff / .flac / .aac.", mentions: [])
+            send(text: "That isn't an audio file — the song must be .wav / .mp3 / .m4a / .aiff / .flac / .aac.",
+                 mentions: [], hidden: true)
             return
         }
         let audioDir = dataRoot.appendingPathComponent("audio", isDirectory: true)
@@ -355,12 +361,21 @@ final class AgentService {
                 try? FileManager.default.removeItem(at: other)
             }
         } catch {
-            send(text: "Couldn't place the song in audio/: \(error.localizedDescription).", mentions: [])
+            send(text: "Couldn't place the song in audio/: \(error.localizedDescription).",
+                 mentions: [], hidden: true)
             return
         }
         editor.onPipelineChanged?()
         anchorSongOnTimeline(dest, editor: editor)
-        send(text: "Song placed in audio/ (\(src.lastPathComponent)). Now run run_phase(\"analysis\") to measure it.", mentions: [])
+        // Analysis is gated: naming it while an earlier phase is unapproved guarantees a refused call.
+        let routing: String
+        if let next = editor.projectState?.nextPhaseName, next != "analysis" {
+            routing = "The pipeline is still on \"\(next)\" — settle that and get it approved first; "
+                + "analysis is gated behind it."
+        } else {
+            routing = "Run run_phase(\"analysis\") to measure it."
+        }
+        send(text: "Song placed in audio/ (\(src.lastPathComponent)). \(routing)", mentions: [], hidden: true)
     }
 
     /// Put the song on the timeline the moment it arrives. It is the project's spine — every cut keys
@@ -385,9 +400,13 @@ final class AgentService {
             let trackIndex = editor.timeline.tracks.firstIndex { $0.type == .audio }
                 ?? editor.insertTrack(at: editor.timeline.tracks.count, type: .audio)
             let frames = max(1, Int((asset.duration * Double(editor.timeline.fps)).rounded()))
+            let wasEmpty = editor.timeline.totalFrames == 0
             _ = editor.placeClip(
                 asset: asset, trackIndex: trackIndex, startFrame: 0,
                 durationFrames: frames, addLinkedAudio: false)
+            // The timeline's fit-to-width only runs on first layout, which happens while the project is
+            // still empty — without this the spine lands at default zoom showing seconds of a 3-min track.
+            if wasEmpty { editor.zoomScale = editor.minZoomScale }
         }
     }
 
@@ -401,19 +420,22 @@ final class AgentService {
             return
         }
         guard !result.fileURLs.isEmpty else {
-            send(text: "No style references provided — skipped. Proceed; production-design can develop the look from the brief.", mentions: [])
+            send(text: "No style references provided — skipped. Proceed; production-design can develop the look from the brief.",
+                 mentions: [], hidden: true)
             return
         }
         let dir = dataRoot.appendingPathComponent("import", isDirectory: true)
         let copied: [String]
         do { copied = try Self.copyFilesUniquely(result.fileURLs, into: dir) }
         catch {
-            send(text: "Couldn't attach the style references: \(error.localizedDescription).", mentions: [])
+            send(text: "Couldn't attach the style references: \(error.localizedDescription).",
+                 mentions: [], hidden: true)
             return
         }
         editor.onPipelineChanged?()
         send(text: "\(copied.count) style reference\(copied.count == 1 ? "" : "s") attached in import/. "
-            + "The production-design agent (K2) curates these as the style source.", mentions: [])
+            + "The production-design agent (K2) curates these as the style source.",
+             mentions: [], hidden: true)
     }
 
     /// Copy files into `dir` (copy, never move), choosing a free name for each so nothing is ever
@@ -517,7 +539,8 @@ final class AgentService {
         let dialog = pendingDialog
         pendingDialog = nil
         if let dialog, dialog.purpose == .chatClarification {
-            send(text: "Dismissed the \u{201C}\(dialog.title)\u{201D} dialog without answering — ask in prose or move on.", mentions: [])
+            send(text: "Dismissed the \u{201C}\(dialog.title)\u{201D} dialog without answering — ask in prose or move on.",
+                 mentions: [], hidden: true)
         }
     }
 

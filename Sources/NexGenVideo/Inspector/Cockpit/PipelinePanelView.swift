@@ -276,6 +276,9 @@ struct PipelinePanelView: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        // A borderless Menu tints its own label from the control tint, overriding the label's
+        // foregroundStyle — without this the row's "…" reads as an accent-red error marker.
+        .tint(AppTheme.Text.mutedColor)
         .fixedSize()
         .disabled(gateWriting || isFuture)
         .help(isFuture ? "Not reached yet — approve earlier phases first"
@@ -322,6 +325,20 @@ struct PipelinePanelView: View {
                 .foregroundStyle(AppTheme.Text.secondaryColor)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: AppTheme.Spacing.sm)
+            // The gate's refusal is written for the agent (it names tools and artifact paths) — the one
+            // thing the user can act on is handing it back, so offer that instead of only the wording.
+            Button {
+                editor.agentService.send(
+                    text: "The gate refused this approval: \(message) Clear it, then ask for approval again.",
+                    mentions: [], hidden: true)
+                gateError = nil
+            } label: {
+                Text("Ask the agent")
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
+                    .foregroundStyle(AppTheme.Accent.timecodeColor)
+            }
+            .buttonStyle(.plain)
+            .help("Hand this refusal to the agent so it can resolve it")
             Button { gateError = nil } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
