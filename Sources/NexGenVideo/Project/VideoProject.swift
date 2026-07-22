@@ -399,10 +399,11 @@ final class VideoProject: NSDocument {
         hostingController.safeAreaRegions = []
 
         let window = NSWindow(contentViewController: hostingController)
-        // Autosave "-v3": bumping the key resets stale/too-short frames saved by an earlier build so
-        // the taller default (projectDefault) applies on next launch.
-        let restored = window.setFrameUsingName("NexGenVideoWindow-v3")
-        window.setFrameAutosaveName("NexGenVideoWindow-v3")
+        // Autosave "-v4": bumping the key discards stale too-short frames saved by an earlier build, so
+        // the tall default (92% of the visible screen) applies again on next launch. A saved frame always
+        // wins over a changed default — bumping the key is the only way to retire a bad one.
+        let restored = window.setFrameUsingName("NexGenVideoWindow-v4")
+        window.setFrameAutosaveName("NexGenVideoWindow-v4")
         // Compute the visible frame AFTER restore so a frame saved on a different or
         // since-changed display clamps against the screen it actually lands on, not the
         // window's initial screen.
@@ -412,8 +413,14 @@ final class VideoProject: NSDocument {
         window.minSize = NSSize(width: min(AppTheme.Window.projectMin.width, visible.width),
                                 height: min(AppTheme.Window.projectMin.height, visible.height))
         if restored {
-            // A frame from a since-changed (larger) display must never exceed this desktop.
-            window.setFrame(Self.clampToScreen(window.frame, visible: visible), display: false)
+            // Grow a stale frame back to at least the declared minimum — `minSize` only constrains what
+            // the USER can drag to, it never resizes an already-restored frame, so a too-short frame
+            // saved by an older build would otherwise survive every launch. Then clamp: a frame from a
+            // since-changed (larger) display must never exceed this desktop.
+            var frame = window.frame
+            frame.size.width = max(frame.size.width, window.minSize.width)
+            frame.size.height = max(frame.size.height, window.minSize.height)
+            window.setFrame(Self.clampToScreen(frame, visible: visible), display: false)
         } else {
             window.setContentSize(Self.defaultProjectContentSize(visible: visible))
             window.center()
