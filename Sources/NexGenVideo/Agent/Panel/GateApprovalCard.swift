@@ -5,8 +5,19 @@ import SwiftUI
 /// set_gate_state tool-call is suspended until Approve or Not yet; the gate is written only on Approve.
 struct GateApprovalCard: View {
     let approval: GateApproval
+    /// The phase's surface from the active pack's UI contract — where its work is actually readable.
+    /// A `choice` phase is settled in the chat and has no tab to send the user to.
+    let surface: String?
     let onApprove: () -> Void
     let onDecline: () -> Void
+
+    private var reviewHint: String? {
+        switch surface ?? "" {
+        case "review": "Read it in the Review tab first."
+        case "prose": "Read it in the Story tab first."
+        default: nil
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
@@ -50,7 +61,7 @@ struct GateApprovalCard: View {
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-            Text("The agent finished \(approval.phaseLabel) and is asking you to approve it.")
+            Text("The agent is asking you to approve \(approval.phaseLabel).")
                 .font(.system(size: AppTheme.FontSize.xs))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
                 .fixedSize(horizontal: false, vertical: true)
@@ -60,9 +71,11 @@ struct GateApprovalCard: View {
                     .foregroundStyle(AppTheme.Text.mutedColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("Review it in the Story / Review tab first.")
-                .font(.system(size: AppTheme.FontSize.xxs))
-                .foregroundStyle(AppTheme.Text.mutedColor)
+            if let reviewHint {
+                Text(reviewHint)
+                    .font(.system(size: AppTheme.FontSize.xxs))
+                    .foregroundStyle(AppTheme.Text.mutedColor)
+            }
         }
     }
 

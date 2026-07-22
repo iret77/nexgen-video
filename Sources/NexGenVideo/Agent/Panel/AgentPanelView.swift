@@ -73,6 +73,7 @@ struct AgentPanelView: View {
             if let gate = service.pendingGateApproval {
                 GateApprovalCard(
                     approval: gate,
+                    surface: editor.uiContract?.phases[gate.phase]?.surface,
                     onApprove: { service.resolveGate(.approved) },
                     onDecline: { service.resolveGate(.declined) }
                 )
