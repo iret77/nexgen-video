@@ -183,6 +183,14 @@ extension EditorViewModel {
 
     func restoreMediaLibraryUndoSnapshot(_ snapshot: MediaLibraryUndoSnapshot, actionName: String) {
         let redo = mediaLibraryUndoSnapshot()
+        applyMediaLibrarySnapshot(snapshot)
+        undoManager?.registerUndo(withTarget: self) { vm in
+            vm.restoreMediaLibraryUndoSnapshot(redo, actionName: actionName)
+        }
+        undoManager?.setActionName(actionName)
+    }
+
+    func applyMediaLibrarySnapshot(_ snapshot: MediaLibraryUndoSnapshot) {
         timeline = snapshot.timeline
         mediaManifest = snapshot.mediaManifest
         mediaAssets = snapshot.mediaAssets
@@ -192,10 +200,6 @@ extension EditorViewModel {
         previewTabs = snapshot.previewTabs
         activePreviewTabId = snapshot.activePreviewTabId
         sourcePlayheadFrame = snapshot.sourcePlayheadFrame
-        undoManager?.registerUndo(withTarget: self) { vm in
-            vm.restoreMediaLibraryUndoSnapshot(redo, actionName: actionName)
-        }
-        undoManager?.setActionName(actionName)
         videoEngine?.activateTab(activePreviewTab)
         refreshMissingMediaCache()
         notifyTimelineChanged()

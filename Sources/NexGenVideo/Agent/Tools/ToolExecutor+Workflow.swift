@@ -1362,8 +1362,24 @@ extension ToolExecutor {
 
             // Song is the sync anchor at frame 0 — placed only when not already on an audio track.
             if let song {
-                songAlreadyPresent = editor.timeline.tracks.contains { track in
-                    track.type == .audio && track.clips.contains { $0.mediaRef == song.id && $0.startFrame == 0 }
+                let songClips = editor.timeline.tracks
+                    .filter { $0.type == .audio }
+                    .flatMap(\.clips)
+                    .filter { $0.mediaRef == song.id }
+                songAlreadyPresent = songClips.count == 1
+                    && songClips[0].startFrame == 0
+                if songAlreadyPresent {
+                    sidecar.audioTrackId = editor.timeline.tracks.first {
+                        $0.type == .audio
+                            && $0.clips.contains { $0.mediaRef == song.id }
+                    }?.id
+                } else {
+                    for index in editor.timeline.tracks.indices
+                    where editor.timeline.tracks[index].type == .audio {
+                        editor.timeline.tracks[index].clips.removeAll {
+                            $0.mediaRef == song.id
+                        }
+                    }
                 }
                 if !songAlreadyPresent {
                     let audioTrackId = ensureAssemblyTrack(editor, existingId: sidecar.audioTrackId, type: .audio)
@@ -1598,11 +1614,19 @@ extension ToolExecutor {
     private func resolveSongAsset(dataRoot: URL, editor: EditorViewModel) throws -> MediaAsset? {
         let songs = AudioProjectLayout.songFiles(dataRoot: dataRoot)
         guard songs.count == 1, let songURL = songs.first else { return nil }
-        return try requiredDurableAsset(
+        if let anchorId = editor.mediaManifest.songAnchorAssetId,
+           let anchored = editor.mediaAssets.first(where: { $0.id == anchorId }) {
+            return anchored
+        }
+        let idsBefore = Set(editor.mediaAssets.map(\.id))
+        let asset = try requiredDurableAsset(
             for: songURL,
             editor: editor,
             context: "assemble_timeline found the project song but couldn't register it"
         )
+        editor.mediaManifest.songAnchorAssetId = asset.id
+        editor.mediaManifest.songAnchorOwnsAsset = !idsBefore.contains(asset.id)
+        return asset
     }
 
     private func requiredDurableAsset(
@@ -1798,7 +1822,10 @@ extension ToolExecutor {
     /// absolute `path`; exactly one. Enforces the runner's one-song contract: a different existing
     /// audio file is an error unless `replace` is set, in which case the complete audio directory is
     /// swapped atomically. Returns `{filename, audio_dir}`.
-    func attachSongTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {
+    func attachSongTool(
+        _ editor: EditorViewModel,
+        _ args: [String: Any]
+    ) async throws -> ToolResult {
         let root = try resolveDataRoot(args, editor: editor)
 
         let mediaRef = args.string("media")
@@ -1838,96 +1865,23 @@ extension ToolExecutor {
             throw ToolError("'\(sourceURL.lastPathComponent)' isn't an audio type the analysis runner accepts (\(accepted)).")
         }
 
-        let audioDir = root.appendingPathComponent("audio", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true)
-        } catch {
-            throw ToolError("Couldn't prepare audio/: \(error.localizedDescription)")
-        }
-
-        let destURL = audioDir.appendingPathComponent(sourceURL.lastPathComponent)
         let replace = args.bool("replace") ?? false
-
-        // The song may ALREADY be the file in audio/ — never delete-then-copy onto the source.
-        let alreadyInPlace = sourceURL.standardizedFileURL.resolvingSymlinksInPath()
-            == destURL.standardizedFileURL.resolvingSymlinksInPath()
-
-        // The runner keeps exactly one song in audio/. A different existing audio file blocks unless
-        // `replace` is set. VALIDATE up front (fail with no side effects), but don't delete the old
-        // song yet — the new one is copied into place first, so a failed copy never leaves audio/ empty.
-        let existing: [URL]
+        let attached: SongAnchorResult
         do {
-            existing = try existingAudioFiles(in: audioDir)
+            attached = try await editor.attachProjectSong(
+                from: sourceURL,
+                dataRoot: root,
+                replace: replace
+            )
         } catch {
-            throw ToolError("Couldn't inspect audio/: \(error.localizedDescription)")
+            throw ToolError(error.localizedDescription)
         }
-        let others = existing
-            .filter { $0.lastPathComponent != destURL.lastPathComponent }
-        if !others.isEmpty, !replace {
-            let names = others.map(\.lastPathComponent).sorted().joined(separator: ", ")
-            throw ToolError("audio/ already holds a different song (\(names)). Pass replace: true to swap it — the analysis runner keeps exactly one song.")
-        }
-
-        if replace {
-            let staging = root.appendingPathComponent(
-                ".song-\(UUID().uuidString).partial",
-                isDirectory: true
-            )
-            do {
-                try FileManager.default.copyItem(at: audioDir, to: staging)
-                for oldSong in try existingAudioFiles(in: staging) {
-                    try FileManager.default.removeItem(at: oldSong)
-                }
-                try FileManager.default.copyItem(
-                    at: sourceURL,
-                    to: staging.appendingPathComponent(sourceURL.lastPathComponent)
-                )
-                _ = try FileManager.default.replaceItemAt(
-                    audioDir,
-                    withItemAt: staging
-                )
-            } catch {
-                try? FileManager.default.removeItem(at: staging)
-                throw ToolError("Couldn't replace the song in audio/: \(error.localizedDescription)")
-            }
-        } else if !alreadyInPlace {
-            // A same-NAMED file in audio/ is still a DIFFERENT song when the source is another
-            // file — overwriting it without consent breaks the tool contract just like the
-            // different-name case above.
-            if FileManager.default.fileExists(atPath: destURL.path) {
-                throw ToolError("audio/ already holds \(destURL.lastPathComponent). Pass replace: true to overwrite it — the analysis runner keeps exactly one song.")
-            }
-            // Stage next to the destination, then swap in — a failed copy never destroys an
-            // existing same-named song. replaceItemAt requires an existing destination, so the
-            // first attach into an empty audio/ is a plain move.
-            let staging = audioDir.appendingPathComponent(
-                ".song-\(UUID().uuidString).partial"
-            )
-            do {
-                try FileManager.default.copyItem(at: sourceURL, to: staging)
-                try FileManager.default.moveItem(at: staging, to: destURL)
-            } catch {
-                try? FileManager.default.removeItem(at: staging)
-                throw ToolError("Couldn't copy the song into audio/: \(error.localizedDescription)")
-            }
-        }
-
-        // Same anchor as the dialog path — how the song arrived must not decide whether the user can
-        // hear it. Idempotent: assemble_timeline reuses this asset and skips its own placement.
-        editor.agentService.anchorSongOnTimeline(destURL, editor: editor)
-        return try jsonResult(["filename": destURL.lastPathComponent, "audio_dir": audioDir.path])
-    }
-
-    /// Audio files already sitting in `audioDir` (by the runner's accepted extensions).
-    private func existingAudioFiles(in audioDir: URL) throws -> [URL] {
-        let entries = try FileManager.default.contentsOfDirectory(
-            at: audioDir, includingPropertiesForKeys: [.isRegularFileKey]
-        )
-        return try entries.filter {
-            let values = try $0.resourceValues(forKeys: [.isRegularFileKey])
-            return values.isRegularFile == true
-                && AudioProjectLayout.audioExtensions.contains($0.pathExtension.lowercased())
-        }
+        return try jsonResult([
+            "filename": attached.filename,
+            "audio_dir": root.appendingPathComponent("audio").path,
+            "asset_id": attached.assetId,
+            "replaced": attached.replaced,
+        ])
     }
 }
 

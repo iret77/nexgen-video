@@ -217,6 +217,8 @@ struct ProjectRoundTripTests {
         manifest.folders = [
             MediaFolder(id: "folder-1", name: "Refs", parentFolderId: nil),
         ]
+        manifest.songAnchorAssetId = "song-1"
+        manifest.songAnchorOwnsAsset = true
         #expect(try roundTrip(manifest) == manifest)
     }
 
@@ -234,6 +236,8 @@ struct ProjectRoundTripTests {
         let manifest = try JSONDecoder().decode(MediaManifest.self, from: Data(json.utf8))
         #expect(manifest.entries.isEmpty)
         #expect(manifest.folders.isEmpty)
+        #expect(manifest.songAnchorAssetId == nil)
+        #expect(manifest.songAnchorOwnsAsset == false)
     }
 
     // MARK: - GenerationLog

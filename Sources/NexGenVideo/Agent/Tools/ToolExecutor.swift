@@ -1,6 +1,9 @@
 import Foundation
 
-struct ToolError: Error { let message: String; init(_ m: String) { self.message = m } }
+struct ToolError: Error, Sendable {
+    let message: String
+    init(_ message: String) { self.message = message }
+}
 
 /// Shared by the MCP server and the in-app agent.
 /// Tool implementations live in the `ToolExecutor+*.swift` extension files.
@@ -158,7 +161,7 @@ final class ToolExecutor {
         case .listProjectFiles:     return try listProjectFilesTool(editor, args)
         case .copyProjectFile:      return try copyProjectFileTool(editor, args)
         case .runPhase:             return try await runPhaseTool(editor, args)
-        case .attachSong:           return try attachSongTool(editor, args)
+        case .attachSong:           return try await attachSongTool(editor, args)
         case .nextRenderShot:       return try nextRenderShotTool(editor, args)
         case .recordRender:         return try await recordRenderTool(editor, args)
         case .getRenderManifest:    return try getRenderManifestTool(editor, args)

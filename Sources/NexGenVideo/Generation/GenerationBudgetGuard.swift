@@ -34,14 +34,6 @@ enum GenerationBudgetGuard {
             return GenerationAuthorization(transactionId: nil, target: target, estimate: nil)
         }
 
-        let stop = try budgetStop(in: workingRoot)
-        var log = try loadGenerationLog(from: workingRoot) ?? editor.generationLog
-        let existingSpend = try verifiedSpend(
-            log: log,
-            generatedAssets: editor.mediaAssets,
-            requireCompleteMoney: stop != nil
-        )
-
         let estimate: GenerationMoney?
         let pricingFailure: String?
         do {
@@ -53,6 +45,19 @@ enum GenerationBudgetGuard {
             estimate = nil
             pricingFailure = error.localizedDescription
         }
+
+        guard editor.workingRoot?.standardizedFileURL == workingRoot.standardizedFileURL else {
+            throw GenerationBudgetError.blocked(
+                "The project changed while pricing this request. Retry generation in the active project."
+            )
+        }
+        let stop = try budgetStop(in: workingRoot)
+        var log = try loadGenerationLog(from: workingRoot) ?? editor.generationLog
+        let existingSpend = try verifiedSpend(
+            log: log,
+            generatedAssets: editor.mediaAssets,
+            requireCompleteMoney: stop != nil
+        )
 
         if let stop {
             guard let estimate else {

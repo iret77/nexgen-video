@@ -2,67 +2,60 @@
 
 ## Objective
 
-Prepare NexGenVideo for a real 1.0 release without spending a macOS/DMG CI run only to discover the next avoidable blocker. Do not build, dispatch `release.yml`, merge, or release without the owner's explicit in-the-moment approval.
+Ship one consolidated NexGenVideo 1.0 release candidate. Never build locally. Do not merge, open a
+release PR, dispatch CI or `release.yml`, or publish without the owner's explicit in-the-moment
+approval.
 
-## Current state
+## Prepared state
 
-- Branch: `docs/agents-hard-rules`
-- Checkpoint: `8d9df05 checkpoint: harden the 1.0 release path`.
-- The post-checkpoint #281/#286 batch is intentionally uncommitted and not a verified release
-  candidate.
-- No local build or test was run; repository rules require macOS 26 GitHub Actions.
-- No CI, DMG, merge, push, or release was triggered during this audit.
-- `git diff --check` passes for both the working batch and the complete branch diff.
-- `release.yml` parses as YAML and all 22 `run:` blocks pass `bash -n`; `scripts/bundle.sh`,
-  release JSON, Info.plist, and Python sources pass static syntax/format checks.
+- Branch: `codex/release-1.0-rc`
+- Base: `origin/main`
+- App/changelog version: `1.0.0`
+- Musicvideo pack candidate: `0.0.5` (stable catalog currently `0.0.4`)
+- No local build or test was run; macOS 26 GitHub Actions is the only verification surface.
+- No PR, CI run, DMG build, merge, tag, issue closure, or release was triggered.
 
-The batch currently includes the storage/recovery overhaul, working-copy routing for durable writes, atomic project and media mutations, fail-closed workflow artifact reads, stricter tool schemas, budget-stop groundwork, inline replacement of transient agent status messages, release preflight hardening, and plugin-pack notarization/quarantine checks.
+The release-blocker implementations for #279–#287 are present:
 
-The post-checkpoint work completes:
+- #279: complete working-copy recovery and recovery regression coverage.
+- #280: persistent project-song identity, awaited/idempotent attach and atomic replacement.
+- #281: isolated preview publication and retry-safe stable release transaction.
+- #282: off-main content-addressed bulk import, cancellation, rollback, undo and redo.
+- #283: fail-closed remote import policy for URLs, redirects, DNS/peer addresses, limits and payloads.
+- #284: immutable model revisions plus mandatory SHA-256 verification and cache repair.
+- #285: typed control turns that never render app-authored commands as user messages.
+- #286: central pre-dispatch monetary ledger and hard budget guard.
+- #287: notarized downloadable packs plus quarantined runtime load verification.
 
-- #281: isolated signed preview catalogs, stable production projection, retry-safe stable publication
-  with pending/transaction/complete assets, catalog and artifact hashes, and Linux-only resume after
-  app publication.
-- #286: one host-owned monetary ledger and pre-dispatch guard across video, image, audio, music,
-  upscale, reruns, and provider workflow calls. It reads the live working copy, validates the Brief,
-  reserves before dispatch, records submitted/provider IDs and verified charges, counts concurrent
-  reservations, uses live account pricing for fal.ai, official Runway rates plus ECB conversion, and
-  fails closed on unknown/corrupt monetary state when a hard stop is active.
-- Regression coverage for blocked provider thunks, corrupt records, legacy credit rows, same-project
-  reservations, append-only transitions, provider workflows, preview repetition, and stable pack
-  immutability.
+The issues stay open until the consolidated macOS CI run proves their acceptance criteria.
 
-## Known release blockers
+## Review and static verification
 
-- #279: complete Recovery behavior
-- #280: song replacement durability and success reporting
-- #281: dry-run release must not mutate the stable plugin channel
-- #282: import correctness, deduplication, undo, symlink cycles, and scope
-- #283: import redirects and private targets
-- #284: model revisions must be pinned
-- #285: app-authored turns must not appear as user messages
-- #286: enforce project budget stops at the central paid-generation boundary
-- #287: notarize downloadable `.ngvpack` bundles and verify quarantined loading
+- Independent reviews found and the batch fixes:
+  - import undo deleting bytes without redo;
+  - remote temp-file installation assuming a same-volume move;
+  - `URLSession` download files not being retained from the delegate callback;
+  - cross-thread model-download error state.
+- `git diff --check` passes.
+- All workflow YAML parses.
+- All 31 workflow `run:` blocks and release shell scripts pass `bash -n`.
+- Changelog JSON, app Info.plist and Python sources pass static parsing/syntax checks.
+- Branch pushes do not trigger CI; repository workflows run on pull requests or manual dispatch.
 
-All issues remain open intentionally. Do not close blockers merely because code exists; verify their
-acceptance criteria in the one consolidated CI run.
+## Remaining gates
 
-## Resume here
+1. Run `spec-check --base origin/main` with explicit permission for its external reviewer. The
+   sandboxed reviewer cannot initialize, and the managed host policy rejected an unsandboxed reviewer
+   without a separate informed approval. The spec gate is therefore not yet passed.
+2. Obtain the owner's explicit in-the-moment `build now`.
+3. Run one consolidated macOS 26 CI verification and review every #279–#287 acceptance criterion.
+4. Only after green CI: close verified blockers and prepare the release PR.
+5. Production merge, `release.yml` dispatch and publication each remain separate explicit actions.
 
-1. Confirm the branch and post-checkpoint working batch with `git status --short --branch`.
-2. Wait for the owner's explicit, in-the-moment `build now`.
-3. Run one consolidated macOS 26 CI verification; do not dispatch `release.yml` while the
-   `release-blocker` issues remain open.
-4. Review the CI result against every blocker acceptance criterion. Only then close verified
-   blockers and prepare the release commit/PR.
-5. The source changelog, Info.plist, and pack minimum currently align on `0.7.8`. If the intended
-   semantic release number is `1.0.0`, change all three together only after the owner confirms it.
-6. A production release is a separate explicit action: never merge, dispatch `release.yml`, or
-   publish from an earlier/general approval.
+## Release workflow
 
-## Release workflow detail to revisit
-
-Resolved in the working batch. Stable pack and badge bytes upload first, but only a final
-`catalog.json` promotion makes them visible after the versioned app release and appcast commit.
-Pending catalog, transaction metadata, catalog SHA-256, asset SHA-256 values, and a final complete
-marker make post-release retries resumable on the Linux gate without allocating another macOS runner.
+The stable pack and badge bytes upload before the final catalog promotion. Pending catalog,
+transaction metadata, catalog/artifact hashes and a completion marker make publication resumable
+without another macOS allocation. Resume now fetches the release branch and checks out its head
+detached before committing the appcast, preventing stale Linux-gate state from causing a
+non-fast-forward publication failure.

@@ -333,11 +333,19 @@ struct ReviewPanelView: View {
         remixTakes = [:]
         remixTakesShot = nil
         remixNote = ""
-        send(command)
+        send(AgentControlTurn(
+            command: command,
+            selections: [
+                .init(label: "Action", values: ["Remix"]),
+                .init(label: "Shot", values: [shotId]),
+                .init(label: "Frames", values: picked),
+            ],
+            typedText: note
+        ))
     }
 
     private func accept(_ frame: FrameCandidate, shotId: String) {
-        send("For shot \(shotId), use the frame candidate \u{201C}\(frame.name)\u{201D} as the selected keyframe.")
+        send(Self.acceptTurn(frameName: frame.name, shotId: shotId))
     }
 
     private func regenerate(_ target: RedoTarget) {
@@ -346,11 +354,46 @@ struct ReviewPanelView: View {
             + "(rejected candidate: \u{201C}\(target.frameName)\u{201D}). Reason: \(redoReason.rawValue)."
         if !note.isEmpty { command += " Note: \(note)" }
         redoTarget = nil
-        send(command)
+        send(Self.regenerateTurn(
+            command: command,
+            frameName: target.frameName,
+            shotId: target.shotId,
+            reason: redoReason.rawValue,
+            note: note
+        ))
     }
 
-    private func send(_ command: String) {
-        editor.agentService.send(text: command, mentions: [])
+    static func acceptTurn(frameName: String, shotId: String) -> AgentControlTurn {
+        AgentControlTurn(
+            command: "For shot \(shotId), use the frame candidate \u{201C}\(frameName)\u{201D} as the selected keyframe.",
+            selections: [
+                .init(label: "Keyframe", values: [frameName]),
+                .init(label: "Shot", values: [shotId]),
+            ]
+        )
+    }
+
+    static func regenerateTurn(
+        command: String,
+        frameName: String,
+        shotId: String,
+        reason: String,
+        note: String
+    ) -> AgentControlTurn {
+        AgentControlTurn(
+            command: command,
+            selections: [
+                .init(label: "Action", values: ["Regenerate"]),
+                .init(label: "Shot", values: [shotId]),
+                .init(label: "Reason", values: [reason]),
+                .init(label: "Frame", values: [frameName]),
+            ],
+            typedText: note
+        )
+    }
+
+    private func send(_ turn: AgentControlTurn) {
+        editor.agentService.send(controlTurn: turn)
         editor.agentPanelVisible = true
     }
 

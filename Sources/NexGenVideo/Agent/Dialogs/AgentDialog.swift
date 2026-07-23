@@ -58,6 +58,28 @@ struct AgentUserPresentation: Codable, Equatable, Sendable {
     }
 }
 
+struct AgentControlTurn: Equatable, Sendable {
+    let command: String
+    let presentation: AgentUserPresentation
+
+    init(
+        command: String,
+        selections: [AgentChoiceRecord.Selection] = [],
+        typedText: String? = nil
+    ) {
+        self.command = command
+        let record = selections.isEmpty ? nil : AgentChoiceRecord(
+            selections: selections,
+            attachmentNames: [],
+            confirmed: false
+        )
+        self.presentation = AgentUserPresentation(
+            choiceRecord: record,
+            typedText: typedText?.isEmpty == false ? typedText : nil
+        )
+    }
+}
+
 struct AgentDialog: Identifiable, Equatable, Sendable {
 
     /// What submitting the dialog does (audit #3). A single dialog type, two purposes, routed by ONE

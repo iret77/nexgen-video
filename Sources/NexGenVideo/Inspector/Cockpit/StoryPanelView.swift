@@ -78,6 +78,7 @@ struct StoryPanelView: View {
             promptRow(
                 placeholder: "e.g. migrate the brief to the current schema…",
                 draft: $briefDraft,
+                action: "Repair brief",
                 command: { "The project's brief.yaml fails to load. \($0)" }
             )
         } else if let brief = editor.brief {
@@ -102,6 +103,7 @@ struct StoryPanelView: View {
             promptRow(
                 placeholder: "Open-ended direction for the brief…",
                 draft: $briefDraft,
+                action: "Update brief",
                 command: { "Update the project brief: \($0). Apply it via the brief phase and show the diff." }
             )
         } else {
@@ -111,6 +113,7 @@ struct StoryPanelView: View {
             promptRow(
                 placeholder: "Describe the video you want…",
                 draft: $briefDraft,
+                action: "Draft brief",
                 command: { "Draft the project brief from this direction, then walk me through the open choices: \($0)" }
             )
         }
@@ -300,7 +303,7 @@ struct StoryPanelView: View {
         HStack {
             Spacer(minLength: 0)
             Button("Apply changes") {
-                editor.agentService.send(text: command, mentions: [])
+                editor.agentService.send(controlTurn: Self.applyBriefTurn(command))
                 editor.agentPanelVisible = true
             }
             .buttonStyle(.capsule(.prominent, size: .regular))
@@ -364,6 +367,7 @@ struct StoryPanelView: View {
                 placeholder: "Direction for the treatment (optional)…",
                 draft: $treatmentDraft,
                 allowEmpty: true,
+                action: "Draft treatment",
                 command: { note in
                     note.isEmpty
                         ? "Draft the treatment from the brief and analysis, then present it for review."
@@ -391,6 +395,7 @@ struct StoryPanelView: View {
             promptRow(
                 placeholder: "Revise the treatment…",
                 draft: $treatmentDraft,
+                action: "Revise treatment",
                 command: { "Revise the treatment (a new version, never overwrite): \($0). Then present it for review." }
             )
         }
@@ -411,15 +416,28 @@ struct StoryPanelView: View {
         placeholder: String,
         draft: Binding<String>,
         allowEmpty: Bool = false,
+        action: String,
         command: @escaping (String) -> String
     ) -> some View {
         HStack(spacing: AppTheme.Spacing.sm) {
             TextField(placeholder, text: draft)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: AppTheme.FontSize.sm))
-                .onSubmit { submit(draft: draft, allowEmpty: allowEmpty, command: command) }
+                .onSubmit {
+                    submit(
+                        draft: draft,
+                        allowEmpty: allowEmpty,
+                        action: action,
+                        command: command
+                    )
+                }
             Button {
-                submit(draft: draft, allowEmpty: allowEmpty, command: command)
+                submit(
+                    draft: draft,
+                    allowEmpty: allowEmpty,
+                    action: action,
+                    command: command
+                )
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: AppTheme.FontSize.lg))
@@ -429,12 +447,42 @@ struct StoryPanelView: View {
         }
     }
 
-    private func submit(draft: Binding<String>, allowEmpty: Bool, command: (String) -> String) {
+    private func submit(
+        draft: Binding<String>,
+        allowEmpty: Bool,
+        action: String,
+        command: (String) -> String
+    ) {
         let text = draft.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard allowEmpty || !text.isEmpty else { return }
         draft.wrappedValue = ""
-        editor.agentService.send(text: command(text), mentions: [])
+        editor.agentService.send(
+            controlTurn: Self.proseTurn(
+                command: command(text),
+                action: action,
+                typedText: text
+            )
+        )
         editor.agentPanelVisible = true
+    }
+
+    static func applyBriefTurn(_ command: String) -> AgentControlTurn {
+        AgentControlTurn(
+            command: command,
+            selections: [.init(label: "Brief", values: ["Changes applied"])]
+        )
+    }
+
+    static func proseTurn(
+        command: String,
+        action: String,
+        typedText: String
+    ) -> AgentControlTurn {
+        AgentControlTurn(
+            command: command,
+            selections: typedText.isEmpty ? [.init(label: "Action", values: [action])] : [],
+            typedText: typedText
+        )
     }
 
     private func loadTreatment() async {

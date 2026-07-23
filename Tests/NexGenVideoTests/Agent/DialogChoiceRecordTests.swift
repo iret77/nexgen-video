@@ -121,4 +121,53 @@ struct DialogChoiceRecordTests {
         #expect(response.presentation.notice?.contains("couldn't be copied") == true)
         #expect(response.agentText.contains("clip.mp4") == false)
     }
+
+    @Test("Review accept is a compact control record, not generated user prose")
+    func reviewAcceptControlRecord() {
+        let turn = ReviewPanelView.acceptTurn(frameName: "frame-03", shotId: "S012")
+
+        #expect(turn.command == "For shot S012, use the frame candidate \u{201C}frame-03\u{201D} as the selected keyframe.")
+        #expect(turn.presentation.choiceRecord?.summary == "Keyframe: frame-03 · Shot: S012")
+        #expect(turn.presentation.typedText == nil)
+    }
+
+    @Test("Review regenerate keeps the note as separate user text")
+    func reviewRegenerateSeparatesNote() {
+        let command = "Regenerate S012. Note: Keep the silhouette."
+        let turn = ReviewPanelView.regenerateTurn(
+            command: command,
+            frameName: "frame-03",
+            shotId: "S012",
+            reason: "Composition",
+            note: "Keep the silhouette."
+        )
+
+        #expect(turn.command == command)
+        #expect(turn.presentation.choiceRecord?.summary.contains("Action: Regenerate") == true)
+        #expect(turn.presentation.typedText == "Keep the silhouette.")
+    }
+
+    @Test("Apply Brief is shown as a control record")
+    func applyBriefControlRecord() {
+        let command = "Update brief fields and rerun the brief phase."
+        let turn = StoryPanelView.applyBriefTurn(command)
+
+        #expect(turn.command == command)
+        #expect(turn.presentation.choiceRecord?.summary == "Brief: Changes applied")
+        #expect(turn.presentation.typedText == nil)
+    }
+
+    @Test("Story prose hides its generated command and preserves the typed text")
+    func storyProseIsSeparate() {
+        let command = "Revise the treatment: Make it colder. Then present it for review."
+        let turn = StoryPanelView.proseTurn(
+            command: command,
+            action: "Revise treatment",
+            typedText: "Make it colder."
+        )
+
+        #expect(turn.command == command)
+        #expect(turn.presentation.choiceRecord == nil)
+        #expect(turn.presentation.typedText == "Make it colder.")
+    }
 }

@@ -190,6 +190,8 @@ jobs:
             BUILD_NUMBER="$(jq -r .build_number "$TRANSACTION")"
             DMG_LENGTH="$(jq -r .dmg_length "$TRANSACTION")"
             ED_SIGNATURE="$(jq -r .ed_signature "$TRANSACTION")"
+            git fetch --no-tags origin "$GITHUB_REF_NAME"
+            git checkout --detach FETCH_HEAD
             python3 scripts/update_appcast.py \
               "$REL_VERSION" "$BUILD_NUMBER" "$DMG_LENGTH" "$ED_SIGNATURE" "$TAG"
             git config user.name "github-actions[bot]"

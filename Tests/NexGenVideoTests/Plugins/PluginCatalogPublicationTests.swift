@@ -111,6 +111,19 @@ struct PluginCatalogPublicationTests {
         """))
     }
 
+    @Test("publication resume updates the dispatched ref before pushing appcast")
+    func resumeFastForwardsBeforeAppcastCommit() throws {
+        let workflow = try String(contentsOf: releaseWorkflowURL, encoding: .utf8)
+        let fetch = try #require(
+            workflow.range(of: #"git fetch --no-tags origin "$GITHUB_REF_NAME""#)
+        )
+        let checkout = try #require(workflow.range(of: "git checkout --detach FETCH_HEAD"))
+        let appcast = try #require(workflow.range(of: "python3 scripts/update_appcast.py"))
+
+        #expect(fetch.lowerBound < checkout.lowerBound)
+        #expect(checkout.lowerBound < appcast.lowerBound)
+    }
+
     @Test("a published stable pack version is immutable")
     func stableVersionIsImmutable() throws {
         let root = try temporaryDirectory()

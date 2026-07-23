@@ -245,6 +245,56 @@ struct BudgetStopTests {
         #expect(editor.generationLog.spendEvents.count == 1)
     }
 
+    @Test("a delayed quote rechecks live reservations before authorizing")
+    func delayedQuoteCannotOverwriteConcurrentReservation() async throws {
+        let package = try project(stop: 10)
+        defer { cleanup(package) }
+        let editor = editor(for: package)
+        let target = GenerationService.dispatchTarget(modelId: "fal-ai/veo3")
+        let input = GenerationPricingInput(
+            modelId: "fal-ai/veo3",
+            modality: .video,
+            durationSeconds: 5,
+            outputCount: 1,
+            resolution: nil,
+            quality: nil,
+            promptCharacterCount: 5,
+            generateAudio: true
+        )
+        let (quoteStarted, startedContinuation) = AsyncStream<Void>.makeStream()
+        var resumeQuote: CheckedContinuation<Void, Never>?
+
+        let delayed = Task { @MainActor in
+            try await GenerationBudgetGuard.authorize(
+                input: input,
+                target: target,
+                editor: editor,
+                quoteLoader: { _, _ in
+                    startedContinuation.yield()
+                    await withCheckedContinuation { resumeQuote = $0 }
+                    return money(6)
+                }
+            )
+        }
+        var iterator = quoteStarted.makeAsyncIterator()
+        _ = await iterator.next()
+
+        _ = try await GenerationBudgetGuard.authorize(
+            input: input,
+            target: target,
+            editor: editor,
+            quoteLoader: { _, _ in money(6) }
+        )
+        let continuation = try #require(resumeQuote)
+        continuation.resume()
+
+        await #expect(throws: GenerationBudgetError.self) {
+            _ = try await delayed.value
+        }
+        #expect(editor.generationLog.spendEvents.count == 1)
+        #expect(editor.generationLog.spendEvents.first?.money?.eurAmount == 6)
+    }
+
     @Test("reruns use the same pre-dispatch budget guard")
     func rerunStopsBeforeDispatch() async throws {
         let package = try project(stop: 5)

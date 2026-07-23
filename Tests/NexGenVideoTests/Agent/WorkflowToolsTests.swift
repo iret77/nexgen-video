@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 @testable import NexGenVideo
@@ -593,10 +594,39 @@ struct WorkflowToolsTests {
 
     // MARK: - attach_song
 
-    /// Write a tiny non-empty stub file at `url` (content is irrelevant — attach_song only copies).
-    private func writeStub(_ url: URL, bytes: String = "stub-audio") throws {
+    private func writeStub(_ url: URL, frequency: Double = 440) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(bytes.utf8).write(to: url)
+        guard AudioProjectLayout.audioExtensions.contains(
+            url.pathExtension.lowercased()
+        ) else {
+            try Data("not-audio".utf8).write(to: url)
+            return
+        }
+        let format = try #require(
+            AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 44_100,
+                channels: 1,
+                interleaved: false
+            )
+        )
+        let file = try AVAudioFile(
+            forWriting: url,
+            settings: format.settings,
+            commonFormat: format.commonFormat,
+            interleaved: format.isInterleaved
+        )
+        let frames: AVAudioFrameCount = 4_410
+        let buffer = try #require(
+            AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)
+        )
+        buffer.frameLength = frames
+        for index in 0..<Int(frames) {
+            buffer.floatChannelData![0][index] = Float(
+                0.25 * sin(2 * Double.pi * frequency * Double(index) / 44_100)
+            )
+        }
+        try file.write(from: buffer)
     }
 
     @Test("attach_song copies an absolute-path song into audio/ and returns filename + audio_dir")
@@ -615,24 +645,27 @@ struct WorkflowToolsTests {
         #expect(FileManager.default.fileExists(atPath: copied.path))
         // The original is untouched (a copy, not a move).
         #expect(FileManager.default.fileExists(atPath: song.path))
+        let anchorId = try #require(out["asset_id"] as? String)
+        #expect(h.editor.mediaManifest.songAnchorAssetId == anchorId)
 
-        // The runner now locates exactly this song — the no-song blocker is gone.
-        try activatePack("musicvideo", dataRoot: dataRoot)
-        let phase = try #require(try await h.runOK("run_phase", args: [
-            "project_dir": dataRoot.path, "phase": "analysis",
+        let repeated = try #require(try await h.runOK("attach_song", args: [
+            "project_dir": dataRoot.path, "path": song.path,
         ]) as? [String: Any])
-        // A song is present, so it's no longer the "add the song" blocker; whatever the decode does,
-        // the detail (if any) must not be the missing-audio message.
-        if let detail = phase["detail"] as? String {
-            #expect(detail.contains("Add the song") == false)
-        }
+        #expect(repeated["asset_id"] as? String == anchorId)
+        let anchorClips = h.editor.timeline.tracks
+            .filter { $0.type == .audio }
+            .flatMap(\.clips)
+            .filter { $0.mediaRef == anchorId }
+        #expect(anchorClips.count == 1)
+        #expect(anchorClips.first?.startFrame == 0)
+
     }
 
     @Test("attach_song copies a media-library asset's file into audio/")
     func attachSongFromMedia() async throws {
         let (h, dataRoot, cleanup) = try scaffold()
         defer { try? FileManager.default.removeItem(at: cleanup) }
-        let song = cleanup.appendingPathComponent("track.mp3")
+        let song = cleanup.appendingPathComponent("track.wav")
         try writeStub(song)
         let asset = MediaAsset(id: UUID().uuidString, url: song, type: .audio, name: "track")
         h.editor.mediaAssets.append(asset)
@@ -642,9 +675,9 @@ struct WorkflowToolsTests {
         let out = try #require(try await h.runOK("attach_song", args: [
             "project_dir": dataRoot.path, "media": ref,
         ]) as? [String: Any])
-        #expect(out["filename"] as? String == "track.mp3")
+        #expect(out["filename"] as? String == "track.wav")
         let audioDir = try #require(out["audio_dir"] as? String)
-        #expect(FileManager.default.fileExists(atPath: URL(fileURLWithPath: audioDir).appendingPathComponent("track.mp3").path))
+        #expect(FileManager.default.fileExists(atPath: URL(fileURLWithPath: audioDir).appendingPathComponent("track.wav").path))
     }
 
     @Test("attach_song rejects a non-audio source")
@@ -664,10 +697,14 @@ struct WorkflowToolsTests {
         defer { try? FileManager.default.removeItem(at: cleanup) }
         let first = cleanup.appendingPathComponent("first.wav")
         let second = cleanup.appendingPathComponent("second.wav")
-        try writeStub(first)
-        try writeStub(second)
+        try writeStub(first, frequency: 220)
+        try writeStub(second, frequency: 880)
 
-        _ = try await h.runOK("attach_song", args: ["project_dir": dataRoot.path, "path": first.path])
+        let firstResult = try #require(try await h.runOK(
+            "attach_song",
+            args: ["project_dir": dataRoot.path, "path": first.path]
+        ) as? [String: Any])
+        let firstId = try #require(firstResult["asset_id"] as? String)
 
         // A different song without replace → actionable error naming the existing one.
         let refused = await h.runRaw("attach_song", args: ["project_dir": dataRoot.path, "path": second.path])
@@ -681,6 +718,15 @@ struct WorkflowToolsTests {
         let audioDir = URL(fileURLWithPath: try #require(swapped["audio_dir"] as? String))
         #expect(FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("second.wav").path))
         #expect(FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("first.wav").path) == false)
+        let secondId = try #require(swapped["asset_id"] as? String)
+        #expect(secondId != firstId)
+        #expect(h.editor.mediaManifest.songAnchorAssetId == secondId)
+        #expect(h.editor.mediaAssets.contains { $0.id == firstId } == false)
+        let audioClips = h.editor.timeline.tracks
+            .filter { $0.type == .audio }
+            .flatMap(\.clips)
+        #expect(audioClips.filter { $0.mediaRef == firstId }.isEmpty)
+        #expect(audioClips.filter { $0.mediaRef == secondId && $0.startFrame == 0 }.count == 1)
     }
 
     @Test("attach_song preserves the current song when replacement staging fails")
@@ -689,18 +735,14 @@ struct WorkflowToolsTests {
         defer { try? FileManager.default.removeItem(at: cleanup) }
         let first = cleanup.appendingPathComponent("first.wav")
         let second = cleanup.appendingPathComponent("second.wav")
-        try writeStub(first, bytes: "current-song")
-        try writeStub(second, bytes: "replacement-song")
+        try writeStub(first, frequency: 220)
+        try Data("not-audio".utf8).write(to: second)
         _ = try await h.runOK("attach_song", args: [
             "project_dir": dataRoot.path,
             "path": first.path,
         ])
         let audioDir = dataRoot.appendingPathComponent("audio", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: audioDir.appendingPathComponent("second.wav", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-
+        let before = try Data(contentsOf: audioDir.appendingPathComponent("first.wav"))
         let result = await h.runRaw("attach_song", args: [
             "project_dir": dataRoot.path,
             "path": second.path,
@@ -708,10 +750,75 @@ struct WorkflowToolsTests {
         ])
 
         #expect(result.isError)
-        #expect(try String(
-            contentsOf: audioDir.appendingPathComponent("first.wav"),
-            encoding: .utf8
-        ) == "current-song")
+        #expect(try Data(contentsOf: audioDir.appendingPathComponent("first.wav")) == before)
+    }
+
+    @Test("the explicit song anchor survives save and recovery reopen")
+    func attachSongSurvivesSaveAndReopen() async throws {
+        let cleanup = FileManager.default.temporaryDirectory
+            .appendingPathComponent("song-reopen-\(UUID().uuidString)", isDirectory: true)
+        let package = cleanup.appendingPathComponent("Project.ngv", isDirectory: true)
+        let source = cleanup.appendingPathComponent("spine.wav")
+        try Fixtures.prepareProjectPackage(at: package)
+        _ = try ProjectScaffold.initProject(
+            home: package,
+            name: "reopen",
+            mode: .beat
+        )
+        try writeStub(source)
+        let h = ToolHarness()
+        h.editor.projectURL = package
+        defer {
+            h.editor.releaseWorkingCopy()
+            try? FileManager.default.removeItem(at: cleanup)
+        }
+        let dataRoot = try #require(
+            h.editor.workingRoot.flatMap { DataRootResolver.dataRoot(of: $0) }
+        )
+        let attached = try #require(try await h.runOK(
+            "attach_song",
+            args: ["project_dir": dataRoot.path, "path": source.path]
+        ) as? [String: Any])
+        let anchorId = try #require(attached["asset_id"] as? String)
+        let key = try #require(h.editor.openWorkingCopyKey)
+
+        try ProjectWorkingCopy.checkpoint(
+            key: key,
+            snapshot: .init(
+                timeline: try JSONEncoder().encode(h.editor.timeline),
+                manifest: try JSONEncoder().encode(h.editor.mediaManifest),
+                generationLog: try JSONEncoder().encode(h.editor.generationLog),
+                thumbnail: nil,
+                chatSessionFiles: []
+            )
+        )
+        try ProjectWorkingCopy.persist(key: key, to: package)
+        ProjectWorkingCopy.discard(key: key)
+        let reopened = try ProjectWorkingCopy.open(
+            key: key,
+            packageURL: package
+        )
+        let manifest = try JSONDecoder().decode(
+            MediaManifest.self,
+            from: Data(
+                contentsOf: reopened.home.appendingPathComponent(
+                    Project.manifestFilename
+                )
+            )
+        )
+        let timeline = try JSONDecoder().decode(
+            Timeline.self,
+            from: Data(
+                contentsOf: reopened.home.appendingPathComponent(
+                    Project.timelineFilename
+                )
+            )
+        )
+
+        #expect(manifest.songAnchorAssetId == anchorId)
+        #expect(manifest.entries.contains { $0.id == anchorId })
+        #expect(timeline.tracks.filter { $0.type == .audio }.flatMap(\.clips)
+            .filter { $0.mediaRef == anchorId && $0.startFrame == 0 }.count == 1)
     }
 
     @Test("attach_song requires exactly one of media or path")

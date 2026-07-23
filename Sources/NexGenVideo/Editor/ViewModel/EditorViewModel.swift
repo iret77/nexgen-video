@@ -19,6 +19,12 @@ struct PendingAudioPlacement {
     let actionName: String
 }
 
+struct MediaImportProgress: Equatable {
+    let completed: Int
+    let total: Int
+    let currentName: String?
+}
+
 @Observable
 @MainActor
 final class EditorViewModel {
@@ -739,8 +745,11 @@ final class EditorViewModel {
     var mediaPanelCurrentFolderId: String?
     var mediaPanelPasteRequestTick: Int = 0
     var mediaPanelToast: MediaPanelToast?
+    var mediaImportProgress: MediaImportProgress?
     @ObservationIgnored var mediaImportTail: Task<MediaImportSummary, Never>?
+    @ObservationIgnored var mediaImportCancellation: (() -> Void)?
     @ObservationIgnored var mediaImportSequence: Int = 0
+    @ObservationIgnored var songAttachInProgress = false
 
     func showMediaPanelMediaTab() {
         mediaPanelTab = .assets

@@ -181,7 +181,9 @@ final class AgentService {
             attachStyleRefs(dialog: dialog, result: result)
             return
         case "song":
-            attachSongFromDialog(dialog: dialog, result: result)
+            Task {
+                await attachSongFromDialog(dialog: dialog, result: result)
+            }
             return
         default:
             break
@@ -384,10 +386,10 @@ final class AgentService {
         return out.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 
-    /// Place the picked song straight into the project's `audio/` (copy, never move) and hold the
-    /// one-song contract — no separate `attach_song` step for the agent to forget. Copies the new song
-    /// in first, THEN clears any other audio file, so a failure never leaves audio/ empty.
-    private func attachSongFromDialog(dialog: AgentDialog, result: AgentDialogResult) {
+    private func attachSongFromDialog(
+        dialog: AgentDialog,
+        result: AgentDialogResult
+    ) async {
         guard let src = result.fileURLs.first else {
             sendDialogResponse(
                 dialog,
@@ -414,39 +416,24 @@ final class AgentService {
             )
             return
         }
-        let audioDir = dataRoot.appendingPathComponent("audio", isDirectory: true)
-        let dest = audioDir.appendingPathComponent(src.lastPathComponent)
         do {
-            if let key = editor.openWorkingCopyKey {
-                try ProjectWorkingCopy.markDirty(key: key)
+            let attached = try await editor.attachProjectSong(
+                from: src,
+                dataRoot: dataRoot,
+                replace: true
+            )
+            let routing: String
+            if let next = editor.projectState?.nextPhaseName, next != "analysis" {
+                routing = "The pipeline is still on \"\(next)\" — settle that and get it approved first; "
+                    + "analysis is gated behind it."
+            } else {
+                routing = "Run run_phase(\"analysis\") to measure it."
             }
-            try FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true)
-            if src.standardizedFileURL != dest.standardizedFileURL {
-                // Stage next to the destination, then swap in — a failed copy never destroys an existing
-                // same-named song (copy-before-delete).
-                let staging = audioDir.appendingPathComponent(
-                    ".song-\(UUID().uuidString).partial"
-                )
-                do {
-                    try FileManager.default.copyItem(at: src, to: staging)
-                    if FileManager.default.fileExists(atPath: dest.path) {
-                        _ = try FileManager.default.replaceItemAt(
-                            dest,
-                            withItemAt: staging
-                        )
-                    } else {
-                        try FileManager.default.moveItem(at: staging, to: dest)
-                    }
-                } catch {
-                    try? FileManager.default.removeItem(at: staging)
-                    throw error
-                }
-            }
-            // One-song contract: retire any OTHER audio file only after the new one is safely in place.
-            for other in AudioProjectLayout.songFiles(dataRoot: dataRoot)
-            where other.lastPathComponent != dest.lastPathComponent {
-                try? FileManager.default.removeItem(at: other)
-            }
+            sendDialogResponse(
+                dialog,
+                result: result,
+                agentContext: "Song placed in audio/ (\(attached.filename)). \(routing)"
+            )
         } catch {
             sendDialogFailure(
                 dialog,
@@ -454,52 +441,6 @@ final class AgentService {
                 notice: "Couldn't attach the song: \(error.localizedDescription)",
                 agentContext: "The host couldn't place the song in audio/: \(error.localizedDescription)."
             )
-            return
-        }
-        editor.onPipelineChanged?()
-        anchorSongOnTimeline(dest, editor: editor)
-        let routing: String
-        if let next = editor.projectState?.nextPhaseName, next != "analysis" {
-            routing = "The pipeline is still on \"\(next)\" — settle that and get it approved first; "
-                + "analysis is gated behind it."
-        } else {
-            routing = "Run run_phase(\"analysis\") to measure it."
-        }
-        sendDialogResponse(
-            dialog,
-            result: result,
-            agentContext: "Song placed in audio/ (\(src.lastPathComponent)). \(routing)"
-        )
-    }
-
-    /// Put the song on the timeline the moment it arrives. It is the project's spine — every cut keys
-    /// to its beats — so an empty timeline until the final assembly leaves the user unable to hear or
-    /// scrub the one thing the whole project is built around. `assemble_timeline` reuses this exact
-    /// asset and skips its own placement when the anchor is already at frame 0.
-    func anchorSongOnTimeline(_ fileURL: URL, editor: EditorViewModel) {
-        let target = fileURL.standardizedFileURL.resolvingSymlinksInPath()
-        let existing = editor.mediaAssets.first {
-            $0.url.standardizedFileURL.resolvingSymlinksInPath() == target
-        }
-        guard let asset = existing ?? editor.addMediaAsset(from: fileURL) else { return }
-        Task { @MainActor in
-            // Duration comes from the file, not the analysis — the anchor must not wait for a phase
-            // that may not run for a while.
-            if asset.duration <= 0 { await asset.loadMetadata() }
-            guard asset.duration > 0 else { return }
-            let anchored = editor.timeline.tracks.contains { track in
-                track.type == .audio && track.clips.contains { $0.mediaRef == asset.id && $0.startFrame == 0 }
-            }
-            guard !anchored else { return }
-            let trackIndex = editor.timeline.tracks.firstIndex { $0.type == .audio }
-                ?? editor.insertTrack(at: editor.timeline.tracks.count, type: .audio)
-            let frames = max(1, Int((asset.duration * Double(editor.timeline.fps)).rounded()))
-            let wasEmpty = editor.timeline.totalFrames == 0
-            _ = editor.placeClip(
-                asset: asset, trackIndex: trackIndex, startFrame: 0,
-                durationFrames: frames, addLinkedAudio: false)
-            // First layout happens before the spine exists, so fit the initial track explicitly.
-            if wasEmpty { editor.zoomScale = editor.minZoomScale }
         }
     }
 
@@ -1213,6 +1154,14 @@ final class AgentService {
         kickOffStream()
     }
 
+    func send(controlTurn: AgentControlTurn) {
+        send(
+            text: controlTurn.command,
+            mentions: [],
+            presentation: controlTurn.presentation
+        )
+    }
+
     private func prepareWorkingCopyForTurn() -> Bool {
         guard let key = editor?.openWorkingCopyKey else { return true }
         do {
@@ -1685,9 +1634,15 @@ final class AgentService {
     }
 
     private static func title(from message: AgentMessage) -> String {
-        if let typed = message.userPresentation?.typedText?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !typed.isEmpty {
-            return String(typed.prefix(40))
+        if let presentation = message.userPresentation {
+            if let typed = presentation.typedText?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !typed.isEmpty {
+                return String(typed.prefix(40))
+            }
+            if let summary = presentation.choiceRecord?.summary, !summary.isEmpty {
+                return String(summary.prefix(40))
+            }
+            return "New chat"
         }
         for block in message.blocks {
             if case let .text(s) = block {
