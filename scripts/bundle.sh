@@ -44,6 +44,7 @@ NOTARY_KEY_FILE="${NOTARY_KEY_FILE:-}"
 NOTARY_KEY_ID="${NOTARY_KEY_ID:-}"
 NOTARY_ISSUER="${NOTARY_ISSUER:-}"
 SENTRY_DSN="${SENTRY_DSN:-}"
+PLUGIN_CATALOG_URL="${PLUGIN_CATALOG_URL:-}"
 ENTITLEMENTS="$ROOT/scripts/NexGenVideo.entitlements"
 RESOURCES="$ROOT/Sources/NexGenVideo/Resources"
 APP="$ROOT/.build/NexGenVideo.app"
@@ -149,6 +150,16 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$BIN" "$APP/Contents/MacOS/NexGenVideo"
 cp "$RESOURCES/Info.plist" "$APP/Contents/Info.plist"
+
+if [ -n "$PLUGIN_CATALOG_URL" ]; then
+  case "$PLUGIN_CATALOG_URL" in
+    https://*) ;;
+    *) echo "!! PLUGIN_CATALOG_URL must use https" >&2; exit 1 ;;
+  esac
+  echo "==> Embedding plugin catalog channel"
+  /usr/libexec/PlistBuddy -c "Delete :NGVPluginCatalogURL" "$APP/Contents/Info.plist" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :NGVPluginCatalogURL string $PLUGIN_CATALOG_URL" "$APP/Contents/Info.plist"
+fi
 
 if [ -n "$SENTRY_DSN" ]; then
   echo "==> Injecting SentryDSN into Info.plist"

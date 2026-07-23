@@ -1177,14 +1177,14 @@ enum ToolDefinitions {
         ),
         AgentTool(
             name: .recordRender,
-            description: "Record a shot's render result into the phase manifest. WRITES.\n\nUpserts `shot_id`'s entry (status, `output` path-or-URL, `cost_eur`) into `renders/manifest-<phase>.json`, stamps `updated_at`, and returns the saved entry plus the manifest's running `spent_eur`. `status` is one of rendered/pending/failed. `project_dir` is the `pipeline/` data root; omit to use the open project.",
+            description: "Record a shot's render result into the phase manifest. WRITES.\n\nUpserts `shot_id`'s entry (status, `output` path-or-URL, reported `cost_eur`) into `renders/manifest-<phase>.json`, stamps `updated_at`, and returns the saved entry plus the manifest's reported `spent_eur`. These agent-supplied amounts are production notes, never the authoritative project budget ledger; the host records provider charges separately. `status` is one of rendered/pending/failed. `project_dir` is the `pipeline/` data root; omit to use the open project.",
             inputSchema: objectSchema(
                 properties: [
                     "project_dir": projectDirProperty,
                     "phase": ["type": "string", "enum": ["frames", "preview", "final"], "description": "The render phase."],
                     "shot_id": ["type": "string", "description": "The shot id to record."],
                     "output": ["type": "string", "description": "Path or URL of the rendered artifact (null if not done)."],
-                    "cost_eur": ["type": "number", "minimum": 0, "description": "EUR spent on this render (default 0)."],
+                    "cost_eur": ["type": "number", "minimum": 0, "description": "Reported EUR cost for production notes (default 0); not used by the hard budget stop."],
                     "status": ["type": "string", "enum": ["rendered", "pending", "failed"], "description": "Render status (default rendered)."],
                 ],
                 required: ["phase", "shot_id"]

@@ -64,6 +64,7 @@ struct GenerationInput: Codable, Sendable, Equatable {
     var referenceImageAssetIds: [String]?
     var referenceVideoAssetIds: [String]?
     var referenceAudioAssetIds: [String]?
+    var spendTransactionId: String?
     var createdAt: Date?
 }
 

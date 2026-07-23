@@ -36,8 +36,23 @@ enum PluginCatalogService {
     /// deleted and recreated on every push to main: that made a versioned release ship a fixed pack
     /// the app never read (0.7.7 "Damaged pack" stayed broken in the field until dev-latest was
     /// re-run by hand). Pack assets here are version-stamped, so a URL always addresses one version.
-    static let catalogURL = URL(
+    static let stableCatalogURL = URL(
         string: "https://github.com/iret77/nexgenvideo/releases/download/plugins/catalog.json")!
+
+    static var catalogURL: URL {
+        resolvedCatalogURL(
+            configuredValue: Bundle.main.object(forInfoDictionaryKey: "NGVPluginCatalogURL") as? String
+        )
+    }
+
+    nonisolated static func resolvedCatalogURL(configuredValue: String?) -> URL {
+        guard let configuredValue,
+              let url = URL(string: configuredValue),
+              url.scheme?.lowercased() == "https" else {
+            return stableCatalogURL
+        }
+        return url
+    }
 
     enum FetchError: Error { case http(Int); case empty; case insecureURL(String) }
 

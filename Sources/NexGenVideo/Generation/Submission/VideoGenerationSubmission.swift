@@ -18,6 +18,7 @@ struct VideoGenerationSubmission {
         service: GenerationService,
         projectURL: URL?,
         editor: EditorViewModel,
+        authorization: GenerationAuthorization,
         onComplete: (@MainActor (MediaAsset) -> Void)? = nil,
         onFailure: (@MainActor () -> Void)? = nil
     ) -> String {
@@ -35,6 +36,7 @@ struct VideoGenerationSubmission {
             fileExtension: "mp4",
             projectURL: projectURL,
             editor: editor,
+            authorization: authorization,
             onComplete: onComplete,
             onFailure: onFailure
         )

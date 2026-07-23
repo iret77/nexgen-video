@@ -45,6 +45,24 @@ struct PluginCatalogDecodeTests {
         #expect(url.absoluteString.hasSuffix("/releases/download/plugins/catalog.json"))
     }
 
+    @Test func signedBundleCanSelectAnIsolatedPreviewCatalog() {
+        let preview = PluginCatalogService.resolvedCatalogURL(
+            configuredValue: "https://github.com/iret77/nexgenvideo/releases/download/preview-123/catalog.json"
+        )
+        #expect(preview.absoluteString.hasSuffix("/releases/download/preview-123/catalog.json"))
+    }
+
+    @Test func invalidConfiguredCatalogFallsBackToStable() {
+        #expect(
+            PluginCatalogService.resolvedCatalogURL(configuredValue: "http://example.com/catalog.json")
+                == PluginCatalogService.stableCatalogURL
+        )
+        #expect(
+            PluginCatalogService.resolvedCatalogURL(configuredValue: nil)
+                == PluginCatalogService.stableCatalogURL
+        )
+    }
+
     /// The channel lists SEVERAL versions per pack; decoding must keep them all (the app, not the
     /// decoder, narrows to the newest compatible one).
     @Test func decodesMultipleVersionsOfOnePack() throws {

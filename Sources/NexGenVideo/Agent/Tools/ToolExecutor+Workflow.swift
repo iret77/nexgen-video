@@ -776,26 +776,6 @@ extension ToolExecutor {
         }
         let shot = shotlist.shots.first { $0.id == shotId }
 
-        // #198 — the OPTIONAL hard spending stop. Enforced here, at the tool boundary that hands a
-        // shot out for rendering: the last point before money is spent, and the same seam the
-        // consistency machinery uses. No stop set → nothing is blocked, only reported.
-        if let verdict = try budgetStopVerdict(
-            dataRoot: root,
-            phase: phase,
-            shotId: shotId,
-            shotlist: shotlist
-        ),
-           verdict.overBudget {
-            throw ToolError(
-                "Budget stop reached — render refused. This shot's estimated "
-                + String(format: "€%.2f", verdict.newRunEur)
-                + " would take the project to " + String(format: "€%.2f", verdict.projectTotalEur)
-                + ", over the user's limit of " + String(format: "€%.2f", verdict.budgetEur)
-                + " (already spent: " + String(format: "€%.2f", verdict.alreadySpentEur) + "). "
-                + "Do NOT work around this: tell the user, and let them raise the limit, drop shots, "
-                + "or pick a cheaper model.")
-        }
-
         var body: [String: Any] = [
             "phase": phase,
             "shot_id": shotId,
@@ -1165,108 +1145,6 @@ extension ToolExecutor {
                 pitchDegrees: (entry["pitch"] as? NSNumber)?.doubleValue ?? -5,
                 fovHorizontalDegrees: (entry["fov_h"] as? NSNumber)?.doubleValue ?? 75)
         }
-    }
-
-    /// The optional budget stop (#198), evaluated for the shot about to be handed out.
-    ///
-    /// `nil` when the user set no limit — the overwhelmingly common case, and deliberately the
-    /// default: without an amount there is only cost INFO, never a block. `Brief.budgetEur` is NOT
-    /// used for this; it defaults to 50 on every project, so gating on it would impose a limit
-    /// nobody chose.
-    ///
-    /// The check is pre-flight: this shot's ESTIMATE plus what the project already spent, against
-    /// the limit — so the stop lands before the money is gone rather than one shot after.
-    private func budgetStopVerdict(
-        dataRoot: URL, phase: String, shotId: String, shotlist: Shotlist?
-    ) throws -> CostGuardVerdict? {
-        guard let brief = try readBriefIfPresent(dataRoot: dataRoot),
-              let stop = brief.budgetStopEur, stop > 0,
-              let shotlist
-        else { return nil }
-        guard let phaseValue = Phase(rawValue: phase) else {
-            throw ToolError(
-                "Budget stop verification has no pricing model for the \(phase) phase. "
-                    + "Render refused until that phase has a verified cost model."
-            )
-        }
-        // The bundled prices — the same source the rest of the cost machinery uses (Checks,
-        // ExpandingCamera); there is no per-project costs.yaml in this port.
-        let costs = CostsConfig.bundledDefault
-        let projected = estimate(
-            shotlist: shotlist, costs: costs, phase: phaseValue,
-            finalResolution: brief.finalResolution.rawValue,
-            forceHandles: brief.cutHandlesMode == .withOverlap)
-        let shotEur = projected.shotEstimates.first { $0.shotId == shotId }?.eur ?? 0
-        let already = costs.costGuard.projectWideBudget
-            ? try verifiedProjectSpend(dataRoot: dataRoot)
-            : 0
-        let total = ((shotEur + already) * 100).rounded() / 100
-        return CostGuardVerdict(
-            newRunEur: shotEur,
-            alreadySpentEur: already,
-            projectTotalEur: total,
-            budgetEur: stop,
-            overBudget: total > stop,
-            needsConfirmation: shotEur >= costs.costGuard.confirmThresholdEur,
-            confirmThresholdEur: costs.costGuard.confirmThresholdEur
-        )
-    }
-
-    private func verifiedProjectSpend(dataRoot: URL) throws -> Double {
-        let rendersDir = PipelineLayout.url(PipelineLayout.rendersDir, in: dataRoot)
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(
-            atPath: rendersDir.path,
-            isDirectory: &isDirectory
-        ) else {
-            return 0
-        }
-        guard isDirectory.boolValue else {
-            throw ToolError(
-                "Couldn't verify project spend because renders/ is not a directory."
-            )
-        }
-        let files: [URL]
-        do {
-            files = try FileManager.default.contentsOfDirectory(
-                at: rendersDir,
-                includingPropertiesForKeys: [.isRegularFileKey]
-            )
-        } catch {
-            throw ToolError(
-                "Couldn't verify project spend from renders/: \(error.localizedDescription)"
-            )
-        }
-
-        var total = 0.0
-        for url in files where url.lastPathComponent.hasPrefix("manifest-")
-            && url.pathExtension == "json" {
-            do {
-                let values = try url.resourceValues(forKeys: [.isRegularFileKey])
-                guard values.isRegularFile == true else {
-                    throw CocoaError(.fileReadCorruptFile)
-                }
-                let manifest = try JSONDecoder().decode(
-                    RenderManifest.self,
-                    from: Data(contentsOf: url)
-                )
-                for entry in manifest.entries.values {
-                    guard entry.costEur.isFinite, entry.costEur >= 0 else {
-                        throw CocoaError(.fileReadCorruptFile)
-                    }
-                    total += entry.costEur
-                    guard total.isFinite else {
-                        throw CocoaError(.fileReadCorruptFile)
-                    }
-                }
-            } catch {
-                throw ToolError(
-                    "Couldn't verify project spend because \(url.lastPathComponent) is unreadable "
-                        + "or invalid. Render refused: \(error.localizedDescription)"
-                )
-            }
-        }
-        return (total * 100).rounded() / 100
     }
 
     func cropToAspectTool(_ editor: EditorViewModel, _ args: [String: Any]) throws -> ToolResult {

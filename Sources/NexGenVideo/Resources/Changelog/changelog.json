@@ -2,6 +2,40 @@
   "changelogURL": "https://github.com/iret77/nexgenvideo/releases",
   "entries": [
     {
+      "version": "1.0.0",
+      "date": "2026-07-23",
+      "sections": [
+        {
+          "heading": "Projects",
+          "items": [
+            "Unsaved timelines, media, chats, and generation state now recover together.",
+            "Save, Save As, media import, and song replacement now preserve one complete project state."
+          ]
+        },
+        {
+          "heading": "Agent",
+          "items": [
+            "App controls no longer appear as messages you typed.",
+            "Tool failures and approval refusals now stay actionable without exposing internal instructions."
+          ]
+        },
+        {
+          "heading": "Generation",
+          "items": [
+            "The project budget stop now guards every paid generation path before provider dispatch.",
+            "Provider pricing, reservations, and verified charges now share one project ledger."
+          ]
+        },
+        {
+          "heading": "Format packs",
+          "items": [
+            "Downloaded packs are signed, notarized, integrity-checked, and load-tested under quarantine.",
+            "Release previews use isolated plugin channels; stable publication happens only after the app release succeeds."
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.7.8",
       "date": "2026-07-09",
       "sections": [
