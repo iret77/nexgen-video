@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import NexGenEngine
 
 enum SongAnchorError: LocalizedError {
     case unsupported(String)

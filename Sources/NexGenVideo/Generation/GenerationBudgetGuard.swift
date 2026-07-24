@@ -286,7 +286,7 @@ enum GenerationBudgetGuard {
         }
     }
 
-    private static func corrupt(_ detail: String) -> GenerationBudgetError {
+    nonisolated private static func corrupt(_ detail: String) -> GenerationBudgetError {
         .blocked("Budget stop could not verify project spend: \(detail). No provider request was sent.")
     }
 

@@ -47,7 +47,7 @@ final class ToolExecutor {
             guard let schema = ToolDefinitions.all.first(where: { $0.name == tool })?.inputSchema else {
                 throw ToolError("Tool schema unavailable: \(tool.rawValue)")
             }
-            try validateToolInput(args, against: schema, path: tool.rawValue)
+            try validateToolInput(in: args, against: schema, path: tool.rawValue)
             let resolved = try expandingIdPrefixes(in: args, editor: editor)
             // HARD GATE: a tool that does phase-N work is refused until every earlier phase is approved.
             if enforceHardGates, let phase = tool.advancingPhase(args: resolved) {
