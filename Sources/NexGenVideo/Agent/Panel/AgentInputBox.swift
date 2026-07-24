@@ -73,7 +73,7 @@ struct AgentInputBox<LeadingTools: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: AppTheme.Spacing.none) {
             textField
                 .popover(isPresented: Binding(
                     get: { showMentionPicker && !blocked },
@@ -132,7 +132,7 @@ struct AgentInputBox<LeadingTools: View>: View {
     /// Invisible grab strip on the box's top edge: drag up to grow, down to shrink,
     /// clamped to the min/max. The resize cursor is the affordance.
     private var resizeHandle: some View {
-        Color.clear
+        AppTheme.Background.clearColor
             .frame(maxWidth: .infinity)
             .frame(height: AppTheme.ComponentSize.agentComposerGrabHeight)
             .contentShape(Rectangle())
@@ -157,7 +157,7 @@ struct AgentInputBox<LeadingTools: View>: View {
         ZStack(alignment: .topLeading) {
             TextEditor(text: $draft)
                 .id(textEditorID)
-                .font(.body)
+                .font(.system(size: AppTheme.FontSize.md))
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.never)
                 .padding(.horizontal, AppTheme.Spacing.mdLg)
@@ -166,7 +166,7 @@ struct AgentInputBox<LeadingTools: View>: View {
                 .focused($focused)
                 .frame(height: clampedComposerHeight)
                 .disabled(blocked)
-                .opacity(blocked ? AppTheme.Opacity.strong : 1)
+                .opacity(blocked ? AppTheme.Opacity.strong : AppTheme.Opacity.opaque)
                 .onChange(of: draft) { old, new in
                     updateMentionQuery(from: new)
                     if !old.isEmpty && new.isEmpty {
@@ -189,7 +189,7 @@ struct AgentInputBox<LeadingTools: View>: View {
             if draft.isEmpty {
                 Text(blocked ? (blockedHint.isEmpty ? "Answer the card above to continue" : blockedHint)
                              : "Ask, or type @ to reference media")
-                    .font(.body)
+                    .font(.system(size: AppTheme.FontSize.md))
                     .foregroundStyle(AppTheme.Text.mutedColor)
                     .padding(.horizontal, AppTheme.Spacing.lgXl)
                     .padding(.top, AppTheme.Spacing.mdLg)
@@ -199,7 +199,7 @@ struct AgentInputBox<LeadingTools: View>: View {
     }
 
     private var bottomBar: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: AppTheme.Spacing.none) {
             Rectangle()
                 .fill(AppTheme.Border.subtleColor)
                 .frame(height: AppTheme.BorderWidth.hairline)
@@ -243,7 +243,7 @@ struct AgentInputBox<LeadingTools: View>: View {
             .tint(AppTheme.Accent.primary)
             .glassEffectID("sendStop", in: sendStopNamespace)
             .disabled(!canSend || blocked)
-            .opacity(canSend && !blocked ? 1 : AppTheme.Opacity.strong)
+            .opacity(canSend && !blocked ? AppTheme.Opacity.opaque : AppTheme.Opacity.strong)
             .transition(.scale.combined(with: .opacity))
         }
     }

@@ -74,7 +74,7 @@ struct SettingsView: View {
             SettingsDetail(tab: selectedTab, pluginManager: pluginManager)
                 .id(selectedTab)  // fresh view tree per tab — stale layers ghosted through the material
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black.opacity(AppTheme.Opacity.medium))
+                .background(AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.medium))
         }
         .frame(
             minWidth: AppTheme.Window.settingsMin.width,
@@ -144,7 +144,7 @@ private struct SettingsDetail: View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                 Text(tab.label)
-                    .font(.system(size: AppTheme.FontSize.title2, weight: .light))
+                    .font(.system(size: AppTheme.FontSize.title2, weight: AppTheme.FontWeight.light))
                     .tracking(AppTheme.Tracking.tight)
                     .foregroundStyle(AppTheme.Text.primaryColor)
                 Text(tab.subtitle)
@@ -301,7 +301,7 @@ struct SettingsRow<Accessory: View>: View {
 
 struct SettingsDivider: View {
     var body: some View {
-        Divider()
+        AppDivider()
             .overlay(AppTheme.Border.subtleColor)
     }
 }

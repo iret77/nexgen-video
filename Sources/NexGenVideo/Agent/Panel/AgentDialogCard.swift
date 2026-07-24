@@ -104,12 +104,12 @@ struct AgentDialogCard: View {
                 .font(.system(size: AppTheme.FontSize.md))
                 .foregroundStyle(accent)
             Text(dialog.title)
-                .font(.system(size: AppTheme.FontSize.smMd, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.semibold))
                 .foregroundStyle(AppTheme.Text.primaryColor)
             Spacer(minLength: AppTheme.Spacing.sm)
             Button(action: onCancel) {
                 Image(systemName: "xmark")
-                    .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.semibold))
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
             }
             .buttonStyle(.plain)
@@ -124,7 +124,7 @@ struct AgentDialogCard: View {
         case .choices(let options, let multiSelect):
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                 Text(section.label.uppercased())
-                    .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
                     .tracking(AppTheme.Tracking.wide)
                     .foregroundStyle(AppTheme.Text.mutedColor)
                 FlowChips(options: options,
@@ -169,7 +169,7 @@ struct AgentDialogCard: View {
             .padding(AppTheme.Spacing.sm)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                    .fill(Color.black.opacity(AppTheme.Opacity.muted))
+                    .fill(AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.muted))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
@@ -208,7 +208,7 @@ struct AgentDialogCard: View {
         if !picks.isEmpty, pickedFiles.isEmpty || intake.allowsMultiple {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                 Text("From your library".uppercased())
-                    .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
                     .tracking(AppTheme.Tracking.wide)
                     .foregroundStyle(AppTheme.Text.mutedColor)
                 LibraryAssetPicker(assets: picks) { addPicked($0.url, intake) }
@@ -225,12 +225,12 @@ struct AgentDialogCard: View {
                 .font(.system(size: AppTheme.FontSize.xl))
                 .foregroundStyle(accent)
             Text(intake.prompt ?? "Drop a file here or choose one")
-                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.primaryColor)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             Button { presentFilePanel(intake) } label: {
-                Text("Choose…").fontWeight(.semibold)
+                Text("Choose…").fontWeight(AppTheme.FontWeight.semibold)
             }
             .buttonStyle(.borderedProminent)
             .tint(accent)
@@ -276,7 +276,7 @@ struct AgentDialogCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                .fill(Color.black.opacity(AppTheme.Opacity.muted))
+                .fill(AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.muted))
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
@@ -429,7 +429,7 @@ private struct FlowChips: View {
                     .background(
                         Capsule().fill(isOn
                                        ? accent.opacity(AppTheme.Opacity.faint)
-                                       : Color.white.opacity(AppTheme.Opacity.subtle))
+                                       : AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.subtle))
                     )
                     .overlay(
                         Capsule().strokeBorder(

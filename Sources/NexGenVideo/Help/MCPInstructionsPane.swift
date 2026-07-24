@@ -93,7 +93,7 @@ struct MCPInstructionsPane: View {
             sectionHeading("Server URL")
             HStack(spacing: AppTheme.Spacing.smMd) {
                 Text(mcpEndpoint)
-                    .font(.system(.callout, design: .monospaced))
+                    .font(.system(size: AppTheme.FontSize.md, design: .monospaced))
                     .foregroundStyle(AppTheme.Text.primaryColor)
                     .padding(.horizontal, AppTheme.Spacing.mdLg)
                     .padding(.vertical, AppTheme.Spacing.smMd)
@@ -171,19 +171,19 @@ struct MCPInstructionsPane: View {
 
     private func sectionHeading(_ text: String, prominent: Bool = false) -> some View {
         Text(text)
-            .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
+            .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.semibold))
             .foregroundStyle(prominent ? AppTheme.Text.primaryColor : AppTheme.Text.tertiaryColor)
             .textCase(.uppercase)
-            .tracking(0.3)
+            .tracking(AppTheme.Tracking.subtle)
     }
 
     private func installButton(label: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: AppTheme.Spacing.sm) {
                 Image(systemName: systemImage)
-                    .font(.system(size: AppTheme.FontSize.sm, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.semibold))
                 Text(label)
-                    .font(.system(size: AppTheme.FontSize.smMd, weight: .medium))
+                    .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.medium))
             }
             .foregroundStyle(AppTheme.Text.primaryColor)
             .padding(.horizontal, AppTheme.Spacing.mdLg)
@@ -211,7 +211,7 @@ private struct CodeBlockView: View {
     var body: some View {
         HStack(alignment: .top, spacing: AppTheme.Spacing.smMd) {
             Text(content)
-                .font(.system(.caption, design: .monospaced))
+                .font(.system(size: AppTheme.FontSize.smMd, design: .monospaced))
                 .foregroundStyle(AppTheme.Text.primaryColor)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -241,10 +241,10 @@ private struct ManualFallback: View {
             Button(action: toggle) {
                 HStack(spacing: AppTheme.Spacing.sm) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                        .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                     Text("Manual setup")
-                        .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                        .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                 }
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
                 .contentShape(Rectangle())
@@ -278,7 +278,7 @@ private struct CopyButton: View {
     var body: some View {
         Button(action: copy) {
             Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(copied ? AppTheme.Text.primaryColor : AppTheme.Text.secondaryColor)
                 .frame(width: AppTheme.IconSize.lg, height: AppTheme.IconSize.lg)
                 .hoverHighlight()
@@ -301,6 +301,6 @@ private struct CopyButton: View {
 
 #Preview {
     MCPInstructionsPane()
-        .frame(width: 680, height: 560)
+        .frame(width: AppTheme.ComponentSize.mcpInstructionsWindow.width, height: AppTheme.ComponentSize.mcpInstructionsWindow.height)
         .background(AppTheme.Background.surfaceColor)
 }

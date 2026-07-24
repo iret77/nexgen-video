@@ -26,7 +26,7 @@ struct PipelinePanelView: View {
     @State private var gateError: String?
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: AppTheme.Spacing.none) {
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -67,7 +67,7 @@ struct PipelinePanelView: View {
                     CockpitStateView.empty(icon: "list.bullet.rectangle", title: "No phases",
                                            message: "This project has no defined phases.")
                 } else {
-                    VStack(spacing: 0) {
+                    VStack(spacing: AppTheme.Spacing.none) {
                         ForEach(Array(data.phases.enumerated()), id: \.element.id) { index, phase in
                             phaseRow(phase, isNext: phase.phase == data.nextPhaseName,
                                      isLast: index == data.phases.count - 1)
@@ -102,7 +102,7 @@ struct PipelinePanelView: View {
         return VStack(alignment: .leading, spacing: AppTheme.Spacing.mdLg) {
             HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
                 Text("BUDGET")
-                    .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
                     .tracking(AppTheme.Tracking.wide)
                     .foregroundStyle(AppTheme.Text.mutedColor)
                 Spacer(minLength: 0)
@@ -110,7 +110,7 @@ struct PipelinePanelView: View {
                     Label(data.budgetRemainingEur <= 0 ? "Over budget" : "Low budget",
                           systemImage: "exclamationmark.triangle.fill")
                         .labelStyle(.titleAndIcon)
-                        .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                        .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
                         .foregroundStyle(AppTheme.Status.errorColor)
                 }
             }
@@ -126,7 +126,7 @@ struct PipelinePanelView: View {
             VStack(spacing: AppTheme.Spacing.smMd) {
                 amountRow(label: "Budget", amount: data.budgetEur, color: AppTheme.Text.secondaryColor)
                 amountRow(label: "Spent", amount: data.budgetSpentEur, color: AppTheme.Text.secondaryColor)
-                Divider().overlay(AppTheme.Border.subtleColor)
+                AppDivider()
                 amountRow(label: "Remaining", amount: data.budgetRemainingEur,
                           color: warn ? AppTheme.Status.errorColor : AppTheme.Text.primaryColor,
                           emphasized: true)
@@ -148,7 +148,7 @@ struct PipelinePanelView: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
-                    .fill(Color.white.opacity(AppTheme.Opacity.faint))
+                    .fill(AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.faint))
                 RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
                     .fill(color)
                     .frame(width: max(0, min(1, fraction)) * geo.size.width)
@@ -176,13 +176,13 @@ struct PipelinePanelView: View {
         // Just the progress count — the next phase is already marked with a NEXT badge on its row below,
         // so a separate "Next: …" line here is redundant.
         Text(data.isComplete ? "All phases complete" : "\(data.phases.filter(\.approved).count) of \(data.phases.count) phases approved")
-            .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+            .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.semibold))
             .foregroundStyle(AppTheme.Text.primaryColor)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func phaseRow(_ phase: ProjectPhase, isNext: Bool, isLast: Bool) -> some View {
-        VStack(spacing: 0) {
+        VStack(spacing: AppTheme.Spacing.none) {
             HStack(spacing: AppTheme.Spacing.smMd) {
                 statusDot(approved: phase.approved, isNext: isNext, state: phase.state)
                 Text(PhaseDisplay.label(phase.phase))
@@ -195,7 +195,7 @@ struct PipelinePanelView: View {
                 Spacer(minLength: 0)
                 if phase.state == "needs_revision" {
                     Text("NEEDS REVISION")
-                        .font(.system(size: AppTheme.FontSize.micro, weight: .bold))
+                        .font(.system(size: AppTheme.FontSize.micro, weight: AppTheme.FontWeight.bold))
                         .tracking(AppTheme.Tracking.wide)
                         .foregroundStyle(AppTheme.Status.errorColor)
                         .help(phase.notes ?? "Sent back for revision")
@@ -210,14 +210,14 @@ struct PipelinePanelView: View {
                     approveButton(phase)
                 } else if phase.approved {
                     Text("Approved")
-                        .font(.system(size: AppTheme.FontSize.xxs, weight: .medium))
+                        .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.medium))
                         .foregroundStyle(AppTheme.Status.successColor)
                 }
                 gateMenu(phase, isNext: isNext)
             }
             .frame(height: AppTheme.IconSize.md)
             if !isLast {
-                Divider().overlay(AppTheme.Border.subtleColor)
+                AppDivider()
             }
         }
     }
@@ -263,7 +263,7 @@ struct PipelinePanelView: View {
                 apply { try NativeGateWriter.setState(projectDir: $0, phase: phase.phase, state: .needsRevision, declaredPack: editor.activePluginName) }
             }
             .disabled(!phase.approved)
-            Divider()
+            Divider() // app-theme: native-menu-divider
             // Rewind to a phase already reached (active or completed) — never to the future.
             Button("Rewind to here", role: .destructive) {
                 apply { try NativeGateWriter.rewind(projectDir: $0, targetPhase: phase.phase) }
@@ -338,7 +338,7 @@ struct PipelinePanelView: View {
             .help("Hand this refusal to the agent so it can resolve it")
             Button { gateError = nil } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
             }
             .buttonStyle(.plain)

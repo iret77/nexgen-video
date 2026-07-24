@@ -375,7 +375,7 @@ final class AppState {
     /// mid-word ("musi-cvideo") — unacceptable for a name the user has to recognize and retype.
     /// Hyphenation off, wrap on word boundaries only.
     static func bodyText(_ text: String) -> NSView {
-        let width: CGFloat = 240
+        let width = AppTheme.ComponentSize.alertBodyTextWidth
         let style = NSMutableParagraphStyle()
         style.hyphenationFactor = 0
         style.lineBreakMode = .byWordWrapping
@@ -383,7 +383,7 @@ final class AppState {
         let attributed = NSAttributedString(string: text, attributes: [
             .paragraphStyle: style,
             .font: font,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: AppTheme.Text.primary,
         ])
         let label = NSTextField(labelWithAttributedString: attributed)
         label.lineBreakMode = .byWordWrapping

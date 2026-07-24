@@ -64,6 +64,9 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Enforce AppTheme
+        run: python3 scripts/lint_app_theme.py
+
       - name: Inspect or resume release publication
         if: ${{ inputs.dry_run == false }}
         id: publication-state

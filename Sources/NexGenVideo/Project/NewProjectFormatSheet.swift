@@ -15,7 +15,7 @@ struct NewProjectFormatSheet: View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text("Choose a format")
-                    .font(.system(size: AppTheme.FontSize.lg, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.lg, weight: AppTheme.FontWeight.semibold))
                     .foregroundStyle(AppTheme.Text.primaryColor)
                 Text("The format shapes your production workflow. It's set when you create the project — you can't switch it once production has started.")
                     .font(.system(size: AppTheme.FontSize.sm))
@@ -55,19 +55,17 @@ struct NewProjectFormatSheet: View {
 
     /// Native banner aspect (728×193) — the hero frame matches it so a badge fills the full
     /// card width with no letterbox and no side crop.
-    private static let bannerAspect: CGFloat = 728.0 / 193.0
-
     private func optionCard(id: String?, title: String, subtitle: String, badge: NSImage?) -> some View {
         let isSelected = selected == id
         return Button { selected = id } label: {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
                 Group {
                     if let badge {
                         // Banner art is authored at the hero aspect, so fit (not fill) shows all of it —
                         // fill shaves a subpixel row off the bottom when the frame height rounds down.
                         Image(nsImage: badge).resizable().scaledToFit()
                     } else {
-                        Color.white.opacity(AppTheme.Opacity.subtle)
+                        AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.subtle)
                             .overlay(
                                 Image(systemName: "wand.and.stars")
                                     .font(.system(size: AppTheme.IconSize.lg))
@@ -76,13 +74,13 @@ struct NewProjectFormatSheet: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .aspectRatio(Self.bannerAspect, contentMode: .fit)
+                .aspectRatio(AppTheme.ComponentSize.pluginBadgeAspect, contentMode: .fit)
                 .clipped()
 
                 HStack(spacing: AppTheme.Spacing.md) {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                         Text(title)
-                            .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                            .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.semibold))
                             .foregroundStyle(AppTheme.Text.primaryColor)
                         if !subtitle.isEmpty {
                             Text(subtitle)
@@ -102,7 +100,7 @@ struct NewProjectFormatSheet: View {
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.Radius.md)
                     .fill(isSelected ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.faint)
-                                     : Color.white.opacity(AppTheme.Opacity.subtle))
+                                     : AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.subtle))
             )
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
             .overlay(

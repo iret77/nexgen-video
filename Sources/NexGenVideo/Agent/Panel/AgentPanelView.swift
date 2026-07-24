@@ -57,7 +57,7 @@ struct AgentPanelView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: AppTheme.Spacing.none) {
             ZStack(alignment: .top) {
                 messageList
                 floatingTabBar
@@ -153,7 +153,7 @@ struct AgentPanelView: View {
             }
             .padding(.horizontal, AppTheme.Spacing.sm)
             .frame(maxWidth: .infinity)
-            .frame(height: Layout.panelHeaderHeight)
+            .frame(height: AppTheme.Layout.panelHeaderHeight)
             .glassEffect(.regular, in: Rectangle())
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -166,7 +166,7 @@ struct AgentPanelView: View {
     private var newTabButton: some View {
         Button { service.newChat() } label: {
             Image(systemName: "plus")
-                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
                 .frame(width: AppTheme.IconSize.smMd, height: AppTheme.IconSize.smMd)
         }
@@ -193,7 +193,7 @@ struct AgentPanelView: View {
                 showPluginLauncher.toggle()
             } label: {
                 Image(systemName: "puzzlepiece.extension")
-                    .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                    .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
                     .frame(width: AppTheme.IconSize.smMd, height: AppTheme.IconSize.smMd)
             }
@@ -222,7 +222,7 @@ struct AgentPanelView: View {
     private var historyButton: some View {
         Button { showHistory.toggle() } label: {
             Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
                 .frame(width: AppTheme.IconSize.smMd, height: AppTheme.IconSize.smMd)
         }
@@ -252,10 +252,10 @@ struct AgentPanelView: View {
             } label: {
                 HStack(spacing: AppTheme.Spacing.xs) {
                     Text(service.effectiveModel.displayName)
-                        .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                        .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                         .foregroundStyle(AppTheme.Text.secondaryColor)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: AppTheme.FontSize.micro, weight: .semibold))
+                        .font(.system(size: AppTheme.FontSize.micro, weight: AppTheme.FontWeight.semibold))
                         .foregroundStyle(AppTheme.Text.tertiaryColor)
                 }
             }
@@ -303,7 +303,7 @@ struct AgentPanelView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, AppTheme.Spacing.lgXl)
-                    .padding(.top, Layout.panelHeaderHeight + AppTheme.Spacing.md)
+                    .padding(.top, AppTheme.Layout.panelHeaderHeight + AppTheme.Spacing.md)
                     .padding(.bottom, AppTheme.Spacing.md)
                 }
             } else {
@@ -336,9 +336,9 @@ struct AgentPanelView: View {
                         .padding(.top, AppTheme.Spacing.sm)
                 }
                 .padding(.horizontal, AppTheme.Spacing.lgXl)
-                .padding(.top, Layout.panelHeaderHeight + AppTheme.Spacing.sm)
+                .padding(.top, AppTheme.Layout.panelHeaderHeight + AppTheme.Spacing.sm)
                 .padding(.bottom, AppTheme.Spacing.smMd)
-                .frame(maxWidth: Layout.chatColumnMax)
+                .frame(maxWidth: AppTheme.Layout.chatColumnMax)
                 .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.never)
@@ -369,7 +369,7 @@ struct AgentPanelView: View {
             scrollToBottom(proxy)
         } label: {
             Image(systemName: "arrow.down")
-                .font(.system(size: AppTheme.FontSize.smMd, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.semibold))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
                 .frame(width: AppTheme.IconSize.lgXl, height: AppTheme.IconSize.lgXl)
                 .glassEffect(.regular, in: .circle)
@@ -390,7 +390,7 @@ struct AgentPanelView: View {
                 if let cta = errorCTA(for: err) {
                     Button(action: cta.action) {
                         Text(cta.title)
-                            .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                            .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                     }
                     .buttonStyle(.capsule(.secondary))
                     .controlSize(.small)
@@ -472,7 +472,7 @@ struct AgentPanelView: View {
                 Text("Checking Claude Code…")
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
             }
-            .font(.system(size: AppTheme.FontSize.md, weight: .medium))
+            .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.medium))
         } else {
             HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.xs) {
                 Text(service.setupPrompt)
@@ -486,7 +486,7 @@ struct AgentPanelView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .font(.system(size: AppTheme.FontSize.md, weight: .medium))
+            .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.medium))
         }
     }
 
@@ -537,7 +537,7 @@ struct AgentPanelView: View {
         .padding(.horizontal, AppTheme.Spacing.mdLg)
         .padding(.bottom, AppTheme.Spacing.mdLg)
         .padding(.top, AppTheme.Spacing.xs)
-        .frame(maxWidth: Layout.chatColumnMax)
+        .frame(maxWidth: AppTheme.Layout.chatColumnMax)
         .frame(maxWidth: .infinity)
     }
 
@@ -677,7 +677,7 @@ private struct ChatTabView: View {
                     if hovering || isActive {
                         Button(action: onClose) {
                             Image(systemName: "xmark")
-                                .font(.system(size: AppTheme.FontSize.xxs, weight: .medium))
+                                .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.medium))
                                 .foregroundStyle(AppTheme.Text.mutedColor)
                                 .frame(width: AppTheme.Spacing.mdLg, height: AppTheme.Spacing.mdLg)
                         }
@@ -686,7 +686,7 @@ private struct ChatTabView: View {
                     }
                 }
                 Rectangle()
-                    .fill(isActive ? AppTheme.Text.primaryColor : Color.clear)
+                    .fill(isActive ? AppTheme.Text.primaryColor : AppTheme.Background.clearColor)
                     .frame(height: AppTheme.BorderWidth.medium)
             }
             .padding(.horizontal, AppTheme.Spacing.sm)

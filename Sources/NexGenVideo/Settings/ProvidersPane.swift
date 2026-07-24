@@ -96,7 +96,7 @@ struct ProvidersPane: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                 Text(provider.displayName)
-                    .font(.system(size: AppTheme.FontSize.md, weight: .medium))
+                    .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.medium))
                     .foregroundStyle(AppTheme.Text.primaryColor)
                 HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
                     Text(provider.modalities)
@@ -117,7 +117,7 @@ struct ProvidersPane: View {
         Button(action: { NSWorkspace.shared.open(provider.keysURL) }) {
             HStack(spacing: AppTheme.Spacing.xxs) {
                 Text(primaryStyle(provider) == .oauth ? "Website" : "Get key")
-                Image(systemName: "arrow.up.right").font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
+                Image(systemName: "arrow.up.right").font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.semibold))
             }
             .font(.system(size: AppTheme.FontSize.sm))
             .foregroundStyle(AppTheme.Accent.primary)
@@ -195,7 +195,7 @@ struct ProvidersPane: View {
                     .foregroundStyle(AppTheme.Text.primaryColor)
                     .onSubmit { save(provider) }
                     .padding(.horizontal, AppTheme.Spacing.md).padding(.vertical, AppTheme.Spacing.smMd)
-                    .background(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).fill(Color.black.opacity(AppTheme.Opacity.muted)))
+                    .background(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).fill(AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.muted)))
                     .overlay(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).strokeBorder(
                         focusedProvider == provider.id ? AppTheme.Border.primaryColor : AppTheme.Border.subtleColor,
                         lineWidth: AppTheme.BorderWidth.thin))

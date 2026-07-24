@@ -36,12 +36,12 @@ struct AssetRow: View {
                     }
                 }
             }
-            .frame(width: 28, height: 20)
+            .frame(width: AppTheme.IconSize.lgXl, height: AppTheme.IconSize.smMd)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.micro) {
                 Text(asset.mentionDisplayName)
-                    .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                    .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                     .foregroundStyle(AppTheme.Text.primaryColor)
                     .lineLimit(1)
                 Text(asset.type.rawValue)
@@ -57,7 +57,7 @@ struct AssetRow: View {
         }
         .padding(.horizontal, AppTheme.Spacing.sm)
         .padding(.vertical, AppTheme.Spacing.xs)
-        .background(isHighlighted ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.muted) : .clear)
+        .background(isHighlighted ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.muted) : AppTheme.Background.clearColor)
     }
 }
 
@@ -115,7 +115,7 @@ struct LibraryAssetPicker: View {
 
     @ViewBuilder
     private var rows: some View {
-        let list = LazyVStack(spacing: 0) {
+        let list = LazyVStack(spacing: AppTheme.Spacing.none) {
             ForEach(visible) { asset in
                 Button { onPick(asset) } label: {
                     AssetRow(asset: asset,
@@ -149,7 +149,7 @@ struct LibraryAssetPicker: View {
         .padding(.vertical, AppTheme.Spacing.xs)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                .fill(Color.black.opacity(AppTheme.Opacity.muted))
+                .fill(AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.muted))
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
@@ -158,7 +158,7 @@ struct LibraryAssetPicker: View {
     }
 
     private var tabStrip: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: AppTheme.Spacing.none) {
             ForEach(MentionTab.allCases, id: \.self) { t in
                 Text(t.label)
                     .font(.system(size: AppTheme.FontSize.xs, weight: t == tab ? .semibold : .regular))
@@ -166,7 +166,7 @@ struct LibraryAssetPicker: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, AppTheme.Spacing.xxs)
                     .background(
-                        t == tab ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.muted) : Color.clear,
+                        t == tab ? AppTheme.Accent.primary.opacity(AppTheme.Opacity.muted) : AppTheme.Background.clearColor,
                         in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
                     )
                     .contentShape(Rectangle())

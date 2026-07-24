@@ -26,15 +26,15 @@ struct HomeView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: AppTheme.Spacing.none) {
             HomeSidebar(onNewProject: startNewProject)
-                .frame(width: 220)
+                .frame(width: AppTheme.ComponentSize.homeSidebarWidth)
 
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black.opacity(AppTheme.Opacity.medium))
+                .background(AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.medium))
         }
-        .frame(minWidth: 760, minHeight: 480)
+        .frame(minWidth: AppTheme.Window.homeMin.width, minHeight: AppTheme.Window.homeMin.height)
         .background(.ultraThinMaterial)
         .focusEffectDisabled()
         .sheet(isPresented: $showFormatSheet) {
@@ -57,10 +57,10 @@ struct HomeView: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
             header
             Text("My Projects")
-                .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.semibold))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
                 .padding(.horizontal, AppTheme.Spacing.xlXxl)
                 .padding(.bottom, AppTheme.Spacing.sm)
@@ -118,25 +118,25 @@ private struct NewProjectCard: View {
                 .aspectRatio(5.0/4.0, contentMode: .fit)
                 .overlay {
                     Image(systemName: "plus")
-                        .font(.system(size: AppTheme.FontSize.title2, weight: .light))
+                        .font(.system(size: AppTheme.FontSize.title2, weight: AppTheme.FontWeight.light))
                         .foregroundStyle(AppTheme.Text.mutedColor)
                 }
                 .clipped()
 
             LinearGradient(
                 stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black.opacity(0.7), location: 1),
+                    .init(color: AppTheme.Background.clearColor, location: 0),
+                    .init(color: AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.scrim), location: 1),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 60)
+            .frame(height: AppTheme.ComponentSize.homeCardOverlayHeight)
             .allowsHitTesting(false)
 
             Text("Untitled")
-                .font(.system(size: AppTheme.FontSize.smMd, weight: .regular))
-                .foregroundStyle(.white)
+                .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.regular))
+                .foregroundStyle(AppTheme.Text.primaryColor)
                 .lineLimit(1)
                 .padding(.horizontal, AppTheme.Spacing.md)
                 .padding(.bottom, AppTheme.Spacing.smMd)
@@ -147,14 +147,14 @@ private struct NewProjectCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: cardRadius, style: .continuous)
                 .strokeBorder(
-                    Color.white.opacity(isHovered ? AppTheme.Opacity.muted : AppTheme.Opacity.hint),
+                    AppTheme.Text.primaryColor.opacity(isHovered ? AppTheme.Opacity.muted : AppTheme.Opacity.hint),
                     lineWidth: AppTheme.BorderWidth.hairline
                 )
         )
-        .shadow(color: .black.opacity(isHovered ? 0.4 : 0.2), radius: isHovered ? 12 : 4, y: isHovered ? 4 : 2)
+        .shadow(isHovered ? AppTheme.Shadow.cardHover : AppTheme.Shadow.cardRest)
         .scaleEffect(isHovered ? 1.03 : 1.0)
         .padding(AppTheme.Spacing.xs)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        .animation(.spring(response: AppTheme.Anim.cardSpringResponse, dampingFraction: AppTheme.Anim.cardSpringDamping), value: isHovered)
         .onHover { isHovered = $0 }
     }
 }
@@ -175,7 +175,7 @@ private struct VersionTag: View {
 private struct WelcomeTitle: View {
     var body: some View {
         Text("Welcome to NexGenVideo")
-            .font(.system(size: AppTheme.FontSize.title2, weight: .light))
+            .font(.system(size: AppTheme.FontSize.title2, weight: AppTheme.FontWeight.light))
             .tracking(AppTheme.Tracking.tight)
             .foregroundStyle(AppTheme.Text.primaryColor)
     }
@@ -185,8 +185,8 @@ private struct HomeSidebar: View {
     let onNewProject: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 SidebarRowButton(
                     label: "New Project",
                     systemImage: "plus",
@@ -198,8 +198,8 @@ private struct HomeSidebar: View {
                     action: { AppState.shared.openProjectFromPanel() }
                 )
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 10)
+            .padding(.horizontal, AppTheme.Spacing.smMd)
+            .padding(.vertical, AppTheme.Spacing.md)
 
             Spacer(minLength: 0)
 
@@ -208,8 +208,8 @@ private struct HomeSidebar: View {
                 systemImage: "gearshape",
                 action: { SettingsWindowController.shared.show() }
             )
-            .padding(.horizontal, 8)
-            .padding(.bottom, 10)
+            .padding(.horizontal, AppTheme.Spacing.smMd)
+            .padding(.bottom, AppTheme.Spacing.md)
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }
@@ -230,7 +230,7 @@ final class HomeWindowController: NSWindowController, NSWindowDelegate {
         let restored = window.setFrameUsingName("NexGenVideoHome-v4")
         window.setFrameAutosaveName("NexGenVideoHome-v4")
         let visible = (window.screen ?? NSScreen.main)?.visibleFrame
-            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            ?? NSRect(origin: .zero, size: AppTheme.Window.fallbackVisibleFrame)
         window.minSize = NSSize(width: min(AppTheme.Window.homeMin.width, visible.width),
                                 height: min(AppTheme.Window.homeMin.height, visible.height))
         if restored {
@@ -243,7 +243,7 @@ final class HomeWindowController: NSWindowController, NSWindowDelegate {
             window.center()
         }
         window.appearance = NSAppearance(named: .darkAqua)
-        window.backgroundColor = AppTheme.Background.base.withAlphaComponent(0.4)
+        window.backgroundColor = AppTheme.Background.base.withAlphaComponent(AppTheme.Opacity.settingsWindow)
         window.isOpaque = false
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true

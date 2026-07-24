@@ -5,8 +5,6 @@ struct TourOverlay: View {
     @Environment(EditorViewModel.self) private var editor
 
     private var tour: TourController { editor.tour }
-    private let cardWidth: CGFloat = 320
-    private let bookendWidth: CGFloat = 600
     private let margin: CGFloat = AppTheme.Spacing.xlXxl
 
     private static let docsURL = URL(string: "https://github.com/iret77/nexgenvideo")!
@@ -24,11 +22,11 @@ struct TourOverlay: View {
                     switch step.kind {
                     case .intro:
                         introCard(step)
-                            .frame(width: bookendWidth)
+                            .frame(width: AppTheme.ComponentSize.tourBookendWidth)
                             .position(x: geo.size.width / 2, y: geo.size.height / 2)
                     case .outro:
                         outroCard(step)
-                            .frame(width: bookendWidth)
+                            .frame(width: AppTheme.ComponentSize.tourBookendWidth)
                             .position(x: geo.size.width / 2, y: geo.size.height / 2)
                     case .spotlight:
                         if let frame {
@@ -36,11 +34,11 @@ struct TourOverlay: View {
                                 .strokeBorder(AppTheme.Accent.spotlightGradient, lineWidth: AppTheme.BorderWidth.thick)
                                 .frame(width: frame.width, height: frame.height)
                                 .offset(x: frame.minX, y: frame.minY)
-                                .shadow(color: AppTheme.Accent.spotlight.opacity(AppTheme.Opacity.strong), radius: 10)
+                                .shadow(AppTheme.Shadow.spotlight)
                                 .allowsHitTesting(false)
                         }
                         callout(step)
-                            .frame(width: cardWidth)
+                            .frame(width: AppTheme.ComponentSize.tourCalloutWidth)
                             .position(calloutPosition(for: frame, in: geo.size))
                     }
                 }
@@ -56,7 +54,7 @@ struct TourOverlay: View {
     }
 
     private func scrim(cutout: CGRect?) -> some View {
-        Color.black.opacity(AppTheme.Opacity.strong)
+        AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.strong)
             .reverseMask {
                 if let cutout {
                     RoundedRectangle(cornerRadius: AppTheme.Radius.sm, style: .continuous)
@@ -72,10 +70,10 @@ struct TourOverlay: View {
         let index = tour.stepIndex ?? 0
         return VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             Text("Step \(index) of \(tour.spotlightCount)")
-                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
             Text(step.title)
-                .font(.system(size: AppTheme.FontSize.md, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.semibold))
                 .foregroundStyle(AppTheme.Text.primaryColor)
             Text(step.instruction)
                 .font(.system(size: AppTheme.FontSize.smMd))
@@ -105,7 +103,7 @@ struct TourOverlay: View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 Text(step.title)
-                    .font(.system(size: AppTheme.FontSize.title2, weight: .light))
+                    .font(.system(size: AppTheme.FontSize.title2, weight: AppTheme.FontWeight.light))
                     .tracking(AppTheme.Tracking.tight)
                     .foregroundStyle(AppTheme.Text.primaryColor)
                 Text(step.instruction)
@@ -139,7 +137,7 @@ struct TourOverlay: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 300)
+        .frame(height: AppTheme.ComponentSize.tourStageHeight)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md, style: .continuous))
     }
 
@@ -147,14 +145,14 @@ struct TourOverlay: View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 Text(step.title)
-                    .font(.system(size: AppTheme.FontSize.title1, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.title1, weight: AppTheme.FontWeight.semibold))
                     .foregroundStyle(AppTheme.Text.primaryColor)
                 Text(step.instruction)
                     .font(.system(size: AppTheme.FontSize.smMd))
                     .foregroundStyle(AppTheme.Text.secondaryColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(spacing: 0) {
+            VStack(spacing: AppTheme.Spacing.none) {
                 linkRow("MCP Setup", "puzzlepiece.extension.fill") { HelpWindowController.shared.show(tab: .mcp) }
                 linkRow("Keyboard Shortcuts", "keyboard") { HelpWindowController.shared.show(tab: .shortcuts) }
                 linkRow("Documentation", "book.fill") { NSWorkspace.shared.open(Self.docsURL, configuration: .init(), completionHandler: nil) }

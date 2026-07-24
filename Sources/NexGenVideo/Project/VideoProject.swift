@@ -542,7 +542,7 @@ final class VideoProject: NSDocument {
         // since-changed display clamps against the screen it actually lands on, not the
         // window's initial screen.
         let visible = (window.screen ?? NSScreen.main)?.visibleFrame
-            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            ?? NSRect(origin: .zero, size: AppTheme.Window.fallbackVisibleFrame)
         // Screen-aware minimum: never force the window larger than the desktop it opens on.
         window.minSize = NSSize(width: min(AppTheme.Window.projectMin.width, visible.width),
                                 height: min(AppTheme.Window.projectMin.height, visible.height))

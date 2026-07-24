@@ -22,15 +22,15 @@ struct HelpView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: AppTheme.Spacing.none) {
             sidebar
-                .frame(width: 220)
+                .frame(width: AppTheme.ComponentSize.helpSidebarWidth)
 
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black.opacity(AppTheme.Opacity.medium))
+                .background(AppTheme.Background.overlayColor.opacity(AppTheme.Opacity.medium))
         }
-        .frame(minWidth: 820, idealWidth: 900, minHeight: 520, idealHeight: 560)
+        .frame(minWidth: AppTheme.ComponentSize.helpWindowMin.width, idealWidth: AppTheme.ComponentSize.helpWindowIdeal.width, minHeight: AppTheme.ComponentSize.helpWindowMin.height, idealHeight: AppTheme.ComponentSize.helpWindowIdeal.height)
         .background(.ultraThinMaterial)
         .focusEffectDisabled()
     }
@@ -50,10 +50,10 @@ struct HelpView: View {
     private func sidebarRow(for tab: HelpTab) -> some View {
         let isActive = selectedTab == tab
         return Button(action: { selectedTab = tab }) {
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.Spacing.md) {
                 Image(systemName: tab.icon)
-                    .font(.system(size: AppTheme.FontSize.smMd, weight: .medium))
-                    .frame(width: 16)
+                    .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.medium))
+                    .frame(width: AppTheme.IconSize.xxs)
                 Text(tab.rawValue)
                     .font(.system(size: AppTheme.FontSize.md, weight: isActive ? .medium : .regular))
                 Spacer()
@@ -69,10 +69,10 @@ struct HelpView: View {
 
     @ViewBuilder
     private var detail: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
             HStack {
                 Text(selectedTab.rawValue)
-                    .font(.system(size: AppTheme.FontSize.title2, weight: .light))
+                    .font(.system(size: AppTheme.FontSize.title2, weight: AppTheme.FontWeight.light))
                     .tracking(AppTheme.Tracking.tight)
                     .foregroundStyle(AppTheme.Text.primaryColor)
                 Spacer()
@@ -99,12 +99,18 @@ final class HelpWindowController: NSWindowController {
         let initialView = HelpView().tint(AppTheme.Accent.primary)
         let hosting = NSHostingController(rootView: AnyView(initialView))
         let window = NSWindow(contentViewController: hosting)
-        window.setContentSize(NSSize(width: 900, height: 560))
-        window.minSize = NSSize(width: 820, height: 520)
+        window.setContentSize(NSSize(
+            width: AppTheme.ComponentSize.helpWindowIdeal.width,
+            height: AppTheme.ComponentSize.helpWindowIdeal.height
+        ))
+        window.minSize = NSSize(
+            width: AppTheme.ComponentSize.helpWindowMin.width,
+            height: AppTheme.ComponentSize.helpWindowMin.height
+        )
         window.title = "Help"
         window.setFrameAutosaveName("NexGenVideoHelp-v1")
         window.appearance = NSAppearance(named: .darkAqua)
-        window.backgroundColor = AppTheme.Background.base.withAlphaComponent(0.4)
+        window.backgroundColor = AppTheme.Background.base.withAlphaComponent(AppTheme.Opacity.settingsWindow)
         window.isOpaque = false
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true

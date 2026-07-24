@@ -39,6 +39,17 @@ The Settings release pass is now also present but not yet CI-verified:
 - Claude Code makes the loopback MCP bridge mandatory, while API mode retains the user's MCP choice;
 - release builds ignore stored external Claude plugin/MCP escape hatches.
 
+The owner explicitly deferred the Finish action strip until after 1.0. It is not part of the release
+scope and must remain unchanged for this candidate.
+
+The AppTheme release gate is now implemented:
+
+- visible SwiftUI and AppKit chrome uses `AppTheme` for spacing, dimensions, typography, colors,
+  opacity, borders, radii, shadows and animation timing;
+- the former global layout, track and trim constants now live under `AppTheme`;
+- themed dividers and timeline/keyframe drawing metrics remove remaining system/default styling;
+- `scripts/lint_app_theme.py` blocks new hardcoded UI styling before CI, bundle and release work.
+
 The release-blocker implementations for #279–#287 are present:
 
 - #279: complete working-copy recovery and recovery regression coverage.
@@ -77,7 +88,11 @@ The issues stay open until the corrected candidate passes CI and final on-device
   backend-change notification. Claimed missing MCP awaits, missing main-actor isolation and ignored
   allowed tools were rejected against the actual source. The brief Claude-status loading state and
   stale-result fencing were tightened during verification.
+- Gemini 3.1 Pro High and Claude Opus 4.6 Thinking reviewed the AppTheme gate. Their valid findings
+  were fixed: the linter now understands Swift strings/comments and multiline modifiers, native menu
+  dividers retain menu semantics, and timeline snap, razor, playhead and badge colors remain distinct.
 - `git diff --check` passes.
+- The AppTheme source gate passes.
 - All workflow YAML parses.
 - All 31 workflow `run:` blocks and release shell scripts pass `bash -n`.
 - Changelog JSON, app Info.plist and Python sources pass static parsing/syntax checks.

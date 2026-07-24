@@ -254,7 +254,7 @@ struct StoryPanelView: View {
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
                 .frame(width: AppTheme.ComponentSize.briefLabelWidth, alignment: .leading)
             Text(value.isEmpty ? "—" : value)
-                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
@@ -270,7 +270,7 @@ struct StoryPanelView: View {
                 .frame(width: AppTheme.ComponentSize.briefLabelWidth, alignment: .leading)
             TextField(label, text: text)
                 .textFieldStyle(.plain)
-                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
                 .labelsHidden()
         }
@@ -291,7 +291,7 @@ struct StoryPanelView: View {
                     Text(selection.wrappedValue.isEmpty ? "—" : selection.wrappedValue)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: AppTheme.FontSize.xxs))
                 }
-                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
             }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize().focusable(false)
@@ -337,7 +337,7 @@ struct StoryPanelView: View {
     private func proseBlock(_ label: String, _ text: String) -> some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
             Text(label.uppercased())
-                .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
                 .tracking(AppTheme.Tracking.wide)
                 .foregroundStyle(AppTheme.Text.mutedColor)
             Text(text)
@@ -377,7 +377,7 @@ struct StoryPanelView: View {
         case .loaded(.some(let data)):
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 Text("v\(data.version)")
-                    .font(.system(size: AppTheme.FontSize.xxs, weight: .medium).monospaced())
+                    .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.medium).monospaced())
                     .foregroundStyle(AppTheme.Text.mutedColor)
                 Text(data.bodyMarkdown)
                     .font(.system(size: AppTheme.FontSize.sm))
@@ -405,7 +405,7 @@ struct StoryPanelView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.system(size: AppTheme.FontSize.xxs, weight: .semibold))
+            .font(.system(size: AppTheme.FontSize.xxs, weight: AppTheme.FontWeight.semibold))
             .tracking(AppTheme.Tracking.wide)
             .foregroundStyle(AppTheme.Text.mutedColor)
     }

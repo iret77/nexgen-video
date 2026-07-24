@@ -42,12 +42,12 @@ struct GateApprovalCard: View {
                 .font(.system(size: AppTheme.FontSize.md))
                 .foregroundStyle(AppTheme.Accent.primary)
             Text("Approve \(approval.phaseLabel)")
-                .font(.system(size: AppTheme.FontSize.smMd, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.semibold))
                 .foregroundStyle(AppTheme.Text.primaryColor)
             Spacer(minLength: AppTheme.Spacing.sm)
             Button(action: onDecline) {
                 Image(systemName: "xmark")
-                    .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
+                    .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.semibold))
                     .foregroundStyle(AppTheme.Text.tertiaryColor)
             }
             .buttonStyle(.plain)

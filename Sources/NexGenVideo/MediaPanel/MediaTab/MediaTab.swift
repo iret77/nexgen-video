@@ -82,7 +82,7 @@ struct MediaTab: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: AppTheme.Spacing.none) {
             toolbar
 
             if editor.pendingSwapClipId != nil {
@@ -98,7 +98,7 @@ struct MediaTab: View {
                     isTargeted: $isDropTargeted,
                     onDrop: { urls in handlePanelFinderDrop(urls: urls) }
                 ) {
-                    VStack(spacing: 0) {
+                    VStack(spacing: AppTheme.Spacing.none) {
                         if showsEmptyState {
                             emptyStateView
                         } else if !trimmedSearchQuery.isEmpty {
@@ -197,17 +197,17 @@ struct MediaTab: View {
         let tint = Color(nsColor: (editor.pendingSwapClip?.mediaType ?? .video).themeColor)
         return HStack(spacing: AppTheme.Spacing.sm) {
             Image(systemName: "arrow.left.arrow.right")
-                .font(.system(size: AppTheme.FontSize.smMd, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.semibold))
                 .foregroundStyle(tint)
             Text("Pick a replacement for \"\(editor.pendingSwapClipName ?? "clip")\"")
-                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.primaryColor)
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: AppTheme.Spacing.sm)
             Button("Cancel") { editor.cancelMediaSwap() }
                 .buttonStyle(.plain)
-                .font(.system(size: AppTheme.FontSize.xs, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.secondaryColor)
         }
         .padding(.horizontal, AppTheme.Spacing.mdLg)
@@ -223,10 +223,10 @@ struct MediaTab: View {
     private func toastBanner(_ toast: MediaPanelToast) -> some View {
         HStack(spacing: AppTheme.Spacing.sm) {
             Image(systemName: toast.kind == .success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.system(size: AppTheme.FontSize.smMd, weight: .semibold))
+                .font(.system(size: AppTheme.FontSize.smMd, weight: AppTheme.FontWeight.semibold))
                 .foregroundStyle(toast.kind == .success ? AppTheme.Status.successColor : AppTheme.Accent.timecodeColor)
             Text(toast.message)
-                .font(.system(size: AppTheme.FontSize.sm, weight: .medium))
+                .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
                 .foregroundStyle(AppTheme.Text.primaryColor)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -316,7 +316,7 @@ struct MediaTab: View {
             searchIndexStatus
                 .tourAnchor(.smartSearch)
         }
-        .frame(height: Layout.panelHeaderHeight)
+        .frame(height: AppTheme.Layout.panelHeaderHeight)
     }
 
     private var searchControlsRow: some View {
@@ -326,7 +326,7 @@ struct MediaTab: View {
 
             displayControls
         }
-        .frame(height: Layout.panelHeaderHeight)
+        .frame(height: AppTheme.Layout.panelHeaderHeight)
     }
 
     // MARK: - Context bar (breadcrumb + count)
@@ -399,7 +399,7 @@ struct MediaTab: View {
                     }
                 }
             }
-            Divider()
+            Divider() // app-theme: native-menu-divider
             Section("Thumbnail Size") {
                 ForEach(ThumbnailPreset.allCases) { preset in
                     Button {
@@ -430,11 +430,11 @@ struct MediaTab: View {
                     Label(type.trackLabel, systemImage: filterTypes.contains(type) ? "checkmark" : "")
                 }
             }
-            Divider()
+            Divider() // app-theme: native-menu-divider
             Button { filterAI.toggle() } label: {
                 Label("AI Generated", systemImage: filterAI ? "checkmark" : "")
             }
-            Divider()
+            Divider() // app-theme: native-menu-divider
             Button("Clear Filters", action: clearFilters)
         }
     }
@@ -572,11 +572,11 @@ struct MediaTab: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Capsule(style: .continuous)
-                .fill(Color.white.opacity(AppTheme.Opacity.subtle))
+                .fill(AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.subtle))
         )
         .overlay(
             Capsule(style: .continuous)
-                .strokeBorder(Color.white.opacity(AppTheme.Opacity.faint), lineWidth: AppTheme.BorderWidth.thin)
+                .strokeBorder(AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.faint), lineWidth: AppTheme.BorderWidth.thin)
         )
     }
 
@@ -724,8 +724,8 @@ struct MediaTab: View {
     var marqueeOverlay: some View {
         if let rect = marqueeSelection.rect {
             Rectangle()
-                .stroke(Color.white.opacity(AppTheme.Opacity.strong), style: StrokeStyle(lineWidth: AppTheme.BorderWidth.thin, dash: [3, 3]))
-                .background(Rectangle().fill(Color.white.opacity(AppTheme.Opacity.soft)))
+                .stroke(AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.strong), style: StrokeStyle(lineWidth: AppTheme.BorderWidth.thin, dash: AppTheme.Border.shortDash))
+                .background(Rectangle().fill(AppTheme.Text.primaryColor.opacity(AppTheme.Opacity.soft)))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
                 .allowsHitTesting(false)
@@ -748,12 +748,12 @@ struct MediaTab: View {
             Spacer()
 
             Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: AppTheme.FontSize.display, weight: .light))
+                .font(.system(size: AppTheme.FontSize.display, weight: AppTheme.FontWeight.light))
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
 
             VStack(spacing: AppTheme.Spacing.xs) {
                 Text("No media yet")
-                    .font(.system(size: AppTheme.FontSize.title1, weight: .light))
+                    .font(.system(size: AppTheme.FontSize.title1, weight: AppTheme.FontWeight.light))
                     .tracking(AppTheme.Tracking.tight)
                     .foregroundStyle(AppTheme.Text.primaryColor)
 
@@ -770,8 +770,8 @@ struct MediaTab: View {
     private var dropHighlight: some View {
         RoundedRectangle(cornerRadius: AppTheme.Radius.md)
             .strokeBorder(
-                AppTheme.Accent.primary.opacity(0.6),
-                style: StrokeStyle(lineWidth: AppTheme.BorderWidth.thick, dash: [8, 4])
+                AppTheme.Accent.primary.opacity(AppTheme.Opacity.disabled),
+                style: StrokeStyle(lineWidth: AppTheme.BorderWidth.thick, dash: AppTheme.Border.longDash)
             )
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.Radius.md)
