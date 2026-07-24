@@ -101,7 +101,8 @@ enum ProjectPackageExporter {
 
     private static func sourceURL(for source: MediaSource, projectURL: URL?) -> URL? {
         switch source {
-        case .external(let path): URL(fileURLWithPath: path)
+        case .external(let path):
+            return URL(fileURLWithPath: path)
         case .project(let rel):
             guard let projectURL else { return nil }
             let root = projectURL.standardizedFileURL.resolvingSymlinksInPath()
