@@ -78,7 +78,10 @@ public enum PatternFitLibrary {
             _ = try container.decode(String.self, forKey: .lightingSignature)
             _ = try container.decode(String.self, forKey: .approximationBasis)
 
-            if !container.contains(.fitProfile) || (try container.decodeNil(forKey: .fitProfile)) {
+            if !container.contains(.fitProfile) {
+                profile = nil
+                profileDecodeIssue = nil
+            } else if try container.decodeNil(forKey: .fitProfile) {
                 profile = nil
                 profileDecodeIssue = nil
             } else {
