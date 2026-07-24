@@ -354,7 +354,7 @@ final class VideoProject: NSDocument {
             isDirectory: true
         )
         defer { try? fm.removeItem(at: staging) }
-        if let sourceURL, !sameFile(sourceURL, packageURL) {
+        if let sourceURL, fm.fileExists(atPath: sourceURL.path) {
             try fm.copyItem(at: sourceURL, to: staging)
             try ProjectWorkingCopy.sanitizePackageStaging(staging, fm: fm)
         } else {
@@ -403,10 +403,6 @@ final class VideoProject: NSDocument {
         for file in files {
             try file.data.write(to: chatURL.appendingPathComponent(file.name, isDirectory: false), options: .atomic)
         }
-    }
-
-    private nonisolated static func sameFile(_ lhs: URL, _ rhs: URL) -> Bool {
-        lhs.standardizedFileURL.path == rhs.standardizedFileURL.path
     }
 
     override func updateChangeCount(_ change: NSDocument.ChangeType) {

@@ -174,16 +174,12 @@ enum RemoteMediaDownloader {
         request.timeoutInterval = timeout
 
         do {
-            let (_, response) = try await session.download(
+            let (downloadedURL, response) = try await session.download(
                 for: request,
                 delegate: delegate
             )
             if let error = delegate.failure { throw error }
-            guard let temporaryURL = delegate.downloadedFile else {
-                throw RemoteMediaPolicy.PolicyError.invalidPayload(
-                    "the temporary download is missing."
-                )
-            }
+            let temporaryURL = try delegate.retainDownloadedFile(at: downloadedURL)
             guard let http = response as? HTTPURLResponse else {
                 throw RemoteMediaPolicy.PolicyError.invalidPayload("the response is not HTTP.")
             }
@@ -231,6 +227,24 @@ enum RemoteMediaDownloader {
         }
 
         private var storedDownloadURL: URL?
+
+        func retainDownloadedFile(at location: URL) throws -> URL {
+            try lock.withLock {
+                if let storedDownloadURL { return storedDownloadURL }
+                guard FileManager.default.fileExists(atPath: location.path) else {
+                    throw RemoteMediaPolicy.PolicyError.invalidPayload(
+                        "the temporary download is missing."
+                    )
+                }
+                let retained = FileManager.default.temporaryDirectory.appendingPathComponent(
+                    "ngv-remote-\(UUID().uuidString)",
+                    isDirectory: false
+                )
+                try FileManager.default.moveItem(at: location, to: retained)
+                storedDownloadURL = retained
+                return retained
+            }
+        }
 
         init(
             maxBytes: Int64,
@@ -292,13 +306,8 @@ enum RemoteMediaDownloader {
             downloadTask: URLSessionDownloadTask,
             didFinishDownloadingTo location: URL
         ) {
-            let retained = FileManager.default.temporaryDirectory.appendingPathComponent(
-                "ngv-remote-\(UUID().uuidString)",
-                isDirectory: false
-            )
             do {
-                try FileManager.default.moveItem(at: location, to: retained)
-                lock.withLock { storedDownloadURL = retained }
+                _ = try retainDownloadedFile(at: location)
             } catch {
                 fail(error)
             }

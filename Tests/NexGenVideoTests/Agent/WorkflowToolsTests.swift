@@ -645,13 +645,16 @@ struct WorkflowToolsTests {
         #expect(FileManager.default.fileExists(atPath: copied.path))
         // The original is untouched (a copy, not a move).
         #expect(FileManager.default.fileExists(atPath: song.path))
-        let anchorId = try #require(out["asset_id"] as? String)
+        let anchorRef = try #require(out["asset_id"] as? String)
+        let anchorId = try #require(
+            h.editor.mediaAssets.first { $0.id.hasPrefix(anchorRef) }?.id
+        )
         #expect(h.editor.mediaManifest.songAnchorAssetId == anchorId)
 
         let repeated = try #require(try await h.runOK("attach_song", args: [
             "project_dir": dataRoot.path, "path": song.path,
         ]) as? [String: Any])
-        #expect(repeated["asset_id"] as? String == anchorId)
+        #expect(repeated["asset_id"] as? String == anchorRef)
         let anchorClips = h.editor.timeline.tracks
             .filter { $0.type == .audio }
             .flatMap(\.clips)
@@ -704,7 +707,10 @@ struct WorkflowToolsTests {
             "attach_song",
             args: ["project_dir": dataRoot.path, "path": first.path]
         ) as? [String: Any])
-        let firstId = try #require(firstResult["asset_id"] as? String)
+        let firstRef = try #require(firstResult["asset_id"] as? String)
+        let firstId = try #require(
+            h.editor.mediaAssets.first { $0.id.hasPrefix(firstRef) }?.id
+        )
 
         // A different song without replace → actionable error naming the existing one.
         let refused = await h.runRaw("attach_song", args: ["project_dir": dataRoot.path, "path": second.path])
@@ -718,8 +724,11 @@ struct WorkflowToolsTests {
         let audioDir = URL(fileURLWithPath: try #require(swapped["audio_dir"] as? String))
         #expect(FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("second.wav").path))
         #expect(FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("first.wav").path) == false)
-        let secondId = try #require(swapped["asset_id"] as? String)
-        #expect(secondId != firstId)
+        let secondRef = try #require(swapped["asset_id"] as? String)
+        let secondId = try #require(
+            h.editor.mediaAssets.first { $0.id.hasPrefix(secondRef) }?.id
+        )
+        #expect(secondRef != firstRef)
         #expect(h.editor.mediaManifest.songAnchorAssetId == secondId)
         #expect(h.editor.mediaAssets.contains { $0.id == firstId } == false)
         let audioClips = h.editor.timeline.tracks
@@ -779,7 +788,10 @@ struct WorkflowToolsTests {
             "attach_song",
             args: ["project_dir": dataRoot.path, "path": source.path]
         ) as? [String: Any])
-        let anchorId = try #require(attached["asset_id"] as? String)
+        let anchorRef = try #require(attached["asset_id"] as? String)
+        let anchorId = try #require(
+            h.editor.mediaAssets.first { $0.id.hasPrefix(anchorRef) }?.id
+        )
         let key = try #require(h.editor.openWorkingCopyKey)
 
         try ProjectWorkingCopy.checkpoint(

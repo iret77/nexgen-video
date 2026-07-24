@@ -340,7 +340,9 @@ private func validateToolInput(
 
     if let allowed = schema["enum"] as? [String] {
         guard let string = value as? String, allowed.contains(string) else {
-            throw ToolError("\(path): expected one of \(allowed.joined(separator: ", "))")
+            throw ToolError(
+                "\(path): expected one of \(allowed.joined(separator: ", ")) (got \(String(describing: value)))"
+            )
         }
     }
 }

@@ -15,6 +15,7 @@ struct PluginCatalogPublicationTests {
     private var releaseWorkflowURL: URL {
         scriptURL
             .deletingLastPathComponent()
+            .deletingLastPathComponent()
             .appendingPathComponent(".github/workflows/release.yml")
     }
 

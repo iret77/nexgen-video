@@ -1396,8 +1396,8 @@ enum ToolDefinitions {
     ]
 
     /// `save_frame_audit`'s `checks` schema: an object requiring all 10 standard audit keys, each a
-    /// `{status, observed, note}` object with `status` enum-constrained. `expected` is machine-filled
-    /// so it's deliberately absent from the input schema. Extra free keys stay allowed.
+    /// `{status, observed, note}` object with `status` enum-constrained. `expected` is accepted only
+    /// so adversarial or stale callers can be ignored deterministically. Extra free keys stay allowed.
     private static var frameAuditChecksSchema: [String: Any] {
         let checkSchema: [String: Any] = [
             "type": "object",
@@ -1409,6 +1409,7 @@ enum ToolDefinitions {
                 ],
                 "observed": ["type": "string", "description": "What the image shows."],
                 "note": ["type": "string", "description": "Short finding for the user / re-render patch."],
+                "expected": ["type": "string", "description": "Ignored; the executor derives this from the shot spec."],
             ],
             "required": ["status"],
         ]
