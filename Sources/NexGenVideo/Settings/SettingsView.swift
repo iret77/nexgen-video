@@ -52,6 +52,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab
+    @State private var pluginManager = PluginManager()
 
     init(initialTab: SettingsTab = .general) {
         _selectedTab = State(initialValue: initialTab)
@@ -63,10 +64,14 @@ struct SettingsView: View {
 
     var body: some View {
         HStack(spacing: AppTheme.Spacing.none) {
-            SettingsSidebar(selectedTab: $selectedTab, visibleTabs: visibleTabs)
+            SettingsSidebar(
+                selectedTab: $selectedTab,
+                visibleTabs: visibleTabs,
+                pluginManager: pluginManager
+            )
                 .frame(width: AppTheme.ComponentSize.settingsSidebarWidth)
 
-            SettingsDetail(tab: selectedTab)
+            SettingsDetail(tab: selectedTab, pluginManager: pluginManager)
                 .id(selectedTab)  // fresh view tree per tab — stale layers ghosted through the material
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black.opacity(AppTheme.Opacity.medium))
@@ -84,12 +89,23 @@ struct SettingsView: View {
                 selectedTab = visibleTabs.first ?? .general
             }
         }
+        .task {
+            await pluginManager.refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pluginInstallationChanged)) { _ in
+            pluginManager.reloadInstalled()
+        }
     }
 }
 
 private struct SettingsSidebar: View {
     @Binding var selectedTab: SettingsTab
     let visibleTabs: [SettingsTab]
+    let pluginManager: PluginManager
+
+    private var packAttention: PluginSettingsAttention? {
+        PluginSettingsAttention.resolve(pluginManager.rows(activePluginName: nil))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
@@ -103,10 +119,14 @@ private struct SettingsSidebar: View {
     private var tabList: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
             ForEach(visibleTabs) { tab in
+                let attention = tab == .plugins ? packAttention : nil
                 SidebarRowButton(
                     label: tab.label,
                     systemImage: tab.systemImage,
                     isSelected: selectedTab == tab,
+                    trailingSystemImage: attention?.systemImage,
+                    trailingColor: attention?.color ?? AppTheme.Text.tertiaryColor,
+                    trailingHelp: attention?.help ?? "",
                     action: { selectedTab = tab }
                 )
             }
@@ -118,6 +138,7 @@ private struct SettingsSidebar: View {
 
 private struct SettingsDetail: View {
     let tab: SettingsTab
+    let pluginManager: PluginManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
@@ -147,7 +168,7 @@ private struct SettingsDetail: View {
                     case .agent:
                         AgentPane()
                     case .plugins:
-                        PluginsPane()
+                        PluginsPane(manager: pluginManager)
                     case .providers:
                         ProvidersPane()
                     case .storage:
@@ -158,6 +179,29 @@ private struct SettingsDetail: View {
                 .padding(.bottom, AppTheme.Spacing.xlXxl)
             }
             .scrollEdgeEffectStyle(.soft, for: .top)
+        }
+    }
+}
+
+private extension PluginSettingsAttention {
+    var systemImage: String {
+        switch self {
+        case .updateAvailable: return "arrow.down.circle.fill"
+        case .restartRequired: return "arrow.clockwise.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .updateAvailable: return AppTheme.Accent.primary
+        case .restartRequired: return AppTheme.Status.warningColor
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .updateAvailable: return "A format pack update is available."
+        case .restartRequired: return "Restart NexGenVideo to activate a format pack update."
         }
     }
 }

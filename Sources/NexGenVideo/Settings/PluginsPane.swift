@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PluginsPane: View {
-    @State private var manager = PluginManager()
+    let manager: PluginManager
 
     var body: some View {
         SettingsSection(
@@ -25,7 +25,6 @@ struct PluginsPane: View {
                 packsCard
             }
         }
-        .task { await manager.refresh() }
     }
 
     private var installedRows: [PluginRow] {

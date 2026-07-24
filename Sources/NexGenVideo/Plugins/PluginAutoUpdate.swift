@@ -18,6 +18,7 @@ enum PluginAutoUpdate {
             else { continue }
             do {
                 _ = try await PluginInstaller.install(newer)
+                NotificationCenter.default.post(name: .pluginInstallationChanged, object: record.id)
                 Log.plugins.notice("auto-updated pack \(record.id) → v\(newer.version); active on next launch")
             } catch {
                 Log.plugins.warning("pack auto-update for \(record.id) failed: \(error.localizedDescription)")

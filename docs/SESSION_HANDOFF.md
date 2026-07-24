@@ -32,6 +32,7 @@ The Settings release pass is now also present but not yet CI-verified:
 
 - all six pages share one hierarchy of page context, sections, cards, rows, status badges and notices;
 - General, Format Packs, Providers, Models and Storage show only actionable, accurately named controls;
+- Format Packs shows a right-aligned sidebar indicator for available updates and restart-required updates;
 - Providers uses honest transport states and an adaptive one-/two-column layout;
 - Agent selects exactly one runtime, verifies Claude Code installation and authentication, fixes
   headless permissions to `bypassPermissions`, and restricts built-in Claude tools to `Read`;
