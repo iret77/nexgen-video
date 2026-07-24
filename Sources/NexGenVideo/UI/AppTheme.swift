@@ -392,6 +392,7 @@ enum AppTheme {
         static let formatSheetCardListMinHeight: CGFloat = 460
         static let formatSheetCardListMaxHeight: CGFloat = 600
         static let tourCalloutWidth: CGFloat = 320
+        static let tourCalloutEstimatedHeight: CGFloat = 220
         static let tourBookendWidth: CGFloat = 600
         static let beatTimelineBandHeight: CGFloat = 20
         /// Label column of the Brief field rows — wide enough for the longest label ("Director pattern").
