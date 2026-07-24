@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         AppNotifications.configure()
 
-        AppState.shared.startMCPService()
+        AppState.shared.reconcileMCPService()
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {

@@ -15,7 +15,6 @@ final class ClaudeCodeRuntime {
 
     private let pluginDirectories: [URL]
     private let mcpPort: Int
-    private let permissionMode: String
     /// When set, the session is launched with `--resume <id>` so `claude` restores this chat's memory.
     private let resumeSessionId: String?
     private let resolveExecutable: () -> URL?
@@ -42,7 +41,6 @@ final class ClaudeCodeRuntime {
     init(
         pluginDirectories: [URL] = [],
         mcpPort: Int = 19789,
-        permissionMode: String = "bypassPermissions",
         resumeSessionId: String? = nil,
         seedMessages: [AgentMessage] = [],
         resolveExecutable: @escaping () -> URL? = { ClaudeCodeLocator.resolve().executableURL },
@@ -53,7 +51,6 @@ final class ClaudeCodeRuntime {
     ) {
         self.pluginDirectories = pluginDirectories
         self.mcpPort = mcpPort
-        self.permissionMode = permissionMode
         self.resumeSessionId = resumeSessionId
         self.resolveExecutable = resolveExecutable
         self.resolveWorkingDirectory = resolveWorkingDirectory
@@ -97,7 +94,7 @@ final class ClaudeCodeRuntime {
     /// (a note is appended and published before returning).
     private func startSession(firstMessage: String, imageBlocks: [[String: Any]] = []) -> Bool {
         guard let executable = resolveExecutable() else {
-            fail("Claude Code CLI not found. Install it, or set its path in Settings → Agent.")
+            fail("Claude Code CLI not found. Install it, then check Settings → Agent.")
             return false
         }
         guard let workingDirectory = resolveWorkingDirectory() else {
@@ -109,9 +106,8 @@ final class ClaudeCodeRuntime {
             workingDirectory: workingDirectory,
             pluginDirectories: pluginDirectories,
             pluginMcpServers: Self.loadPluginMcpServers(pluginDirectories)
-                .merging(ExternalMcpServers.all()) { existing, _ in existing },
+                .merging(Self.externalMcpServers()) { existing, _ in existing },
             mcpPort: mcpPort,
-            permissionMode: permissionMode,
             // #201: hand `claude -p` the FULL operating manual as a hard --append-system-prompt (it
             // already ends with the presentation contract), at parity with the API-key agent which gets
             // serverInstructions as its `system:` prompt. The MCP-advertised `instructions` field is a
@@ -212,6 +208,14 @@ final class ClaudeCodeRuntime {
             }
         }
         return result
+    }
+
+    private static func externalMcpServers() -> [String: String] {
+        #if DEBUG
+        return ExternalMcpServers.all()
+        #else
+        return [:]
+        #endif
     }
 
     private static let providerEnvNames: [(GenerationProvider, String)] = [

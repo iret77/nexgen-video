@@ -8,6 +8,13 @@ final class AgentService {
 
     private var apiKey: String = ""
     private var apiKeyObserver: NSObjectProtocol?
+    private var backendObserver: NSObjectProtocol?
+    private var claudeStatusObserver: NSObjectProtocol?
+
+    private(set) var backend = AgentBackendPreference.selected
+    private(set) var claudeStatus: ClaudeCodeLocator.Status?
+    private(set) var isCheckingClaude = false
+    private var claudeStatusGeneration = 0
 
     init() {
         reloadAPIKey()
@@ -19,6 +26,41 @@ final class AgentService {
             MainActor.assumeIsolated {
                 self?.reloadAPIKey()
             }
+        }
+        backendObserver = NotificationCenter.default.addObserver(
+            forName: .agentBackendChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.cancel()
+                self.backend = AgentBackendPreference.selected
+                self.claudeStatusGeneration &+= 1
+                self.isCheckingClaude = false
+                if self.backend == .claudeCode {
+                    self.isCheckingClaude = true
+                    Task { await self.refreshClaudeCodeStatus() }
+                }
+            }
+        }
+        claudeStatusObserver = NotificationCenter.default.addObserver(
+            forName: .claudeCodeStatusChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                guard let self,
+                      self.backend == .claudeCode,
+                      let status = notification.object as? ClaudeCodeLocator.Status else { return }
+                self.claudeStatusGeneration &+= 1
+                self.claudeStatus = status
+                self.isCheckingClaude = false
+            }
+        }
+        if backend == .claudeCode {
+            isCheckingClaude = true
+            Task { await refreshClaudeCodeStatus() }
         }
     }
 
@@ -35,14 +77,47 @@ final class AgentService {
         if let token = apiKeyObserver {
             NotificationCenter.default.removeObserver(token)
         }
+        if let token = backendObserver {
+            NotificationCenter.default.removeObserver(token)
+        }
+        if let token = claudeStatusObserver {
+            NotificationCenter.default.removeObserver(token)
+        }
     }
 
     var hasApiKey: Bool { !apiKey.isEmpty }
 
-    /// The agent can run with EITHER a BYO Anthropic key OR the embedded Claude Code runtime
-    /// (`claude -p`, uses the user's subscription — no API key needed). `send()` routes to the
-    /// runtime first when it's enabled.
-    var canStream: Bool { hasApiKey || claudeRuntimeEnabled }
+    var canStream: Bool {
+        switch backend {
+        case .anthropicAPI: return hasApiKey
+        case .claudeCode: return claudeStatus?.isAuthenticated == true
+        }
+    }
+
+    var setupPrompt: String {
+        switch backend {
+        case .anthropicAPI:
+            return "Add an Anthropic API key in"
+        case .claudeCode where isCheckingClaude:
+            return "Checking Claude Code in"
+        case .claudeCode where claudeStatus?.found != true:
+            return "Install Claude Code in"
+        case .claudeCode:
+            return "Sign in to Claude Code in"
+        }
+    }
+
+    private func refreshClaudeCodeStatus() async {
+        claudeStatusGeneration &+= 1
+        let generation = claudeStatusGeneration
+        isCheckingClaude = true
+        let status = await Task.detached(priority: .utility) {
+            ClaudeCodeLocator.status()
+        }.value
+        guard backend == .claudeCode, claudeStatusGeneration == generation else { return }
+        claudeStatus = status
+        isCheckingClaude = false
+    }
 
     var availableModels: [AnthropicModel] { AnthropicModel.allCases }
 
@@ -1122,6 +1197,10 @@ final class AgentService {
         presentation: AgentUserPresentation? = nil
     ) {
         if claudeRuntimeEnabled {
+            guard canStream else {
+                streamError = .upstream(setupPrompt + " Agent settings.")
+                return
+            }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             guard prepareWorkingCopyForTurn() else { return }
@@ -1210,7 +1289,7 @@ final class AgentService {
     // MARK: - Claude Code runtime (Stufe B)
 
     private var claudeRuntimeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "useClaudeCodeRuntime")
+        backend == .claudeCode
     }
 
     @ObservationIgnored
@@ -1229,7 +1308,6 @@ final class AgentService {
         let runtime = ClaudeCodeRuntime(
             pluginDirectories: configuredPluginDirectories(),
             mcpPort: Int(MCPService.port),
-            permissionMode: Self.configuredPermissionMode(),
             resumeSessionId: chat?.claudeSessionId,
             seedMessages: messages,
             resolveWorkingDirectory: { [weak self] in
@@ -1335,19 +1413,15 @@ final class AgentService {
             + lines.joined(separator: "; ") + "."
     }
 
-    private static func configuredPermissionMode() -> String {
-        let value = UserDefaults.standard.string(forKey: "claudeRuntimePermissionMode")
-        return (value?.isEmpty == false) ? value! : "bypassPermissions"
-    }
-
-    /// External `--plugin-dir` overrides for the embedded runtime. First-party packs are native (no
-    /// on-disk plugin layer), so this is only the dev "extra plugin folder" for developing an external
-    /// Claude-Code plugin — not pack activation, which is native and needs no dir.
     private func configuredPluginDirectories() -> [URL] {
+        #if DEBUG
         guard let path = UserDefaults.standard.string(forKey: "claudeRuntimePluginDir"), !path.isEmpty else {
             return []
         }
         return [URL(fileURLWithPath: path)]
+        #else
+        return []
+        #endif
     }
 
     private static func configuredWorkingDirectory(projectURL: URL?) -> URL? {

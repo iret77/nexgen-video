@@ -10,13 +10,42 @@ struct ProjectOpenOptions {
 final class AppState {
     static let shared = AppState()
 
+    @ObservationIgnored
+    private var backendObserver: NSObjectProtocol?
+
     private(set) var activeProject: VideoProject?
 
     private(set) var mcpService: MCPService?
 
+    private init() {
+        backendObserver = NotificationCenter.default.addObserver(
+            forName: .agentBackendChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.reconcileMCPService()
+            }
+        }
+    }
+
+    isolated deinit {
+        if let backendObserver {
+            NotificationCenter.default.removeObserver(backendObserver)
+        }
+    }
+
+    var isMCPRequiredByAgent: Bool {
+        AgentBackendPreference.selected == .claudeCode
+    }
+
+    var isMCPEnabled: Bool {
+        isMCPRequiredByAgent || MCPService.isEnabledPreference
+    }
+
     func startMCPService() {
         guard mcpService == nil else { return }
-        guard MCPService.isEnabledPreference else {
+        guard isMCPEnabled else {
             Log.mcp.notice("mcp disabled in settings; not starting")
             return
         }
@@ -33,8 +62,26 @@ final class AppState {
     }
 
     func setMCPEnabled(_ enabled: Bool) {
+        guard !isMCPRequiredByAgent else { return }
         MCPService.isEnabledPreference = enabled
-        if enabled {
+        reconcileMCPService()
+    }
+
+    func setAgentBackend(_ backend: AgentBackend) {
+        AgentBackendPreference.set(backend)
+        reconcileMCPService()
+    }
+
+    func restartMCPService() {
+        if let mcpService {
+            mcpService.restart()
+        } else {
+            startMCPService()
+        }
+    }
+
+    func reconcileMCPService() {
+        if isMCPEnabled {
             startMCPService()
         } else {
             stopMCPService()

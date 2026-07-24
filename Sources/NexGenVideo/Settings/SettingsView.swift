@@ -31,6 +31,23 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .storage: return "internaldrive"
         }
     }
+
+    var subtitle: String {
+        switch self {
+        case .general:
+            return "Choose how NexGenVideo communicates and shares diagnostics."
+        case .agent:
+            return "Configure the in-app agent, paid render approvals, and local automation."
+        case .plugins:
+            return "Manage installed workflow packs and apply available updates."
+        case .providers:
+            return "Connect the services that supply generation models."
+        case .models:
+            return "Choose which runnable models appear in generation tools."
+        case .storage:
+            return "Manage project locations, temporary files, and on-device search data."
+        }
+    }
 }
 
 struct SettingsView: View {
@@ -45,16 +62,21 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: AppTheme.Spacing.none) {
             SettingsSidebar(selectedTab: $selectedTab, visibleTabs: visibleTabs)
-                .frame(width: 220)
+                .frame(width: AppTheme.ComponentSize.settingsSidebarWidth)
 
             SettingsDetail(tab: selectedTab)
                 .id(selectedTab)  // fresh view tree per tab — stale layers ghosted through the material
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black.opacity(AppTheme.Opacity.medium))
         }
-        .frame(minWidth: 760, idealWidth: 980, minHeight: 480, idealHeight: 640)
+        .frame(
+            minWidth: AppTheme.Window.settingsMin.width,
+            idealWidth: AppTheme.Window.settingsDefault.width,
+            minHeight: AppTheme.Window.settingsMin.height,
+            idealHeight: AppTheme.Window.settingsDefault.height
+        )
         .background(.ultraThinMaterial)
         .focusEffectDisabled()
         .onAppear {
@@ -70,9 +92,9 @@ private struct SettingsSidebar: View {
     let visibleTabs: [SettingsTab]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
             tabList
-            Spacer(minLength: 0)
+            Spacer(minLength: AppTheme.Spacing.none)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(AppTheme.Background.surfaceColor)  // opaque: previous panes ghosted through the material
@@ -98,14 +120,18 @@ private struct SettingsDetail: View {
     let tab: SettingsTab
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.none) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                 Text(tab.label)
                     .font(.system(size: AppTheme.FontSize.title2, weight: .light))
                     .tracking(AppTheme.Tracking.tight)
                     .foregroundStyle(AppTheme.Text.primaryColor)
-                Spacer()
+                Text(tab.subtitle)
+                    .font(.system(size: AppTheme.FontSize.smMd))
+                    .foregroundStyle(AppTheme.Text.tertiaryColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppTheme.Spacing.xlXxl)
             .padding(.top, AppTheme.Spacing.xxl)
             .padding(.bottom, AppTheme.Spacing.lgXl)
@@ -136,10 +162,77 @@ private struct SettingsDetail: View {
     }
 }
 
-struct SettingsToggleRow: View {
+struct SettingsSection<Content: View>: View {
     let title: String
-    let subtitle: String
-    @Binding var isOn: Bool
+    let subtitle: String?
+    let content: Content
+
+    init(
+        _ title: String,
+        subtitle: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                Text(title)
+                    .font(.system(size: AppTheme.FontSize.md, weight: AppTheme.FontWeight.medium))
+                    .foregroundStyle(AppTheme.Text.primaryColor)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: AppTheme.FontSize.sm))
+                        .foregroundStyle(AppTheme.Text.tertiaryColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            content
+        }
+    }
+}
+
+struct SettingsCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: AppTheme.Spacing.none) {
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .fill(AppTheme.Background.raisedColor)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .strokeBorder(AppTheme.Border.primaryColor, lineWidth: AppTheme.BorderWidth.thin)
+        )
+    }
+}
+
+struct SettingsRow<Accessory: View>: View {
+    let title: String
+    let subtitle: String?
+    let accessory: Accessory
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.accessory = accessory()
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
@@ -147,14 +240,95 @@ struct SettingsToggleRow: View {
                 Text(title)
                     .font(.system(size: AppTheme.FontSize.md))
                     .foregroundStyle(AppTheme.Text.primaryColor)
-                Text(subtitle)
-                    .font(.system(size: AppTheme.FontSize.sm))
-                    .foregroundStyle(AppTheme.Text.tertiaryColor)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: AppTheme.FontSize.sm))
+                        .foregroundStyle(AppTheme.Text.tertiaryColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-
             Spacer(minLength: AppTheme.Spacing.lg)
+            accessory
+        }
+        .padding(.horizontal, AppTheme.Spacing.mdLg)
+        .padding(.vertical, AppTheme.Spacing.md)
+    }
+}
 
+struct SettingsDivider: View {
+    var body: some View {
+        Divider()
+            .overlay(AppTheme.Border.subtleColor)
+    }
+}
+
+enum SettingsTone {
+    case neutral
+    case success
+    case warning
+    case error
+
+    var color: Color {
+        switch self {
+        case .neutral: return AppTheme.Text.tertiaryColor
+        case .success: return AppTheme.Status.successColor
+        case .warning: return AppTheme.Status.warningColor
+        case .error: return AppTheme.Status.errorColor
+        }
+    }
+}
+
+struct SettingsStatusBadge: View {
+    let text: String
+    let tone: SettingsTone
+
+    var body: some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
+            Circle()
+                .fill(tone.color)
+                .frame(
+                    width: AppTheme.ComponentSize.statusDotDiameter,
+                    height: AppTheme.ComponentSize.statusDotDiameter
+                )
+            Text(text)
+        }
+        .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.semibold))
+        .foregroundStyle(tone.color)
+        .padding(.horizontal, AppTheme.Spacing.sm)
+        .padding(.vertical, AppTheme.Spacing.xs)
+        .background(Capsule().fill(tone.color.opacity(AppTheme.Opacity.faint)))
+        .fixedSize()
+    }
+}
+
+struct SettingsNotice: View {
+    let text: String
+    let systemImage: String
+    let tone: SettingsTone
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
+            Image(systemName: systemImage)
+                .font(.system(size: AppTheme.FontSize.sm, weight: AppTheme.FontWeight.medium))
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.system(size: AppTheme.FontSize.sm))
+        .foregroundStyle(tone.color)
+        .padding(.horizontal, AppTheme.Spacing.mdLg)
+        .padding(.vertical, AppTheme.Spacing.smMd)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tone.color.opacity(AppTheme.Opacity.subtle))
+    }
+}
+
+struct SettingsToggleRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        SettingsRow(title: title, subtitle: subtitle) {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
@@ -174,12 +348,12 @@ final class SettingsWindowController: NSWindowController {
         let initialView = SettingsView().tint(AppTheme.Accent.primary)
         let hosting = NSHostingController(rootView: AnyView(initialView))
         let window = NSWindow(contentViewController: hosting)
-        window.setContentSize(NSSize(width: 980, height: 640))
-        window.minSize = NSSize(width: 760, height: 480)
+        window.setContentSize(AppTheme.Window.settingsDefault)
+        window.minSize = AppTheme.Window.settingsMin
         window.title = "Settings"
         window.setFrameAutosaveName("NexGenVideoSettings-v2")
         window.appearance = NSAppearance(named: .darkAqua)
-        window.backgroundColor = AppTheme.Background.base.withAlphaComponent(0.4)
+        window.backgroundColor = AppTheme.Background.base.withAlphaComponent(AppTheme.Opacity.settingsWindow)
         window.isOpaque = false
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true

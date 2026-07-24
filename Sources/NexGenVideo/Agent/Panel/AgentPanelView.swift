@@ -244,7 +244,7 @@ struct AgentPanelView: View {
 
     @ViewBuilder
     private var modelPicker: some View {
-        if service.hasApiKey {
+        if service.backend == .anthropicAPI && service.hasApiKey {
             Menu {
                 ForEach(service.availableModels, id: \.self) { m in
                     Button(m.displayName) { service.model = m }
@@ -267,7 +267,7 @@ struct AgentPanelView: View {
 
     @ViewBuilder
     private var byokIndicator: some View {
-        if service.hasApiKey {
+        if service.backend == .anthropicAPI && service.hasApiKey {
             Text("using API key")
                 .font(.system(size: AppTheme.FontSize.xs).italic())
                 .foregroundStyle(AppTheme.Text.tertiaryColor)
@@ -465,19 +465,29 @@ struct AgentPanelView: View {
 
     @ViewBuilder
     private var missingKeyState: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.xs) {
-            Text("Add an Anthropic API key or enable Claude Code in")
-                .foregroundStyle(AppTheme.Text.tertiaryColor)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button(action: { SettingsWindowController.shared.show(tab: .agent) }) {
-                Text("Agent settings")
-                    .underline()
-                    .foregroundStyle(AppTheme.Accent.primary)
+        if service.backend == .claudeCode && service.isCheckingClaude {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking Claude Code…")
+                    .foregroundStyle(AppTheme.Text.tertiaryColor)
             }
-            .buttonStyle(.plain)
+            .font(.system(size: AppTheme.FontSize.md, weight: .medium))
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.xs) {
+                Text(service.setupPrompt)
+                    .foregroundStyle(AppTheme.Text.tertiaryColor)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button(action: { SettingsWindowController.shared.show(tab: .agent) }) {
+                    Text("Agent settings")
+                        .underline()
+                        .foregroundStyle(AppTheme.Accent.primary)
+                }
+                .buttonStyle(.plain)
+            }
+            .font(.system(size: AppTheme.FontSize.md, weight: .medium))
         }
-        .font(.system(size: AppTheme.FontSize.md, weight: .medium))
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {

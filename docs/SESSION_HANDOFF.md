@@ -3,7 +3,8 @@
 ## Objective
 
 Ship one consolidated NexGenVideo 1.0 release candidate. Never build locally. A successful dry-run
-was tested on-device and exposed an OAuth callback crash; the corrective candidate is prepared.
+was tested on-device and exposed an OAuth callback crash; the corrective candidate and final Settings
+composition pass are prepared.
 Do not run the next CI/DMG build, merge, open a release PR or publish without the owner's explicit
 in-the-moment approval.
 
@@ -26,6 +27,16 @@ in-the-moment approval.
   retains a dedicated presentation context and serves the immutable anchor without an actor assertion.
   A regression test invokes this witness from a detached task.
 - No local build or test was run; macOS 26 GitHub Actions remains the only verification surface.
+
+The Settings release pass is now also present but not yet CI-verified:
+
+- all six pages share one hierarchy of page context, sections, cards, rows, status badges and notices;
+- General, Format Packs, Providers, Models and Storage show only actionable, accurately named controls;
+- Providers uses honest transport states and an adaptive one-/two-column layout;
+- Agent selects exactly one runtime, verifies Claude Code installation and authentication, fixes
+  headless permissions to `bypassPermissions`, and restricts built-in Claude tools to `Read`;
+- Claude Code makes the loopback MCP bridge mandatory, while API mode retains the user's MCP choice;
+- release builds ignore stored external Claude plugin/MCP escape hatches.
 
 The release-blocker implementations for #279–#287 are present:
 
@@ -60,6 +71,11 @@ The issues stay open until the corrected candidate passes CI and final on-device
 - Gemini 3.1 Pro High reviewed the OAuth correction, weak-provider lifetime and off-main regression
   test. After receiving the complete actor-isolation context, it approved the final patch with no
   release blocker.
+- Gemini 3.1 Pro High separately reviewed the Settings composition with no findings. Its Agent/MCP
+  review found one valid lifecycle-hardening opportunity: `AppState` now reconciles MCP for every
+  backend-change notification. Claimed missing MCP awaits, missing main-actor isolation and ignored
+  allowed tools were rejected against the actual source. The brief Claude-status loading state and
+  stale-result fencing were tightened during verification.
 - `git diff --check` passes.
 - All workflow YAML parses.
 - All 31 workflow `run:` blocks and release shell scripts pass `bash -n`.
@@ -68,9 +84,10 @@ The issues stay open until the corrected candidate passes CI and final on-device
 
 ## Remaining gates
 
-1. Obtain the owner's explicit in-the-moment `build now` for a new dry-run.
+1. Obtain the owner's explicit in-the-moment `build now` for a new dry-run containing the OAuth and
+   Settings corrections.
 2. Run the macOS 26 release workflow and verify the OAuth regression test plus all existing gates.
-3. Test Higgsfield sign-in from the new notarized DMG on-device.
+3. Test Higgsfield sign-in and the revised Settings pages from the new notarized DMG on-device.
 4. Only after that succeeds: close verified blockers and prepare the release PR.
 5. Production merge and publication remain separate explicit actions.
 

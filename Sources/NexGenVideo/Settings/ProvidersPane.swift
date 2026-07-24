@@ -1,10 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Providers setup — one honest control per provider, matching how the service actually authenticates
-/// (researched, not guessed): a masked API-key field, a one-click OAuth sign-in, or a local-app switch.
-/// No MCP URLs to type (they're known and pre-filled), no field a service can't use. A status pill
-/// tells a creative at a glance whether a provider is ready.
 struct ProvidersPane: View {
     @State private var hasKey: [String: Bool] = [:]
     @State private var maskedKey: [String: String] = [:]
@@ -20,49 +16,65 @@ struct ProvidersPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
-            header
-            ForEach(Array(GenerationProvider.allCases.enumerated()), id: \.element.id) { index, provider in
-                if index > 0 { Divider().overlay(AppTheme.Border.subtleColor) }
-                providerSection(provider)
+            SettingsSection(
+                "Connected Services",
+                subtitle: "Credentials are stored in the macOS Keychain. Each provider shows only its supported connection method."
+            ) {
+                LazyVGrid(
+                    columns: [
+                        GridItem(
+                            .adaptive(minimum: AppTheme.ComponentSize.settingsProviderCardMinWidth),
+                            spacing: AppTheme.Spacing.smMd
+                        ),
+                    ],
+                    alignment: .leading,
+                    spacing: AppTheme.Spacing.smMd
+                ) {
+                    ForEach(GenerationProvider.allCases) { provider in
+                        providerSection(provider)
+                    }
+                }
             }
-            Divider().overlay(AppTheme.Border.subtleColor)
-            rawPromptsRow
+            SettingsSection("Prompt Processing") {
+                SettingsCard {
+                    SettingsToggleRow(
+                        title: "Allow raw prompts",
+                        subtitle: "Send text directly to generation models without NexGenVideo's translation, context, or consistency passes.",
+                        isOn: $allowRawPrompts
+                    )
+                    if allowRawPrompts {
+                        SettingsDivider()
+                        SettingsNotice(
+                            text: "Prompt safeguards are bypassed for raw generation requests.",
+                            systemImage: "exclamationmark.triangle",
+                            tone: .warning
+                        )
+                    }
+                }
+            }
         }
         .onAppear(perform: refresh)
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-            Text("Providers")
-                .font(.system(size: AppTheme.FontSize.md, weight: .medium))
-                .foregroundStyle(AppTheme.Text.primaryColor)
-            Text("Connect the AI services you use. NGV stores keys in your macOS Keychain and picks the right one for each model.")
-                .font(.system(size: AppTheme.FontSize.sm))
-                .foregroundStyle(AppTheme.Text.tertiaryColor)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    // MARK: - Per-provider section
-
     @ViewBuilder
     private func providerSection(_ provider: GenerationProvider) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.smMd) {
+        SettingsCard {
             providerHeader(provider)
+                .padding(.horizontal, AppTheme.Spacing.mdLg)
+                .padding(.vertical, AppTheme.Spacing.md)
+            SettingsDivider()
             switch primaryStyle(provider) {
             case .oauth: oauthControl(provider)
             case .localApp: localAppControl(provider)
             case .apiKey: keyField(provider)
             }
             if let err = errorText[provider.id] {
-                Text(err)
-                    .font(.system(size: AppTheme.FontSize.sm))
-                    .foregroundStyle(AppTheme.Status.errorColor)
+                SettingsDivider()
+                SettingsNotice(text: err, systemImage: "exclamationmark.triangle", tone: .error)
             }
         }
     }
 
-    /// The one control style a provider leads with: OAuth sign-in, a local-app switch, or an API key.
     private enum Style { case oauth, localApp, apiKey }
     private func primaryStyle(_ p: GenerationProvider) -> Style {
         switch p.mcpCapability?.auth {
@@ -74,7 +86,7 @@ struct ProvidersPane: View {
 
     private func isReady(_ p: GenerationProvider) -> Bool {
         switch primaryStyle(p) {
-        case .oauth: return oauthConnected[p.id] == true || hasKey[p.id] == true
+        case .oauth: return oauthConnected[p.id] == true
         case .localApp: return localEnabled[p.id] == true
         case .apiKey: return hasKey[p.id] == true
         }
@@ -103,7 +115,7 @@ struct ProvidersPane: View {
 
     private func linkButton(_ provider: GenerationProvider) -> some View {
         Button(action: { NSWorkspace.shared.open(provider.keysURL) }) {
-            HStack(spacing: 2) {
+            HStack(spacing: AppTheme.Spacing.xxs) {
                 Text(primaryStyle(provider) == .oauth ? "Website" : "Get key")
                 Image(systemName: "arrow.up.right").font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
             }
@@ -116,17 +128,14 @@ struct ProvidersPane: View {
 
     private func statusPill(_ provider: GenerationProvider) -> some View {
         let ready = isReady(provider)
-        return Text(ready ? "Active" : "Not set up")
-            .font(.system(size: AppTheme.FontSize.xs, weight: .semibold))
-            .foregroundStyle(ready ? AppTheme.Accent.primary : AppTheme.Text.tertiaryColor)
-            .padding(.horizontal, AppTheme.Spacing.sm)
-            .padding(.vertical, AppTheme.Spacing.xxs)
-            .background(
-                Capsule().fill((ready ? AppTheme.Accent.primary : AppTheme.Text.tertiaryColor).opacity(AppTheme.Opacity.faint))
-            )
+        let label: String
+        switch primaryStyle(provider) {
+        case .oauth: label = ready ? "Signed in" : "Not configured"
+        case .localApp: label = ready ? "Enabled" : "Disabled"
+        case .apiKey: label = ready ? "Key saved" : "Not configured"
+        }
+        return SettingsStatusBadge(text: label, tone: ready ? .success : .neutral)
     }
-
-    // MARK: - OAuth control (Higgsfield, OpenArt)
 
     @ViewBuilder
     private func oauthControl(_ provider: GenerationProvider) -> some View {
@@ -150,9 +159,10 @@ struct ProvidersPane: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, AppTheme.Spacing.mdLg)
+        .padding(.vertical, AppTheme.Spacing.md)
     }
-
-    // MARK: - Local-app control (ACE Studio)
 
     @ViewBuilder
     private func localAppControl(_ provider: GenerationProvider) -> some View {
@@ -171,9 +181,9 @@ struct ProvidersPane: View {
                 }))
                 .labelsHidden().toggleStyle(.switch).controlSize(.small)
         }
+        .padding(.horizontal, AppTheme.Spacing.mdLg)
+        .padding(.vertical, AppTheme.Spacing.md)
     }
-
-    // MARK: - API-key field
 
     private func keyField(_ provider: GenerationProvider) -> some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
@@ -192,6 +202,8 @@ struct ProvidersPane: View {
                 trailingControl(provider)
             }
         }
+        .padding(.horizontal, AppTheme.Spacing.mdLg)
+        .padding(.vertical, AppTheme.Spacing.md)
     }
 
     @ViewBuilder
@@ -209,21 +221,6 @@ struct ProvidersPane: View {
             .help("Remove \(provider.displayName) API key")
         }
     }
-
-    private var rawPromptsRow: some View {
-        HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                Text("Raw prompts (pro)").font(.system(size: AppTheme.FontSize.md)).foregroundStyle(AppTheme.Text.primaryColor)
-                Text("Send prompts to generation models without NGV's prompt engine. For pros who know exactly what a model expects — the engine's translation, context, and consistency passes are skipped.")
-                    .font(.system(size: AppTheme.FontSize.sm)).foregroundStyle(AppTheme.Text.tertiaryColor)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: AppTheme.Spacing.lg)
-            Toggle("", isOn: $allowRawPrompts).labelsHidden().toggleStyle(.switch).controlSize(.small)
-        }
-    }
-
-    // MARK: - Actions
 
     private func signIn(_ provider: GenerationProvider) {
         signingIn = provider.id

@@ -58,17 +58,22 @@ struct ModelsPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
-            searchBar
-
-            if sections.isEmpty {
-                Text(emptyStateText)
-                    .font(.system(size: AppTheme.FontSize.sm))
-                    .foregroundStyle(AppTheme.Text.tertiaryColor)
-                    .padding(.top, AppTheme.Spacing.lg)
-            } else {
-                ForEach(sections) { section in
-                    sectionView(section)
+            SettingsSection(
+                "Model Visibility",
+                subtitle: "Only models available through a connected provider are shown."
+            ) {
+                searchBar
+                if sections.isEmpty {
+                    SettingsCard {
+                        SettingsRow(title: emptyStateText) {
+                            EmptyView()
+                        }
+                    }
                 }
+            }
+
+            ForEach(sections) { section in
+                sectionView(section)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .providerKeysChanged)) { _ in
@@ -109,30 +114,15 @@ struct ModelsPane: View {
     }
 
     private func sectionView(_ section: ModelsPaneProjection.Section) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-            Text(section.title.uppercased())
-                .font(.system(size: AppTheme.FontSize.xs, weight: AppTheme.FontWeight.semibold))
-                .tracking(AppTheme.Tracking.tight)
-                .foregroundStyle(AppTheme.Text.tertiaryColor)
-
-            VStack(spacing: 0) {
+        SettingsSection(section.title) {
+            SettingsCard {
                 ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
                     modelRow(row)
                     if index < section.rows.count - 1 {
-                        Divider().overlay(AppTheme.Border.subtleColor)
+                        SettingsDivider()
                     }
                 }
             }
-            .padding(.horizontal, AppTheme.Spacing.md)
-            .padding(.vertical, AppTheme.Spacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                    .fill(AppTheme.Background.raisedColor)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                    .strokeBorder(AppTheme.Border.primaryColor, lineWidth: AppTheme.BorderWidth.thin)
-            )
         }
     }
 
@@ -150,6 +140,7 @@ struct ModelsPane: View {
             .toggleStyle(.switch)
             .controlSize(.small)
         }
-        .padding(.vertical, AppTheme.Spacing.smMd)
+        .padding(.horizontal, AppTheme.Spacing.mdLg)
+        .padding(.vertical, AppTheme.Spacing.md)
     }
 }

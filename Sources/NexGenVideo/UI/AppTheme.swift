@@ -170,6 +170,7 @@ enum AppTheme {
         static let muted: Double = 0.15
         static let moderate: Double = 0.25
         static let medium: Double = 0.35
+        static let settingsWindow: Double = 0.4
         static let strong: Double = 0.55
         static let prominent: Double = 0.80
     }
@@ -203,6 +204,7 @@ enum AppTheme {
     // MARK: - Spacing
 
     enum Spacing {
+        static let none: CGFloat = 0
         static let xxs: CGFloat = 2
         static let xs: CGFloat = 4
         static let sm: CGFloat = 6
@@ -266,6 +268,9 @@ enum AppTheme {
     }
 
     enum ComponentSize {
+        static let statusDotDiameter: CGFloat = 8
+        static let settingsSidebarWidth: CGFloat = 220
+        static let settingsProviderCardMinWidth: CGFloat = 320
         static let captionPreviewMaxHeight: CGFloat = 150
         static let captionPreviewMaxTextWidthRatio: CGFloat = 0.9
         static let toolImagePreviewMaxHeight: CGFloat = 50
@@ -298,6 +303,8 @@ enum AppTheme {
     }
 
     enum Window {
+        static let settingsDefault = NSSize(width: 980, height: 640)
+        static let settingsMin = NSSize(width: 760, height: 480)
         // Cap for the home/launcher window. Like the editor, the real open size is a fraction of the
         // visible screen (60% × 82%) capped here, so on a tall display the launcher opens tall — enough
         // that the "Choose a format" sheet shows its pack cards without scrolling.
