@@ -49,10 +49,11 @@ final class AgentService {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            let status = notification.object as? ClaudeCodeLocator.Status
             MainActor.assumeIsolated {
                 guard let self,
                       self.backend == .claudeCode,
-                      let status = notification.object as? ClaudeCodeLocator.Status else { return }
+                      let status else { return }
                 self.claudeStatusGeneration &+= 1
                 self.claudeStatus = status
                 self.isCheckingClaude = false
