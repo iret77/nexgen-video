@@ -35,7 +35,6 @@ enum AppTheme {
         static let shortDash: [CGFloat] = [3, 3]
         static let compactDash: [CGFloat] = [4, 3]
         static let regularDash: [CGFloat] = [4, 4]
-        static let regularDashPattern: [NSNumber] = [4, 4]
         static let longDash: [CGFloat] = [8, 4]
 
         static var primaryColor: Color { Color(primary) }
